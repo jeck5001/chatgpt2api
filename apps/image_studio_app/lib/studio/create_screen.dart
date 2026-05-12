@@ -38,6 +38,7 @@ class _CreateScreenState extends State<CreateScreen> {
   @override
   Widget build(BuildContext context) {
     final hasPrompt = _promptController.text.trim().isNotEmpty;
+    final canSubmit = hasPrompt && _activeConversationId != null;
     final turns = widget.controller?.state.turns ?? const <StudioTurn>[];
     return Scaffold(
       body: SafeArea(
@@ -59,7 +60,7 @@ class _CreateScreenState extends State<CreateScreen> {
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: hasPrompt ? _submit : null,
+                onPressed: canSubmit ? _submit : null,
                 icon: const Icon(Icons.auto_awesome),
                 label: const Text('Generate'),
               ),
@@ -94,8 +95,7 @@ class _CreateScreenState extends State<CreateScreen> {
 
   Future<void> _submit() async {
     final controller = widget.controller;
-    final conversationId =
-        widget.activeConversationId ?? controller?.state.activeConversation?.id;
+    final conversationId = _activeConversationId;
     if (controller == null || conversationId == null) {
       return;
     }
@@ -107,5 +107,11 @@ class _CreateScreenState extends State<CreateScreen> {
       await Future<void>.delayed(const Duration(seconds: 2));
       await controller.pollRunningTurnsOnce();
     }
+    setState(() {});
+  }
+
+  String? get _activeConversationId {
+    return widget.activeConversationId ??
+        widget.controller?.state.activeConversation?.id;
   }
 }
