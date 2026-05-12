@@ -88,3 +88,56 @@ class StudioServiceTests(unittest.TestCase):
 
         self.assertEqual(first["id"], second["id"])
         self.assertEqual(len(service.list_favorites(OWNER)), 1)
+
+    def test_create_turn_copies_caller_reference_images(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero images", "generate")
+        reference_images = [{"path": "refs/original.png"}]
+
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            prompt="orange product photo",
+            reference_images=reference_images,
+        )
+        reference_images[0]["path"] = "refs/mutated.png"
+        reference_images.append({"path": "refs/extra.png"})
+
+        stored = service.list_turns(OWNER, conversation["id"])[0]
+
+        self.assertEqual(stored["reference_images"], [{"path": "refs/original.png"}])
+
+    def test_list_turns_returns_do_not_mutate_service_state(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero images", "generate")
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            prompt="orange product photo",
+            reference_images=[{"path": "refs/original.png"}],
+        )
+
+        listed = service.list_turns(OWNER, conversation["id"])
+        listed[0]["reference_images"][0]["path"] = "refs/mutated.png"
+        listed[0]["reference_images"].append({"path": "refs/extra.png"})
+
+        stored = service.list_turns(OWNER, conversation["id"])[0]
+
+        self.assertEqual(stored["reference_images"], [{"path": "refs/original.png"}])
+
+    def test_create_project_rolls_back_in_memory_state_on_save_failure(self):
+        class FailingSaveStorage(JSONStorageBackend):
+            def save_studio_state(self, state):
+                raise RuntimeError("save failed")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir)
+            storage = FailingSaveStorage(path / "accounts.json", path / "auth_keys.json", path / "studio.json")
+            service = StudioService(storage)
+
+            with self.assertRaises(RuntimeError):
+                service.create_project(OWNER, "Unsaved")
+
+            self.assertEqual(service.list_projects(OWNER), [])

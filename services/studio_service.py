@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import uuid
 from datetime import datetime, timezone
 from threading import RLock
@@ -37,7 +38,11 @@ def _is_admin(identity: dict[str, object]) -> bool:
 
 
 def _public(item: dict[str, Any]) -> dict[str, Any]:
-    return dict(item)
+    return deepcopy(item)
+
+
+def _copy_list(value: object) -> list[Any]:
+    return deepcopy(value) if isinstance(value, list) else []
 
 
 DEFAULT_TEMPLATES = [
@@ -92,7 +97,7 @@ class StudioService:
         for key in state:
             values = source.get(key)
             if isinstance(values, list):
-                state[key] = [dict(item) for item in values if isinstance(item, dict)]
+                state[key] = [deepcopy(item) for item in values if isinstance(item, dict)]
         existing_template_ids = {str(item.get("id") or "") for item in state["prompt_templates"]}
         for template in DEFAULT_TEMPLATES:
             if template["id"] not in existing_template_ids:
@@ -101,6 +106,13 @@ class StudioService:
 
     def _save_locked(self) -> None:
         self.storage.save_studio_state(self._state)
+
+    def _rollback_save_locked(self, before: dict[str, list[dict[str, Any]]]) -> None:
+        try:
+            self._save_locked()
+        except Exception:
+            self._state = before
+            raise
 
     def _visible(self, identity: dict[str, object], items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if _is_admin(identity):
@@ -126,6 +138,7 @@ class StudioService:
         normalized_name = _clean(name) or "未命名项目"
         now = _now_iso()
         with self._lock:
+            before = deepcopy(self._state)
             item = {
                 "id": _id("project"),
                 "name": normalized_name,
@@ -135,7 +148,7 @@ class StudioService:
                 "updated_at": now,
             }
             self._state["projects"].append(item)
-            self._save_locked()
+            self._rollback_save_locked(before)
             return _public(item)
 
     def update_project(
@@ -148,12 +161,13 @@ class StudioService:
             item = self._find_visible(identity, "projects", project_id)
             if item is None:
                 return None
+            before = deepcopy(self._state)
             if "name" in updates:
                 item["name"] = _clean(updates.get("name")) or item.get("name") or "未命名项目"
             if "archived" in updates:
                 item["archived"] = bool(updates.get("archived"))
             item["updated_at"] = _now_iso()
-            self._save_locked()
+            self._rollback_save_locked(before)
             return _public(item)
 
     def create_conversation(
@@ -167,6 +181,7 @@ class StudioService:
             project = self._find_visible(identity, "projects", project_id)
             if project is None:
                 raise ValueError("project not found")
+            before = deepcopy(self._state)
             normalized_mode = mode if mode in MODES else "generate"
             now = _now_iso()
             item = {
@@ -180,7 +195,7 @@ class StudioService:
             }
             self._state["conversations"].append(item)
             project["updated_at"] = now
-            self._save_locked()
+            self._rollback_save_locked(before)
             return _public(item)
 
     def list_conversations(self, identity: dict[str, object], project_id: str) -> list[dict[str, Any]]:
@@ -201,6 +216,7 @@ class StudioService:
             conversation = self._find_visible(identity, "conversations", conversation_id)
             if conversation is None:
                 raise ValueError("conversation not found")
+            before = deepcopy(self._state)
             now = _now_iso()
             status = _clean(values.get("status")) or STATUS_QUEUED
             if status not in TURN_STATUSES:
@@ -215,8 +231,8 @@ class StudioService:
                 "prompt": _clean(values.get("prompt")),
                 "model": _clean(values.get("model")) or "gpt-image-2",
                 "size": _clean(values.get("size")),
-                "reference_images": values.get("reference_images") if isinstance(values.get("reference_images"), list) else [],
-                "result_images": values.get("result_images") if isinstance(values.get("result_images"), list) else [],
+                "reference_images": _copy_list(values.get("reference_images")),
+                "result_images": _copy_list(values.get("result_images")),
                 "status": status,
                 "error": _clean(values.get("error")),
                 "created_at": now,
@@ -224,7 +240,7 @@ class StudioService:
             }
             self._state["turns"].append(item)
             conversation["updated_at"] = now
-            self._save_locked()
+            self._rollback_save_locked(before)
             return _public(item)
 
     def list_turns(self, identity: dict[str, object], conversation_id: str) -> list[dict[str, Any]]:
@@ -260,6 +276,7 @@ class StudioService:
             raise ValueError("template content is required")
         now = _now_iso()
         with self._lock:
+            before = deepcopy(self._state)
             item = {
                 "id": _id("template"),
                 "name": _clean(name) or "未命名模板",
@@ -271,7 +288,7 @@ class StudioService:
                 "updated_at": now,
             }
             self._state["prompt_templates"].append(item)
-            self._save_locked()
+            self._rollback_save_locked(before)
             return _public(item)
 
     def update_prompt_template(
@@ -284,6 +301,7 @@ class StudioService:
             item = self._find_visible(identity, "prompt_templates", template_id)
             if item is None or bool(item.get("builtin")):
                 return None
+            before = deepcopy(self._state)
             if "name" in updates:
                 item["name"] = _clean(updates.get("name")) or item.get("name") or "未命名模板"
             if "category" in updates:
@@ -294,11 +312,12 @@ class StudioService:
                     raise ValueError("template content is required")
                 item["content"] = content
             item["updated_at"] = _now_iso()
-            self._save_locked()
+            self._rollback_save_locked(before)
             return _public(item)
 
     def delete_prompt_template(self, identity: dict[str, object], template_id: str) -> bool:
         with self._lock:
+            before_state = deepcopy(self._state)
             before = len(self._state["prompt_templates"])
             self._state["prompt_templates"] = [
                 item
@@ -311,7 +330,7 @@ class StudioService:
             ]
             changed = len(self._state["prompt_templates"]) != before
             if changed:
-                self._save_locked()
+                self._rollback_save_locked(before_state)
             return changed
 
     def add_favorite(
@@ -330,6 +349,7 @@ class StudioService:
             for item in self._state["favorites"]:
                 if item.get("owner_id") == owner and item.get("image_path") == normalized_path:
                     return _public(item)
+            before = deepcopy(self._state)
             item = {
                 "id": _id("favorite"),
                 "owner_id": owner,
@@ -339,7 +359,7 @@ class StudioService:
                 "created_at": now,
             }
             self._state["favorites"].append(item)
-            self._save_locked()
+            self._rollback_save_locked(before)
             return _public(item)
 
     def list_favorites(self, identity: dict[str, object]) -> list[dict[str, Any]]:
@@ -349,6 +369,7 @@ class StudioService:
 
     def delete_favorite(self, identity: dict[str, object], favorite_id: str) -> bool:
         with self._lock:
+            before_state = deepcopy(self._state)
             before = len(self._state["favorites"])
             self._state["favorites"] = [
                 item
@@ -360,7 +381,7 @@ class StudioService:
             ]
             changed = len(self._state["favorites"]) != before
             if changed:
-                self._save_locked()
+                self._rollback_save_locked(before_state)
             return changed
 
 
