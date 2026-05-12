@@ -6,18 +6,24 @@ import 'studio_repository.dart';
 
 class StudioState {
   const StudioState({
+    this.activeProject,
+    this.activeConversation,
     this.turns = const [],
     this.promptDraft = '',
     this.submitting = false,
     this.errorMessage,
   });
 
+  final StudioProject? activeProject;
+  final StudioConversation? activeConversation;
   final List<StudioTurn> turns;
   final String promptDraft;
   final bool submitting;
   final String? errorMessage;
 
   StudioState copyWith({
+    StudioProject? activeProject,
+    StudioConversation? activeConversation,
     List<StudioTurn>? turns,
     String? promptDraft,
     bool? submitting,
@@ -25,6 +31,8 @@ class StudioState {
     bool clearError = false,
   }) {
     return StudioState(
+      activeProject: activeProject ?? this.activeProject,
+      activeConversation: activeConversation ?? this.activeConversation,
       turns: turns ?? this.turns,
       promptDraft: promptDraft ?? this.promptDraft,
       submitting: submitting ?? this.submitting,
@@ -48,6 +56,29 @@ class StudioController extends ChangeNotifier {
 
   void replaceTurns(List<StudioTurn> turns) {
     _state = _state.copyWith(turns: turns);
+    notifyListeners();
+  }
+
+  Future<void> loadWorkspace() async {
+    final projects = await _repository.fetchProjects();
+    final activeProject = projects.isNotEmpty
+        ? projects.first
+        : await _repository.createProject('Untitled Project');
+    final conversations = await _repository.fetchConversations(
+      activeProject.id,
+    );
+    final activeConversation = conversations.isNotEmpty
+        ? conversations.first
+        : await _repository.createConversation(
+            projectId: activeProject.id,
+            title: 'New image session',
+          );
+    final turns = await _repository.fetchTurns(activeConversation.id);
+    _state = _state.copyWith(
+      activeProject: activeProject,
+      activeConversation: activeConversation,
+      turns: turns,
+    );
     notifyListeners();
   }
 

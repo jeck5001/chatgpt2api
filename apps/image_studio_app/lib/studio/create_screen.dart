@@ -1,9 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../shared/empty_state.dart';
+import 'studio_controller.dart';
+import 'studio_models.dart';
 
 class CreateScreen extends StatefulWidget {
-  const CreateScreen({super.key});
+  const CreateScreen({
+    super.key,
+    this.controller,
+    this.activeConversationId,
+  });
+
+  final StudioController? controller;
+  final String? activeConversationId;
 
   @override
   State<CreateScreen> createState() => _CreateScreenState();
@@ -33,6 +42,7 @@ class _CreateScreenState extends State<CreateScreen> {
   @override
   Widget build(BuildContext context) {
     final hasPrompt = _promptController.text.trim().isNotEmpty;
+    final turns = widget.controller?.state.turns ?? const <StudioTurn>[];
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -53,20 +63,52 @@ class _CreateScreenState extends State<CreateScreen> {
               ),
               const SizedBox(height: 12),
               FilledButton.icon(
-                onPressed: hasPrompt ? () {} : null,
+                onPressed: hasPrompt ? _submit : null,
                 icon: const Icon(Icons.auto_awesome),
                 label: const Text('Generate'),
               ),
-              const Expanded(
-                child: EmptyState(
-                  title: 'No active results',
-                  message: 'Generate an image to start a visual conversation.',
-                ),
+              Expanded(
+                child: turns.isEmpty
+                    ? const EmptyState(
+                        title: 'No active results',
+                        message: 'Generate an image to start a visual '
+                            'conversation.',
+                      )
+                    : ListView.separated(
+                        itemCount: turns.length,
+                        separatorBuilder: (context, index) {
+                          return const Divider(height: 1);
+                        },
+                        itemBuilder: (context, index) {
+                          final turn = turns[index];
+                          return ListTile(
+                            title: Text(turn.prompt),
+                            subtitle: Text(turn.status.name),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _submit() async {
+    final controller = widget.controller;
+    final conversationId = widget.activeConversationId ??
+        controller?.state.activeConversation?.id;
+    if (controller == null || conversationId == null) {
+      return;
+    }
+    await controller.submitGeneration(
+      conversationId: conversationId,
+      prompt: _promptController.text.trim(),
+    );
+    while (controller.hasRunningTurns) {
+      await Future<void>.delayed(const Duration(seconds: 2));
+      await controller.pollRunningTurnsOnce();
+    }
   }
 }

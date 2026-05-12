@@ -31,10 +31,65 @@ void main() {
 
     expect(controller.state.promptDraft, 'a red cabin');
   });
+
+  test('load workspace creates missing project and conversation', () async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(repository);
+
+    await controller.loadWorkspace();
+
+    expect(controller.state.activeProject?.name, 'Untitled Project');
+    expect(controller.state.activeConversation?.title, 'New image session');
+    expect(repository.createdProjectName, 'Untitled Project');
+  });
 }
 
 class FakeStudioRepository implements StudioRepositoryContract {
   bool failSubmit = false;
+  String? createdProjectName;
+
+  @override
+  Future<List<StudioProject>> fetchProjects() async {
+    return [];
+  }
+
+  @override
+  Future<StudioProject> createProject(String name) async {
+    createdProjectName = name;
+    return StudioProject(
+      id: 'project-1',
+      name: name,
+      ownerId: 'admin',
+      archived: false,
+      createdAt: DateTime.utc(2026, 5, 12),
+      updatedAt: DateTime.utc(2026, 5, 12),
+    );
+  }
+
+  @override
+  Future<List<StudioConversation>> fetchConversations(String projectId) async {
+    return [];
+  }
+
+  @override
+  Future<StudioConversation> createConversation({
+    required String projectId,
+    required String title,
+    String mode = 'generate',
+  }) async {
+    return StudioConversation(
+      id: 'conversation-1',
+      projectId: projectId,
+      title: title,
+      mode: StudioTurnMode.generate,
+      updatedAt: DateTime.utc(2026, 5, 12),
+    );
+  }
+
+  @override
+  Future<List<StudioTurn>> fetchTurns(String conversationId) async {
+    return [];
+  }
 
   @override
   Future<StudioTurn> createGenerationTurn({
@@ -54,6 +109,27 @@ class FakeStudioRepository implements StudioRepositoryContract {
   Future<StudioTurn> syncTurn(String turnId) async {
     return fakeTurn(status: StudioTurnStatus.success);
   }
+
+  @override
+  Future<List<StudioFavorite>> fetchFavorites() async {
+    return [];
+  }
+
+  @override
+  Future<StudioFavorite> favoriteImage({
+    required String imagePath,
+    String sourceTurnId = '',
+  }) async {
+    return StudioFavorite(
+      id: 'favorite-1',
+      imagePath: imagePath,
+      sourceTurnId: sourceTurnId,
+      createdAt: DateTime.utc(2026, 5, 12),
+    );
+  }
+
+  @override
+  Future<void> deleteFavorite(String favoriteId) async {}
 }
 
 StudioTurn fakeTurn({required StudioTurnStatus status}) {

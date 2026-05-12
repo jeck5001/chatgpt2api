@@ -137,3 +137,26 @@ class StudioTurn {
     );
   }
 }
+
+class StudioFavorite {
+  const StudioFavorite({
+    required this.id,
+    required this.imagePath,
+    required this.sourceTurnId,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String imagePath;
+  final String sourceTurnId;
+  final DateTime createdAt;
+
+  factory StudioFavorite.fromJson(Map<String, Object?> json) {
+    return StudioFavorite(
+      id: json['id'].toString(),
+      imagePath: json['image_path'].toString(),
+      sourceTurnId: (json['source_turn_id'] ?? '').toString(),
+      createdAt: DateTime.parse(json['created_at'].toString()),
+    );
+  }
+}
