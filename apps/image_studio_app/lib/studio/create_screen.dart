@@ -5,11 +5,7 @@ import 'studio_controller.dart';
 import 'studio_models.dart';
 
 class CreateScreen extends StatefulWidget {
-  const CreateScreen({
-    super.key,
-    this.controller,
-    this.activeConversationId,
-  });
+  const CreateScreen({super.key, this.controller, this.activeConversationId});
 
   final StudioController? controller;
   final String? activeConversationId;
@@ -71,7 +67,8 @@ class _CreateScreenState extends State<CreateScreen> {
                 child: turns.isEmpty
                     ? const EmptyState(
                         title: 'No active results',
-                        message: 'Generate an image to start a visual '
+                        message:
+                            'Generate an image to start a visual '
                             'conversation.',
                       )
                     : ListView.separated(
@@ -97,8 +94,8 @@ class _CreateScreenState extends State<CreateScreen> {
 
   Future<void> _submit() async {
     final controller = widget.controller;
-    final conversationId = widget.activeConversationId ??
-        controller?.state.activeConversation?.id;
+    final conversationId =
+        widget.activeConversationId ?? controller?.state.activeConversation?.id;
     if (controller == null || conversationId == null) {
       return;
     }

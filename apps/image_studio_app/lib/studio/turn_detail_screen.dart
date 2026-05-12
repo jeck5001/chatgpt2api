@@ -9,7 +9,8 @@ class TurnDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const EmptyState(
       title: 'Turn detail',
-      message: 'Prompt, status, result images, retry, and continue edit '
+      message:
+          'Prompt, status, result images, retry, and continue edit '
           'actions will appear here.',
     );
   }

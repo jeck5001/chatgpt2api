@@ -37,11 +37,7 @@ class AuthSession {
 }
 
 class AuthState {
-  const AuthState({
-    this.session,
-    this.loading = false,
-    this.errorMessage,
-  });
+  const AuthState({this.session, this.loading = false, this.errorMessage});
 
   final AuthSession? session;
   final bool loading;

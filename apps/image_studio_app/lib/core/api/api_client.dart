@@ -3,11 +3,9 @@ import 'package:dio/dio.dart';
 typedef TokenProvider = Future<String?> Function();
 
 class ApiClient {
-  ApiClient({
-    required Dio dio,
-    required TokenProvider tokenProvider,
-  }) : _dio = dio,
-       _tokenProvider = tokenProvider {
+  ApiClient({required Dio dio, required TokenProvider tokenProvider})
+    : _dio = dio,
+      _tokenProvider = tokenProvider {
     _dio.interceptors.add(authInterceptor);
   }
 

@@ -25,10 +25,7 @@ class AuthController extends ChangeNotifier {
       _state = AuthState(session: session);
       notifyListeners();
     } catch (error) {
-      _state = _state.copyWith(
-        loading: false,
-        errorMessage: error.toString(),
-      );
+      _state = _state.copyWith(loading: false, errorMessage: error.toString());
       notifyListeners();
       rethrow;
     }

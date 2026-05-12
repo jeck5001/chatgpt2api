@@ -1,10 +1,7 @@
 import 'package:dio/dio.dart';
 
 class ApiError implements Exception {
-  const ApiError({
-    required this.message,
-    this.statusCode,
-  });
+  const ApiError({required this.message, this.statusCode});
 
   final String message;
   final int? statusCode;

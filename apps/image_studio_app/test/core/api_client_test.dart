@@ -6,10 +6,7 @@ import 'package:image_studio_app/core/api/api_error.dart';
 void main() {
   test('adds bearer token to requests', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://example.test'));
-    final client = ApiClient(
-      dio: dio,
-      tokenProvider: () async => 'sk-test',
-    );
+    final client = ApiClient(dio: dio, tokenProvider: () async => 'sk-test');
 
     final options = RequestOptions(path: '/api/projects');
     final handler = _RequestHandler();

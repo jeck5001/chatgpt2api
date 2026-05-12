@@ -85,10 +85,7 @@ class AdaptiveShell extends StatelessWidget {
             child: projects,
           ),
           const VerticalDivider(width: 1),
-          Expanded(
-            key: const ValueKey('desktop-center-pane'),
-            child: create,
-          ),
+          Expanded(key: const ValueKey('desktop-center-pane'), child: create),
           const VerticalDivider(width: 1),
           SizedBox(
             key: const ValueKey('desktop-inspector-pane'),

@@ -60,10 +60,7 @@ class StudioConversation {
 }
 
 class StudioResultImage {
-  const StudioResultImage({
-    required this.url,
-    required this.path,
-  });
+  const StudioResultImage({required this.url, required this.path});
 
   final Uri url;
   final String path;

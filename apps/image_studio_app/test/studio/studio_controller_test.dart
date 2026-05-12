@@ -8,9 +8,7 @@ void main() {
     final repository = FakeStudioRepository();
     final controller = StudioController(repository);
 
-    controller.replaceTurns([
-      fakeTurn(status: StudioTurnStatus.running),
-    ]);
+    controller.replaceTurns([fakeTurn(status: StudioTurnStatus.running)]);
     await controller.pollRunningTurnsOnce();
 
     expect(controller.state.turns.single.status, StudioTurnStatus.success);

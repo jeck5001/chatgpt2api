@@ -15,7 +15,10 @@ void main() {
 
     expect(find.byKey(const ValueKey('desktop-project-pane')), findsOneWidget);
     expect(find.byKey(const ValueKey('desktop-center-pane')), findsOneWidget);
-    expect(find.byKey(const ValueKey('desktop-inspector-pane')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('desktop-inspector-pane')),
+      findsOneWidget,
+    );
   });
 }
 
