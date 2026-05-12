@@ -167,6 +167,11 @@ class ImageTaskService:
                 missing_ids = []
             return {"items": items, "missing_ids": missing_ids}
 
+    def get_task(self, identity: dict[str, object], task_id: str) -> dict[str, Any] | None:
+        result = self.list_tasks(identity, [task_id])
+        items = result.get("items") if isinstance(result, dict) else []
+        return items[0] if items else None
+
     def _submit(
         self,
         identity: dict[str, object],

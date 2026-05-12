@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from threading import RLock
 from typing import Any
+from urllib.parse import urlsplit
 
 from services.config import config
 from services.storage.base import StorageBackend
@@ -43,6 +44,41 @@ def _public(item: dict[str, Any]) -> dict[str, Any]:
 
 def _copy_list(value: object) -> list[Any]:
     return deepcopy(value) if isinstance(value, list) else []
+
+
+def _image_path_from_url(url: str) -> str:
+    marker = "/images/"
+    if marker not in url:
+        return ""
+    path = urlsplit(url).path
+    if marker not in path:
+        return ""
+    return path.split(marker, 1)[1].lstrip("/")
+
+
+def _task_images(data: object) -> list[dict[str, Any]]:
+    if not isinstance(data, list):
+        return []
+    images: list[dict[str, Any]] = []
+    for source in data:
+        if not isinstance(source, dict):
+            continue
+        image: dict[str, Any] = {}
+        url = source.get("url")
+        if isinstance(url, str) and url:
+            image["url"] = url
+            path = _image_path_from_url(url)
+            if path:
+                image["path"] = path
+        b64_json = source.get("b64_json")
+        if isinstance(b64_json, str) and b64_json:
+            image["b64_json"] = b64_json
+        revised_prompt = source.get("revised_prompt")
+        if isinstance(revised_prompt, str) and revised_prompt:
+            image["revised_prompt"] = revised_prompt
+        if image:
+            images.append(image)
+    return images
 
 
 DEFAULT_TEMPLATES = [
@@ -254,6 +290,59 @@ class StudioService:
                 if item.get("conversation_id") == conversation_id
                 and (_is_admin(identity) or item.get("owner_id") == _owner_id(identity))
             ]
+
+    def get_turn(self, identity: dict[str, object], turn_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            item = self._find_visible(identity, "turns", turn_id)
+            return _public(item) if item is not None else None
+
+    def sync_turn_from_task(
+        self,
+        identity: dict[str, object],
+        turn_id: str,
+        task: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        with self._lock:
+            item = self._find_visible(identity, "turns", turn_id)
+            if item is None:
+                return None
+            before = deepcopy(self._state)
+            now = _now_iso()
+            task_id = _clean(task.get("id"))
+            status = _clean(task.get("status"))
+            if task_id:
+                item["task_id"] = task_id
+            if status in TURN_STATUSES:
+                item["status"] = status
+            if "data" in task:
+                item["result_images"] = _task_images(task.get("data"))
+            item["error"] = _clean(task.get("error"))
+            item["updated_at"] = now
+            conversation = self._find_visible(identity, "conversations", str(item.get("conversation_id") or ""))
+            if conversation is not None:
+                conversation["updated_at"] = now
+            self._rollback_save_locked(before)
+            return _public(item)
+
+    def mark_turn_retrying(self, identity: dict[str, object], turn_id: str, client_task_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            item = self._find_visible(identity, "turns", turn_id)
+            if item is None:
+                return None
+            before = deepcopy(self._state)
+            now = _now_iso()
+            task_id = _clean(client_task_id)
+            item["client_task_id"] = task_id
+            item["task_id"] = task_id
+            item["status"] = STATUS_QUEUED
+            item["error"] = ""
+            item["result_images"] = []
+            item["updated_at"] = now
+            conversation = self._find_visible(identity, "conversations", str(item.get("conversation_id") or ""))
+            if conversation is not None:
+                conversation["updated_at"] = now
+            self._rollback_save_locked(before)
+            return _public(item)
 
     def list_prompt_templates(self, identity: dict[str, object]) -> list[dict[str, Any]]:
         with self._lock:

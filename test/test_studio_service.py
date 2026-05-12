@@ -127,6 +127,58 @@ class StudioServiceTests(unittest.TestCase):
 
         self.assertEqual(stored["reference_images"], [{"path": "refs/original.png"}])
 
+    def test_sync_turn_from_successful_task(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            model="gpt-image-2",
+            size="",
+            reference_images=[],
+        )
+
+        synced = service.sync_turn_from_task(
+            OWNER,
+            turn["id"],
+            {"id": "task-1", "status": "success", "data": [{"url": "http://testserver/images/2026/05/cat.png"}]},
+        )
+
+        self.assertEqual(synced["status"], "success")
+        self.assertEqual(synced["result_images"][0]["url"], "http://testserver/images/2026/05/cat.png")
+        self.assertEqual(synced["result_images"][0]["path"], "2026/05/cat.png")
+
+    def test_retry_failed_turn_clears_error_and_uses_new_task_id(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            model="gpt-image-2",
+            size="",
+            reference_images=[],
+            status="error",
+            error="failed",
+        )
+
+        retried = service.mark_turn_retrying(OWNER, turn["id"], "task-2")
+
+        self.assertEqual(retried["status"], "queued")
+        self.assertEqual(retried["client_task_id"], "task-2")
+        self.assertEqual(retried["task_id"], "task-2")
+        self.assertEqual(retried["error"], "")
+        self.assertEqual(retried["result_images"], [])
+
     def test_create_project_rolls_back_in_memory_state_on_save_failure(self):
         class FailingSaveStorage(JSONStorageBackend):
             def save_studio_state(self, state):
