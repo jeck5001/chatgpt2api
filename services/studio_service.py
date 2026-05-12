@@ -376,6 +376,14 @@ class StudioService:
                 raise ValueError("edit retry is not supported because reference images are not persisted")
             if item.get("status") != STATUS_ERROR:
                 raise ValueError("only error turns can be retried")
+            owner_id = _clean(item.get("owner_id"))
+            for other in self._state["turns"]:
+                if other.get("id") == turn_id:
+                    continue
+                if _clean(other.get("owner_id")) != owner_id:
+                    continue
+                if _clean(other.get("client_task_id")) == task_id:
+                    raise ValueError("client_task_id is already used by another turn")
             before = deepcopy(self._state)
             now = _now_iso()
             item["client_task_id"] = task_id

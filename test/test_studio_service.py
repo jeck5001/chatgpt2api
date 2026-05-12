@@ -298,6 +298,39 @@ class StudioServiceTests(unittest.TestCase):
         self.assertEqual(stored["task_id"], "task-1")
         self.assertEqual(stored["error"], "failed")
 
+    def test_mark_turn_retrying_rejects_client_task_id_used_by_another_turn(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            status="success",
+        )
+        failed = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-2",
+            task_id="task-2",
+            mode="generate",
+            prompt="dog",
+            status="error",
+            error="failed",
+        )
+
+        with self.assertRaises(ValueError):
+            service.mark_turn_retrying(OWNER, failed["id"], "task-1")
+
+        stored = service.get_turn(OWNER, failed["id"])
+        self.assertEqual(stored["status"], "error")
+        self.assertEqual(stored["client_task_id"], "task-2")
+        self.assertEqual(stored["task_id"], "task-2")
+        self.assertEqual(stored["error"], "failed")
+
     def test_create_project_rolls_back_in_memory_state_on_save_failure(self):
         class FailingSaveStorage(JSONStorageBackend):
             def save_studio_state(self, state):
