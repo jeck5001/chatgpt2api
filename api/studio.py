@@ -66,6 +66,10 @@ def _bad_request(exc: ValueError) -> HTTPException:
     return HTTPException(status_code=400, detail={"error": str(exc)})
 
 
+def _bad_gateway(exc: Exception) -> HTTPException:
+    return HTTPException(status_code=502, detail={"error": str(exc) or "image task submit failed"})
+
+
 def create_router() -> APIRouter:
     router = APIRouter()
 
@@ -125,15 +129,22 @@ def create_router() -> APIRouter:
                 size=body.size,
                 reference_images=[],
             )
-            task = await run_in_threadpool(
-                image_task_service.submit_generation,
-                identity,
-                client_task_id=body.client_task_id,
-                prompt=body.prompt,
-                model=body.model,
-                size=body.size,
-                base_url=resolve_image_base_url(request),
-            )
+            try:
+                task = await run_in_threadpool(
+                    image_task_service.submit_generation,
+                    identity,
+                    client_task_id=body.client_task_id,
+                    prompt=body.prompt,
+                    model=body.model,
+                    size=body.size,
+                    base_url=resolve_image_base_url(request),
+                )
+            except ValueError as exc:
+                studio_service.mark_turn_error(identity, turn["id"], str(exc), task_id=body.client_task_id)
+                raise
+            except Exception as exc:
+                studio_service.mark_turn_error(identity, turn["id"], str(exc), task_id=body.client_task_id)
+                raise _bad_gateway(exc) from exc
             item = studio_service.sync_turn_from_task(identity, turn["id"], task)
         except ValueError as exc:
             raise _bad_request(exc) from exc
@@ -179,16 +190,23 @@ def create_router() -> APIRouter:
                 size=size,
                 reference_images=reference_images,
             )
-            task = await run_in_threadpool(
-                image_task_service.submit_edit,
-                identity,
-                client_task_id=client_task_id,
-                prompt=prompt,
-                model=model,
-                size=size,
-                base_url=resolve_image_base_url(request),
-                images=images,
-            )
+            try:
+                task = await run_in_threadpool(
+                    image_task_service.submit_edit,
+                    identity,
+                    client_task_id=client_task_id,
+                    prompt=prompt,
+                    model=model,
+                    size=size,
+                    base_url=resolve_image_base_url(request),
+                    images=images,
+                )
+            except ValueError as exc:
+                studio_service.mark_turn_error(identity, turn["id"], str(exc), task_id=client_task_id)
+                raise
+            except Exception as exc:
+                studio_service.mark_turn_error(identity, turn["id"], str(exc), task_id=client_task_id)
+                raise _bad_gateway(exc) from exc
             item = studio_service.sync_turn_from_task(identity, turn["id"], task)
         except ValueError as exc:
             raise _bad_request(exc) from exc
@@ -225,15 +243,22 @@ def create_router() -> APIRouter:
             retried = studio_service.mark_turn_retrying(identity, turn_id, body.client_task_id)
             if retried is None:
                 raise _not_found("turn not found")
-            task = await run_in_threadpool(
-                image_task_service.submit_generation,
-                identity,
-                client_task_id=body.client_task_id,
-                prompt=str(turn.get("prompt") or ""),
-                model=str(turn.get("model") or "gpt-image-2"),
-                size=str(turn.get("size") or "") or None,
-                base_url=resolve_image_base_url(request),
-            )
+            try:
+                task = await run_in_threadpool(
+                    image_task_service.submit_generation,
+                    identity,
+                    client_task_id=body.client_task_id,
+                    prompt=str(turn.get("prompt") or ""),
+                    model=str(turn.get("model") or "gpt-image-2"),
+                    size=str(turn.get("size") or "") or None,
+                    base_url=resolve_image_base_url(request),
+                )
+            except ValueError as exc:
+                studio_service.mark_turn_error(identity, turn_id, str(exc), task_id=body.client_task_id)
+                raise
+            except Exception as exc:
+                studio_service.mark_turn_error(identity, turn_id, str(exc), task_id=body.client_task_id)
+                raise _bad_gateway(exc) from exc
             item = studio_service.sync_turn_from_task(identity, turn_id, task)
         except ValueError as exc:
             raise _bad_request(exc) from exc

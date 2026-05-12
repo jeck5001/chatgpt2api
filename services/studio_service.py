@@ -390,6 +390,32 @@ class StudioService:
             self._rollback_save_locked(before)
             return _public(item)
 
+    def mark_turn_error(
+        self,
+        identity: dict[str, object],
+        turn_id: str,
+        error: str,
+        *,
+        task_id: str | None = None,
+    ) -> dict[str, Any] | None:
+        with self._lock:
+            item = self._find_visible(identity, "turns", turn_id)
+            if item is None:
+                return None
+            before = deepcopy(self._state)
+            now = _now_iso()
+            if task_id is not None:
+                item["task_id"] = _clean(task_id)
+            item["status"] = STATUS_ERROR
+            item["error"] = _clean(error) or "image task submit failed"
+            item["result_images"] = []
+            item["updated_at"] = now
+            conversation = self._find_visible(identity, "conversations", str(item.get("conversation_id") or ""))
+            if conversation is not None:
+                conversation["updated_at"] = now
+            self._rollback_save_locked(before)
+            return _public(item)
+
     def list_prompt_templates(self, identity: dict[str, object]) -> list[dict[str, Any]]:
         with self._lock:
             owner = _owner_id(identity)

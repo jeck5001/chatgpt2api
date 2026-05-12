@@ -33,6 +33,7 @@ class FakeStudioService:
         self.created_turns = []
         self.synced = []
         self.retried = []
+        self.marked_errors = []
 
     def list_projects(self, identity):
         return self.projects
@@ -67,7 +68,7 @@ class FakeStudioService:
     def create_turn(self, identity, conversation_id, **values):
         if conversation_id != "conversation-1":
             raise ValueError("conversation not found")
-        item = {"id": f"turn-{len(self.created_turns) + 1}", "conversation_id": conversation_id, **values}
+        item = {"id": f"turn-{len(self.turns) + 1}", "conversation_id": conversation_id, **values}
         self.created_turns.append(item)
         self.turns.append(item)
         return item
@@ -93,6 +94,18 @@ class FakeStudioService:
             item["mode"] = "edit"
         return item
 
+    def mark_turn_error(self, identity, turn_id, error, *, task_id=None):
+        self.marked_errors.append((identity, turn_id, error, task_id))
+        turn = self.get_turn(identity, turn_id)
+        if turn is None:
+            return None
+        if task_id is not None:
+            turn["task_id"] = task_id
+        turn["status"] = "error"
+        turn["error"] = error
+        turn["result_images"] = []
+        return turn
+
     def mark_turn_retrying(self, identity, turn_id, client_task_id):
         if not str(client_task_id or "").strip():
             raise ValueError("client_task_id is required")
@@ -116,6 +129,8 @@ class FakeImageTaskService:
     def __init__(self):
         self.generations = []
         self.edits = []
+        self.fail_generation_with = None
+        self.fail_edit_with = None
         self.tasks = {
             "task-1": {"id": "task-1", "status": "success", "data": [{"url": "http://testserver/images/2026/05/cat.png"}]},
             "task-2": {"id": "task-2", "status": "queued"},
@@ -123,6 +138,8 @@ class FakeImageTaskService:
 
     def submit_generation(self, identity, *, client_task_id, prompt, model, size, base_url):
         self._validate_client_task_id(client_task_id)
+        if self.fail_generation_with is not None:
+            raise self.fail_generation_with
         self.generations.append(
             {
                 "identity": identity,
@@ -139,6 +156,8 @@ class FakeImageTaskService:
 
     def submit_edit(self, identity, *, client_task_id, prompt, model, size, base_url, images):
         self._validate_client_task_id(client_task_id)
+        if self.fail_edit_with is not None:
+            raise self.fail_edit_with
         self.edits.append(
             {
                 "identity": identity,
@@ -287,6 +306,26 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(self.fake_service.created_turns, [])
         self.assertEqual(self.fake_image_task_service.generations, [])
 
+    def test_create_generation_turn_marks_turn_error_when_task_submit_fails(self):
+        self.fake_image_task_service.fail_generation_with = ValueError("submit failed")
+
+        response = self.client.post(
+            "/api/image-turns/generations",
+            headers=AUTH_HEADERS,
+            json={
+                "conversation_id": "conversation-1",
+                "client_task_id": "task-fail",
+                "prompt": "cat",
+                "model": "gpt-image-2",
+                "size": "1024x1024",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(len(self.fake_service.created_turns), 1)
+        self.assertEqual(self.fake_service.created_turns[0]["status"], "error")
+        self.assertEqual(self.fake_service.created_turns[0]["error"], "submit failed")
+
     def test_duplicate_generation_turn_reuses_existing_turn(self):
         body = {
             "conversation_id": "conversation-1",
@@ -381,6 +420,27 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(self.fake_service.created_turns, [])
         self.assertEqual(self.fake_image_task_service.edits, [])
 
+    def test_create_edit_turn_marks_turn_error_when_task_submit_fails(self):
+        self.fake_image_task_service.fail_edit_with = ValueError("edit submit failed")
+
+        response = self.client.post(
+            "/api/image-turns/edits",
+            headers=AUTH_HEADERS,
+            data={
+                "conversation_id": "conversation-1",
+                "client_task_id": "task-edit-fail",
+                "prompt": "cat",
+                "model": "gpt-image-2",
+                "size": "1024x1024",
+            },
+            files=[("image", ("first.png", b"first", "image/png"))],
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(len(self.fake_service.created_turns), 1)
+        self.assertEqual(self.fake_service.created_turns[0]["status"], "error")
+        self.assertEqual(self.fake_service.created_turns[0]["error"], "edit submit failed")
+
     def test_retry_edit_turn_returns_bad_request(self):
         self.fake_service.turns.append(
             {
@@ -431,6 +491,22 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400, response.text)
         self.assertEqual(self.fake_service.turns[0], original)
         self.assertEqual(self.fake_image_task_service.generations, [])
+
+    def test_retry_marks_turn_error_when_task_submit_fails(self):
+        self.fake_service.turns[0]["status"] = "error"
+        self.fake_service.turns[0]["error"] = "failed"
+        self.fake_image_task_service.fail_generation_with = ValueError("retry submit failed")
+
+        response = self.client.post(
+            "/api/image-turns/turn-1/retry",
+            headers=AUTH_HEADERS,
+            json={"client_task_id": "task-retry-fail"},
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(self.fake_service.turns[0]["status"], "error")
+        self.assertEqual(self.fake_service.turns[0]["task_id"], "task-retry-fail")
+        self.assertEqual(self.fake_service.turns[0]["error"], "retry submit failed")
 
 
 if __name__ == "__main__":
