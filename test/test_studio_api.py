@@ -67,8 +67,9 @@ class FakeStudioService:
         return [item for item in self.turns if item.get("conversation_id") == conversation_id]
 
     def create_turn(self, identity, conversation_id, **values):
-        if conversation_id != "conversation-1":
+        if conversation_id not in {"conversation-1", "conversation-2"}:
             raise ValueError("conversation not found")
+        values.setdefault("owner_id", identity["id"])
         item = {"id": f"turn-{len(self.turns) + 1}", "conversation_id": conversation_id, **values}
         self.created_turns.append(item)
         self.turns.append(item)
@@ -78,8 +79,10 @@ class FakeStudioService:
         if not str(values.get("client_task_id") or "").strip():
             raise ValueError("client_task_id is required")
         for item in self.turns:
-            if item.get("conversation_id") == conversation_id and item.get("client_task_id") == values.get("client_task_id"):
-                return item
+            if item.get("owner_id") == identity["id"] and item.get("client_task_id") == values.get("client_task_id"):
+                if item.get("conversation_id") == conversation_id:
+                    return item
+                raise ValueError("client_task_id is already used by another turn")
         return self.create_turn(identity, conversation_id, status="queued", result_images=[], error="", **values)
 
     def get_turn(self, identity, turn_id):
@@ -118,6 +121,8 @@ class FakeStudioService:
             raise ValueError("edit retry is not supported because reference images are not persisted")
         if turn.get("status") != "error":
             raise ValueError("only error turns can be retried")
+        if turn.get("client_task_id") == client_task_id:
+            raise ValueError("retry client_task_id must be different from the current turn")
         for item in self.turns:
             if item is not turn and item.get("owner_id") == turn.get("owner_id") and item.get("client_task_id") == client_task_id:
                 raise ValueError("client_task_id is already used by another turn")
@@ -349,6 +354,38 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(first.json()["item"]["id"], second.json()["item"]["id"])
         self.assertEqual(len(self.fake_service.created_turns), 1)
 
+    def test_generation_turn_rejects_client_task_id_used_in_other_conversation(self):
+        self.fake_service.turns.append(
+            {
+                "id": "turn-existing",
+                "conversation_id": "conversation-1",
+                "owner_id": "admin",
+                "client_task_id": "task-duplicate",
+                "task_id": "task-duplicate",
+                "mode": "generate",
+                "status": "queued",
+                "prompt": "cat",
+                "model": "gpt-image-2",
+                "size": "",
+            }
+        )
+
+        response = self.client.post(
+            "/api/image-turns/generations",
+            headers=AUTH_HEADERS,
+            json={
+                "conversation_id": "conversation-2",
+                "client_task_id": "task-duplicate",
+                "prompt": "dog",
+                "model": "gpt-image-2",
+                "size": "1024x1024",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(self.fake_service.created_turns, [])
+        self.assertEqual(self.fake_image_task_service.generations, [])
+
     def test_list_image_turns_returns_items(self):
         response = self.client.get(
             "/api/image-turns",
@@ -548,6 +585,22 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(self.fake_image_task_service.generations, [])
         self.assertEqual(self.fake_service.turns[-1]["status"], "error")
         self.assertEqual(self.fake_service.turns[-1]["task_id"], "task-2")
+
+    def test_retry_with_same_current_client_task_id_returns_bad_request_without_submit(self):
+        self.fake_service.turns[0]["status"] = "error"
+        self.fake_service.turns[0]["error"] = "failed"
+        self.fake_service.turns[0]["client_task_id"] = "task-1"
+
+        response = self.client.post(
+            "/api/image-turns/turn-1/retry",
+            headers=AUTH_HEADERS,
+            json={"client_task_id": "task-1"},
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(self.fake_image_task_service.generations, [])
+        self.assertEqual(self.fake_service.turns[0]["status"], "error")
+        self.assertEqual(self.fake_service.turns[0]["task_id"], "task-1")
 
     def test_retry_marks_turn_error_when_task_submit_fails(self):
         self.fake_service.turns[0]["status"] = "error"

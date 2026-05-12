@@ -287,20 +287,21 @@ class StudioService:
             client_task_id = _clean(values.get("client_task_id"))
             if not client_task_id:
                 raise ValueError("client_task_id is required")
-            if client_task_id:
-                for item in self._state["turns"]:
-                    if (
-                        item.get("conversation_id") == conversation_id
-                        and _clean(item.get("client_task_id")) == client_task_id
-                        and (_is_admin(identity) or item.get("owner_id") == _owner_id(identity))
-                    ):
-                        return _public(item)
+            owner_id = _owner_id(identity)
+            for item in self._state["turns"]:
+                if _clean(item.get("owner_id")) != owner_id:
+                    continue
+                if _clean(item.get("client_task_id")) != client_task_id:
+                    continue
+                if item.get("conversation_id") == conversation_id:
+                    return _public(item)
+                raise ValueError("client_task_id is already used by another turn")
             before = deepcopy(self._state)
             now = _now_iso()
             item = {
                 "id": _id("turn"),
                 "conversation_id": conversation_id,
-                "owner_id": _owner_id(identity),
+                "owner_id": owner_id,
                 "client_task_id": client_task_id,
                 "task_id": _clean(values.get("task_id")) or client_task_id,
                 "mode": values.get("mode") if values.get("mode") in MODES else "generate",
@@ -376,6 +377,8 @@ class StudioService:
                 raise ValueError("edit retry is not supported because reference images are not persisted")
             if item.get("status") != STATUS_ERROR:
                 raise ValueError("only error turns can be retried")
+            if _clean(item.get("client_task_id")) == task_id:
+                raise ValueError("retry client_task_id must be different from the current turn")
             owner_id = _clean(item.get("owner_id"))
             for other in self._state["turns"]:
                 if other.get("id") == turn_id:
