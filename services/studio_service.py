@@ -302,15 +302,21 @@ class StudioService:
             if item is None or bool(item.get("builtin")):
                 return None
             before = deepcopy(self._state)
+            next_name = item.get("name") or "未命名模板"
+            next_category = item.get("category") or "自定义"
+            next_content = item.get("content") or ""
             if "name" in updates:
-                item["name"] = _clean(updates.get("name")) or item.get("name") or "未命名模板"
+                next_name = _clean(updates.get("name")) or next_name
             if "category" in updates:
-                item["category"] = _clean(updates.get("category")) or item.get("category") or "自定义"
+                next_category = _clean(updates.get("category")) or next_category
             if "content" in updates:
                 content = _clean(updates.get("content"))
                 if not content:
                     raise ValueError("template content is required")
-                item["content"] = content
+                next_content = content
+            item["name"] = next_name
+            item["category"] = next_category
+            item["content"] = next_content
             item["updated_at"] = _now_iso()
             self._rollback_save_locked(before)
             return _public(item)

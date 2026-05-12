@@ -141,3 +141,24 @@ class StudioServiceTests(unittest.TestCase):
                 service.create_project(OWNER, "Unsaved")
 
             self.assertEqual(service.list_projects(OWNER), [])
+
+    def test_invalid_template_update_does_not_partially_mutate_template(self):
+        service, _storage, _path = self.make_service()
+        template = service.create_prompt_template(OWNER, "Original", "Original Category", "original content")
+
+        with self.assertRaises(ValueError):
+            service.update_prompt_template(
+                OWNER,
+                template["id"],
+                {"name": "Mutated", "category": "Mutated Category", "content": "   "},
+            )
+
+        stored = [
+            item
+            for item in service.list_prompt_templates(OWNER)
+            if item["id"] == template["id"]
+        ][0]
+
+        self.assertEqual(stored["name"], "Original")
+        self.assertEqual(stored["category"], "Original Category")
+        self.assertEqual(stored["content"], "original content")
