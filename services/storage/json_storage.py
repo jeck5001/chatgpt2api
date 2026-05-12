@@ -10,11 +10,18 @@ from services.storage.base import StorageBackend
 class JSONStorageBackend(StorageBackend):
     """本地 JSON 文件存储后端"""
 
-    def __init__(self, file_path: Path, auth_keys_path: Path | None = None):
+    def __init__(
+        self,
+        file_path: Path,
+        auth_keys_path: Path | None = None,
+        studio_path: Path | None = None,
+    ):
         self.file_path = file_path
         self.auth_keys_path = auth_keys_path or file_path.with_name("auth_keys.json")
+        self.studio_path = studio_path or file_path.with_name("studio.json")
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
         self.auth_keys_path.parent.mkdir(parents=True, exist_ok=True)
+        self.studio_path.parent.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _load_json_list(file_path: Path) -> list[dict[str, Any]]:
@@ -62,6 +69,24 @@ class JSONStorageBackend(StorageBackend):
             encoding="utf-8",
         )
 
+    def load_studio_state(self) -> dict[str, Any]:
+        """从 JSON 文件加载图片工作台数据"""
+        if not self.studio_path.exists():
+            return {}
+        try:
+            data = json.loads(self.studio_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, Exception):
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def save_studio_state(self, state: dict[str, Any]) -> None:
+        """保存图片工作台数据到 JSON 文件"""
+        self.studio_path.parent.mkdir(parents=True, exist_ok=True)
+        self.studio_path.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+
     def health_check(self) -> dict[str, Any]:
         """健康检查"""
         try:
@@ -75,6 +100,8 @@ class JSONStorageBackend(StorageBackend):
                 "file_path": str(self.file_path),
                 "auth_keys_file_exists": self.auth_keys_path.exists(),
                 "auth_keys_file_path": str(self.auth_keys_path),
+                "studio_file_exists": self.studio_path.exists(),
+                "studio_file_path": str(self.studio_path),
             }
         except Exception as e:
             return {
@@ -92,4 +119,6 @@ class JSONStorageBackend(StorageBackend):
             "file_exists": self.file_path.exists(),
             "auth_keys_file_path": str(self.auth_keys_path),
             "auth_keys_file_exists": self.auth_keys_path.exists(),
+            "studio_file_path": str(self.studio_path),
+            "studio_file_exists": self.studio_path.exists(),
         }

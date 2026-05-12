@@ -28,6 +28,16 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
+    def load_studio_state(self) -> dict[str, Any]:
+        """加载图片工作台项目、会话、轮次、模板和收藏数据"""
+        pass
+
+    @abstractmethod
+    def save_studio_state(self, state: dict[str, Any]) -> None:
+        """保存图片工作台数据"""
+        pass
+
+    @abstractmethod
     def health_check(self) -> dict[str, Any]:
         """健康检查，返回存储后端状态"""
         pass
