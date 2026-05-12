@@ -1,7 +1,19 @@
 import '../core/api/api_client.dart';
 import 'studio_models.dart';
 
-class StudioRepository {
+abstract interface class StudioRepositoryContract {
+  Future<StudioTurn> createGenerationTurn({
+    required String conversationId,
+    required String clientTaskId,
+    required String prompt,
+    required String model,
+    String? size,
+  });
+
+  Future<StudioTurn> syncTurn(String turnId);
+}
+
+class StudioRepository implements StudioRepositoryContract {
   const StudioRepository(this._client);
 
   final ApiClient _client;
@@ -35,6 +47,7 @@ class StudioRepository {
     return _items(payload).map(StudioTurn.fromJson).toList();
   }
 
+  @override
   Future<StudioTurn> createGenerationTurn({
     required String conversationId,
     required String clientTaskId,
@@ -55,6 +68,7 @@ class StudioRepository {
     return StudioTurn.fromJson(payload['item']! as Map<String, Object?>);
   }
 
+  @override
   Future<StudioTurn> syncTurn(String turnId) async {
     final payload = await _client.postJson('/api/image-turns/$turnId/sync');
     return StudioTurn.fromJson(payload['item']! as Map<String, Object?>);
