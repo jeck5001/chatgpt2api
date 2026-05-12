@@ -114,6 +114,17 @@ def create_router() -> APIRouter:
     ):
         identity = _identity(authorization)
         try:
+            turn = studio_service.create_queued_turn(
+                identity,
+                body.conversation_id,
+                client_task_id=body.client_task_id,
+                task_id=body.client_task_id,
+                mode="generate",
+                prompt=body.prompt,
+                model=body.model,
+                size=body.size,
+                reference_images=[],
+            )
             task = await run_in_threadpool(
                 image_task_service.submit_generation,
                 identity,
@@ -122,17 +133,6 @@ def create_router() -> APIRouter:
                 model=body.model,
                 size=body.size,
                 base_url=resolve_image_base_url(request),
-            )
-            turn = studio_service.create_turn(
-                identity,
-                body.conversation_id,
-                client_task_id=body.client_task_id,
-                task_id=str(task.get("id") or body.client_task_id),
-                mode="generate",
-                prompt=body.prompt,
-                model=body.model,
-                size=body.size,
-                reference_images=[],
             )
             item = studio_service.sync_turn_from_task(identity, turn["id"], task)
         except ValueError as exc:
@@ -168,6 +168,17 @@ def create_router() -> APIRouter:
             images.append((image_data, filename, content_type))
             reference_images.append({"filename": filename, "content_type": content_type})
         try:
+            turn = studio_service.create_queued_turn(
+                identity,
+                conversation_id,
+                client_task_id=client_task_id,
+                task_id=client_task_id,
+                mode="edit",
+                prompt=prompt,
+                model=model,
+                size=size,
+                reference_images=reference_images,
+            )
             task = await run_in_threadpool(
                 image_task_service.submit_edit,
                 identity,
@@ -177,17 +188,6 @@ def create_router() -> APIRouter:
                 size=size,
                 base_url=resolve_image_base_url(request),
                 images=images,
-            )
-            turn = studio_service.create_turn(
-                identity,
-                conversation_id,
-                client_task_id=client_task_id,
-                task_id=str(task.get("id") or client_task_id),
-                mode="edit",
-                prompt=prompt,
-                model=model,
-                size=size,
-                reference_images=reference_images,
             )
             item = studio_service.sync_turn_from_task(identity, turn["id"], task)
         except ValueError as exc:
@@ -223,7 +223,12 @@ def create_router() -> APIRouter:
             raise _not_found("turn not found")
         if turn.get("mode") == "edit":
             raise HTTPException(status_code=400, detail={"error": "edit retry is not supported because reference images are not persisted"})
+        if turn.get("status") != "error":
+            raise HTTPException(status_code=400, detail={"error": "only error turns can be retried"})
         try:
+            retried = studio_service.mark_turn_retrying(identity, turn_id, body.client_task_id)
+            if retried is None:
+                raise _not_found("turn not found")
             task = await run_in_threadpool(
                 image_task_service.submit_generation,
                 identity,
@@ -233,9 +238,6 @@ def create_router() -> APIRouter:
                 size=str(turn.get("size") or "") or None,
                 base_url=resolve_image_base_url(request),
             )
-            retried = studio_service.mark_turn_retrying(identity, turn_id, body.client_task_id)
-            if retried is None:
-                raise _not_found("turn not found")
             item = studio_service.sync_turn_from_task(identity, turn_id, task)
         except ValueError as exc:
             raise _bad_request(exc) from exc

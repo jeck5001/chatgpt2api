@@ -179,6 +179,36 @@ class StudioServiceTests(unittest.TestCase):
         self.assertEqual(retried["error"], "")
         self.assertEqual(retried["result_images"], [])
 
+    def test_create_queued_turn_reuses_client_task_id_in_conversation(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+
+        first = service.create_queued_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            model="gpt-image-2",
+            size="",
+            reference_images=[],
+        )
+        second = service.create_queued_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            mode="generate",
+            prompt="cat again",
+            model="gpt-image-2",
+            size="1024x1024",
+            reference_images=[],
+        )
+
+        self.assertEqual(second["id"], first["id"])
+        self.assertEqual(second["prompt"], "cat")
+        self.assertEqual(len(service.list_turns(OWNER, conversation["id"])), 1)
+
     def test_create_project_rolls_back_in_memory_state_on_save_failure(self):
         class FailingSaveStorage(JSONStorageBackend):
             def save_studio_state(self, state):

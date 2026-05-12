@@ -279,6 +279,44 @@ class StudioService:
             self._rollback_save_locked(before)
             return _public(item)
 
+    def create_queued_turn(self, identity: dict[str, object], conversation_id: str, **values: Any) -> dict[str, Any]:
+        with self._lock:
+            conversation = self._find_visible(identity, "conversations", conversation_id)
+            if conversation is None:
+                raise ValueError("conversation not found")
+            client_task_id = _clean(values.get("client_task_id"))
+            if client_task_id:
+                for item in self._state["turns"]:
+                    if (
+                        item.get("conversation_id") == conversation_id
+                        and _clean(item.get("client_task_id")) == client_task_id
+                        and (_is_admin(identity) or item.get("owner_id") == _owner_id(identity))
+                    ):
+                        return _public(item)
+            before = deepcopy(self._state)
+            now = _now_iso()
+            item = {
+                "id": _id("turn"),
+                "conversation_id": conversation_id,
+                "owner_id": _owner_id(identity),
+                "client_task_id": client_task_id,
+                "task_id": _clean(values.get("task_id")) or client_task_id,
+                "mode": values.get("mode") if values.get("mode") in MODES else "generate",
+                "prompt": _clean(values.get("prompt")),
+                "model": _clean(values.get("model")) or "gpt-image-2",
+                "size": _clean(values.get("size")),
+                "reference_images": _copy_list(values.get("reference_images")),
+                "result_images": [],
+                "status": STATUS_QUEUED,
+                "error": "",
+                "created_at": now,
+                "updated_at": now,
+            }
+            self._state["turns"].append(item)
+            conversation["updated_at"] = now
+            self._rollback_save_locked(before)
+            return _public(item)
+
     def list_turns(self, identity: dict[str, object], conversation_id: str) -> list[dict[str, Any]]:
         with self._lock:
             conversation = self._find_visible(identity, "conversations", conversation_id)
