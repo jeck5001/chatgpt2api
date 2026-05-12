@@ -57,6 +57,26 @@ def create_router(app_version: str) -> APIRouter:
             "name": identity.get("name"),
         }
 
+    @router.get("/api/app/bootstrap")
+    async def get_app_bootstrap(authorization: str | None = Header(default=None)):
+        identity = require_identity(authorization)
+        return {
+            "version": app_version,
+            "identity": {
+                "id": identity.get("id"),
+                "name": identity.get("name"),
+                "role": identity.get("role"),
+            },
+            "capabilities": [
+                "studio",
+                "image_generation",
+                "image_edit",
+                "prompt_templates",
+                "favorites",
+            ],
+            "auth_modes": ["bearer_key"],
+        }
+
     @router.get("/version")
     async def get_version():
         return {"version": app_version}
