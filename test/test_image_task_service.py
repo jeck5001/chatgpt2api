@@ -102,6 +102,28 @@ class ImageTaskServiceTests(unittest.TestCase):
 
             self.assertIsNone(service.get_task(OWNER, ""))
 
+    def test_submit_rolls_back_in_memory_task_when_save_fails(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            service = self.make_service(Path(tmp_dir) / "image_tasks.json")
+
+            def fail_save():
+                raise RuntimeError("save failed")
+
+            service._save_locked = fail_save
+
+            with self.assertRaises(RuntimeError):
+                service.submit_generation(
+                    OWNER,
+                    client_task_id="dead-task",
+                    prompt="cat",
+                    model="gpt-image-2",
+                    size=None,
+                    base_url="http://local.test",
+                )
+
+            self.assertIsNone(service.get_task(OWNER, "dead-task"))
+            self.assertEqual(service.list_tasks(OWNER, ["dead-task"])["missing_ids"], ["dead-task"])
+
     def test_success_task_persists_to_new_service_instance(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "image_tasks.json"

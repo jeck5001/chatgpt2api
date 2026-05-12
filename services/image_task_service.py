@@ -207,7 +207,11 @@ class ImageTaskService:
                 "updated_at": now,
             }
             self._tasks[key] = task
-            self._save_locked()
+            try:
+                self._save_locked()
+            except Exception:
+                self._tasks.pop(key, None)
+                raise
             should_start = True
 
         if should_start:

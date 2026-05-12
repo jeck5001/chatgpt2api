@@ -20,6 +20,7 @@ class FakeStudioService:
             {
                 "id": "turn-1",
                 "conversation_id": "conversation-1",
+                "owner_id": "admin",
                 "task_id": "task-1",
                 "mode": "generate",
                 "status": "success",
@@ -140,6 +141,7 @@ class FakeImageTaskService:
         self._validate_client_task_id(client_task_id)
         if self.fail_generation_with is not None:
             raise self.fail_generation_with
+        owner_id = identity["id"]
         self.generations.append(
             {
                 "identity": identity,
@@ -150,14 +152,15 @@ class FakeImageTaskService:
                 "base_url": base_url,
             }
         )
-        task = {"id": client_task_id, "status": "queued"}
-        self.tasks[client_task_id] = task
+        task = {"id": client_task_id, "status": "queued", "owner_id": owner_id}
+        self.tasks[(owner_id, client_task_id)] = task
         return task
 
     def submit_edit(self, identity, *, client_task_id, prompt, model, size, base_url, images):
         self._validate_client_task_id(client_task_id)
         if self.fail_edit_with is not None:
             raise self.fail_edit_with
+        owner_id = identity["id"]
         self.edits.append(
             {
                 "identity": identity,
@@ -169,12 +172,12 @@ class FakeImageTaskService:
                 "images": images,
             }
         )
-        task = {"id": client_task_id, "status": "queued"}
-        self.tasks[client_task_id] = task
+        task = {"id": client_task_id, "status": "queued", "owner_id": owner_id}
+        self.tasks[(owner_id, client_task_id)] = task
         return task
 
     def get_task(self, identity, task_id):
-        return self.tasks.get(task_id)
+        return self.tasks.get((identity["id"], task_id)) or self.tasks.get(task_id)
 
     @staticmethod
     def _validate_client_task_id(client_task_id):
@@ -360,6 +363,27 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(self.fake_service.synced[0][1], "turn-1")
         self.assertEqual(response.json()["item"]["task_id"], "task-1")
 
+    def test_admin_sync_uses_turn_owner_for_task_lookup(self):
+        self.fake_service.turns.append(
+            {
+                "id": "turn-user",
+                "conversation_id": "conversation-1",
+                "owner_id": "owner-1",
+                "task_id": "user-task",
+                "mode": "generate",
+                "status": "queued",
+                "prompt": "cat",
+                "model": "gpt-image-2",
+                "size": "",
+            }
+        )
+        self.fake_image_task_service.tasks[("owner-1", "user-task")] = {"id": "user-task", "status": "success"}
+
+        response = self.client.post("/api/image-turns/turn-user/sync", headers=AUTH_HEADERS)
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.fake_service.synced[0][2]["id"], "user-task")
+
     def test_create_edit_turn_accepts_multiple_images_and_reference_metadata(self):
         response = self.client.post(
             "/api/image-turns/edits",
@@ -507,6 +531,31 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(self.fake_service.turns[0]["status"], "error")
         self.assertEqual(self.fake_service.turns[0]["task_id"], "task-retry-fail")
         self.assertEqual(self.fake_service.turns[0]["error"], "retry submit failed")
+
+    def test_admin_retry_submits_task_as_turn_owner(self):
+        self.fake_service.turns.append(
+            {
+                "id": "turn-user",
+                "conversation_id": "conversation-1",
+                "owner_id": "owner-1",
+                "task_id": "old-task",
+                "mode": "generate",
+                "status": "error",
+                "error": "failed",
+                "prompt": "cat",
+                "model": "gpt-image-2",
+                "size": "",
+            }
+        )
+
+        response = self.client.post(
+            "/api/image-turns/turn-user/retry",
+            headers=AUTH_HEADERS,
+            json={"client_task_id": "retry-user-task"},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.fake_image_task_service.generations[0]["identity"]["id"], "owner-1")
 
 
 if __name__ == "__main__":

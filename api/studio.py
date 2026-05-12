@@ -70,6 +70,13 @@ def _bad_gateway(exc: Exception) -> HTTPException:
     return HTTPException(status_code=502, detail={"error": str(exc) or "image task submit failed"})
 
 
+def _turn_task_identity(identity: dict[str, object], turn: dict[str, object]) -> dict[str, object]:
+    owner_id = str(turn.get("owner_id") or "").strip()
+    if not owner_id:
+        return identity
+    return {**identity, "id": owner_id}
+
+
 def create_router() -> APIRouter:
     router = APIRouter()
 
@@ -220,7 +227,8 @@ def create_router() -> APIRouter:
         turn = studio_service.get_turn(identity, turn_id)
         if turn is None:
             raise _not_found("turn not found")
-        task = image_task_service.get_task(identity, str(turn.get("task_id") or ""))
+        task_identity = _turn_task_identity(identity, turn)
+        task = image_task_service.get_task(task_identity, str(turn.get("task_id") or ""))
         if task is None:
             raise _not_found("task not found")
         item = studio_service.sync_turn_from_task(identity, turn_id, task)
@@ -239,6 +247,7 @@ def create_router() -> APIRouter:
         turn = studio_service.get_turn(identity, turn_id)
         if turn is None:
             raise _not_found("turn not found")
+        task_identity = _turn_task_identity(identity, turn)
         try:
             retried = studio_service.mark_turn_retrying(identity, turn_id, body.client_task_id)
             if retried is None:
@@ -246,7 +255,7 @@ def create_router() -> APIRouter:
             try:
                 task = await run_in_threadpool(
                     image_task_service.submit_generation,
-                    identity,
+                    task_identity,
                     client_task_id=body.client_task_id,
                     prompt=str(turn.get("prompt") or ""),
                     model=str(turn.get("model") or "gpt-image-2"),
