@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../auth/login_screen.dart';
 import '../auth/onboarding_screen.dart';
+import '../studio/create_screen.dart';
 
 GoRouter buildRouter() {
   Uri? pendingBaseUrl;
@@ -29,19 +29,8 @@ GoRouter buildRouter() {
       ),
       GoRoute(
         path: '/studio',
-        builder: (context, state) => const _CreateScreenPlaceholder(),
+        builder: (context, state) => const CreateScreen(),
       ),
     ],
   );
-}
-
-class _CreateScreenPlaceholder extends StatelessWidget {
-  const _CreateScreenPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: Text('Create Studio')),
-    );
-  }
 }
