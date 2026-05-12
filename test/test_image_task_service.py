@@ -86,6 +86,22 @@ class ImageTaskServiceTests(unittest.TestCase):
             self.assertEqual(result["items"], [])
             self.assertEqual(result["missing_ids"], ["private-task"])
 
+    def test_get_task_returns_none_for_empty_task_id(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            service = self.make_service(Path(tmp_dir) / "image_tasks.json")
+            service.submit_generation(
+                OWNER,
+                client_task_id="task-1",
+                prompt="cat",
+                model="gpt-image-2",
+                size=None,
+                base_url="http://local.test",
+            )
+
+            wait_for_task(service, OWNER, "task-1", "success")
+
+            self.assertIsNone(service.get_task(OWNER, ""))
+
     def test_success_task_persists_to_new_service_instance(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir) / "image_tasks.json"
