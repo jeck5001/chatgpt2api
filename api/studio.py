@@ -8,7 +8,7 @@ from services.studio_service import studio_service
 
 
 class ProjectCreateRequest(BaseModel):
-    name: str = Field(..., min_length=1)
+    name: str = ""
 
 
 class ProjectUpdateRequest(BaseModel):
@@ -29,7 +29,7 @@ class FavoriteCreateRequest(BaseModel):
 
 
 class TemplateCreateRequest(BaseModel):
-    name: str = Field(..., min_length=1)
+    name: str = ""
     category: str = ""
     content: str = Field(..., min_length=1)
 
@@ -68,7 +68,7 @@ def create_router() -> APIRouter:
     @router.patch("/api/projects/{project_id}")
     async def update_project(project_id: str, body: ProjectUpdateRequest, authorization: str | None = Header(default=None)):
         identity = _identity(authorization)
-        item = studio_service.update_project(identity, project_id, body.model_dump(exclude_unset=True))
+        item = studio_service.update_project(identity, project_id, body.model_dump(exclude_unset=True, exclude_none=True))
         if item is None:
             raise _not_found("project not found")
         return {"item": item}
@@ -105,7 +105,7 @@ def create_router() -> APIRouter:
     async def update_prompt_template(template_id: str, body: TemplateUpdateRequest, authorization: str | None = Header(default=None)):
         identity = _identity(authorization)
         try:
-            item = studio_service.update_prompt_template(identity, template_id, body.model_dump(exclude_unset=True))
+            item = studio_service.update_prompt_template(identity, template_id, body.model_dump(exclude_unset=True, exclude_none=True))
         except ValueError as exc:
             raise _bad_request(exc) from exc
         if item is None:
