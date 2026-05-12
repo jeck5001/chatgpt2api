@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../auth/login_screen.dart';
 import '../auth/onboarding_screen.dart';
+import '../auth/auth_repository.dart';
 import '../core/api/api_client.dart';
 import '../core/storage/secure_token_store.dart';
 import '../core/storage/server_profile_store.dart';
@@ -31,11 +32,20 @@ GoRouter buildRouter() {
         builder: (context, state) => LoginScreen(
           baseUrl: pendingBaseUrl ?? Uri.parse('http://localhost:8000'),
           onLogin: (bearerKey) async {
-            final baseUrl = pendingBaseUrl ?? Uri.parse('http://localhost:8000');
+            final baseUrl =
+                pendingBaseUrl ?? Uri.parse('http://localhost:8000');
             final router = GoRouter.of(context);
             final tokenStore = SecureTokenStore();
             final profileStore = ServerProfileStore(
               await SharedPreferences.getInstance(),
+            );
+            final authRepository = AuthRepository(
+              tokenStore: tokenStore,
+              profileStore: profileStore,
+            );
+            await authRepository.loginWithBearerKey(
+              baseUrl: baseUrl,
+              bearerKey: bearerKey,
             );
             final repository = StudioRepository(
               ApiClient(
@@ -44,8 +54,6 @@ GoRouter buildRouter() {
               ),
             );
             final controller = StudioController(repository);
-            await tokenStore.writeToken(bearerKey);
-            await profileStore.writeActiveBaseUrl(baseUrl);
             router.go('/studio', extra: controller);
           },
         ),

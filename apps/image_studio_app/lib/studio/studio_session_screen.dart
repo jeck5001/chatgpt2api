@@ -4,10 +4,7 @@ import 'create_screen.dart';
 import 'studio_controller.dart';
 
 class StudioSessionScreen extends StatefulWidget {
-  const StudioSessionScreen({
-    super.key,
-    required this.controller,
-  });
+  const StudioSessionScreen({super.key, required this.controller});
 
   final StudioController controller;
 
