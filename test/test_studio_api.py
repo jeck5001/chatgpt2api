@@ -73,6 +73,8 @@ class FakeStudioService:
         return item
 
     def create_queued_turn(self, identity, conversation_id, **values):
+        if not str(values.get("client_task_id") or "").strip():
+            raise ValueError("client_task_id is required")
         for item in self.turns:
             if item.get("conversation_id") == conversation_id and item.get("client_task_id") == values.get("client_task_id"):
                 return item
@@ -92,8 +94,22 @@ class FakeStudioService:
         return item
 
     def mark_turn_retrying(self, identity, turn_id, client_task_id):
+        if not str(client_task_id or "").strip():
+            raise ValueError("client_task_id is required")
         self.retried.append((identity, turn_id, client_task_id))
-        return {"id": turn_id, "client_task_id": client_task_id, "task_id": client_task_id, "status": "queued", "mode": "generate"}
+        turn = self.get_turn(identity, turn_id)
+        if turn is None:
+            return None
+        if turn.get("mode") == "edit":
+            raise ValueError("edit retry is not supported because reference images are not persisted")
+        if turn.get("status") != "error":
+            raise ValueError("only error turns can be retried")
+        turn["client_task_id"] = client_task_id
+        turn["task_id"] = client_task_id
+        turn["status"] = "queued"
+        turn["error"] = ""
+        turn["result_images"] = []
+        return turn
 
 
 class FakeImageTaskService:
@@ -106,6 +122,7 @@ class FakeImageTaskService:
         }
 
     def submit_generation(self, identity, *, client_task_id, prompt, model, size, base_url):
+        self._validate_client_task_id(client_task_id)
         self.generations.append(
             {
                 "identity": identity,
@@ -121,6 +138,7 @@ class FakeImageTaskService:
         return task
 
     def submit_edit(self, identity, *, client_task_id, prompt, model, size, base_url, images):
+        self._validate_client_task_id(client_task_id)
         self.edits.append(
             {
                 "identity": identity,
@@ -138,6 +156,11 @@ class FakeImageTaskService:
 
     def get_task(self, identity, task_id):
         return self.tasks.get(task_id)
+
+    @staticmethod
+    def _validate_client_task_id(client_task_id):
+        if not str(client_task_id or "").strip():
+            raise ValueError("client_task_id is required")
 
 
 class StudioApiTests(unittest.TestCase):
@@ -247,6 +270,23 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400, response.text)
         self.assertEqual(self.fake_image_task_service.generations, [])
 
+    def test_create_generation_turn_with_blank_client_task_id_does_not_persist_or_submit(self):
+        response = self.client.post(
+            "/api/image-turns/generations",
+            headers=AUTH_HEADERS,
+            json={
+                "conversation_id": "conversation-1",
+                "client_task_id": "   ",
+                "prompt": "cat",
+                "model": "gpt-image-2",
+                "size": "1024x1024",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(self.fake_service.created_turns, [])
+        self.assertEqual(self.fake_image_task_service.generations, [])
+
     def test_duplicate_generation_turn_reuses_existing_turn(self):
         body = {
             "conversation_id": "conversation-1",
@@ -323,6 +363,24 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400, response.text)
         self.assertEqual(self.fake_image_task_service.edits, [])
 
+    def test_create_edit_turn_with_blank_client_task_id_does_not_persist_or_submit(self):
+        response = self.client.post(
+            "/api/image-turns/edits",
+            headers=AUTH_HEADERS,
+            data={
+                "conversation_id": "conversation-1",
+                "client_task_id": "   ",
+                "prompt": "cat",
+                "model": "gpt-image-2",
+                "size": "1024x1024",
+            },
+            files=[("image", ("first.png", b"first", "image/png"))],
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(self.fake_service.created_turns, [])
+        self.assertEqual(self.fake_image_task_service.edits, [])
+
     def test_retry_edit_turn_returns_bad_request(self):
         self.fake_service.turns.append(
             {
@@ -358,6 +416,21 @@ class StudioApiTests(unittest.TestCase):
 
                 self.assertEqual(response.status_code, 400, response.text)
                 self.assertEqual(self.fake_image_task_service.generations, [])
+
+    def test_retry_with_blank_client_task_id_does_not_mutate_or_submit(self):
+        self.fake_service.turns[0]["status"] = "error"
+        self.fake_service.turns[0]["error"] = "failed"
+        original = dict(self.fake_service.turns[0])
+
+        response = self.client.post(
+            "/api/image-turns/turn-1/retry",
+            headers=AUTH_HEADERS,
+            json={"client_task_id": "   "},
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(self.fake_service.turns[0], original)
+        self.assertEqual(self.fake_image_task_service.generations, [])
 
 
 if __name__ == "__main__":

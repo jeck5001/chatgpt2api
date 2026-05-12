@@ -285,6 +285,8 @@ class StudioService:
             if conversation is None:
                 raise ValueError("conversation not found")
             client_task_id = _clean(values.get("client_task_id"))
+            if not client_task_id:
+                raise ValueError("client_task_id is required")
             if client_task_id:
                 for item in self._state["turns"]:
                     if (
@@ -367,9 +369,15 @@ class StudioService:
             item = self._find_visible(identity, "turns", turn_id)
             if item is None:
                 return None
+            task_id = _clean(client_task_id)
+            if not task_id:
+                raise ValueError("client_task_id is required")
+            if item.get("mode") == "edit":
+                raise ValueError("edit retry is not supported because reference images are not persisted")
+            if item.get("status") != STATUS_ERROR:
+                raise ValueError("only error turns can be retried")
             before = deepcopy(self._state)
             now = _now_iso()
-            task_id = _clean(client_task_id)
             item["client_task_id"] = task_id
             item["task_id"] = task_id
             item["status"] = STATUS_QUEUED

@@ -221,10 +221,6 @@ def create_router() -> APIRouter:
         turn = studio_service.get_turn(identity, turn_id)
         if turn is None:
             raise _not_found("turn not found")
-        if turn.get("mode") == "edit":
-            raise HTTPException(status_code=400, detail={"error": "edit retry is not supported because reference images are not persisted"})
-        if turn.get("status") != "error":
-            raise HTTPException(status_code=400, detail={"error": "only error turns can be retried"})
         try:
             retried = studio_service.mark_turn_retrying(identity, turn_id, body.client_task_id)
             if retried is None:

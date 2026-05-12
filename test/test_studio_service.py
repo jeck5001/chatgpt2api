@@ -209,6 +209,95 @@ class StudioServiceTests(unittest.TestCase):
         self.assertEqual(second["prompt"], "cat")
         self.assertEqual(len(service.list_turns(OWNER, conversation["id"])), 1)
 
+    def test_create_queued_turn_rejects_blank_client_task_id(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+
+        with self.assertRaises(ValueError):
+            service.create_queued_turn(
+                OWNER,
+                conversation["id"],
+                client_task_id="   ",
+                mode="generate",
+                prompt="cat",
+                model="gpt-image-2",
+                size="",
+                reference_images=[],
+            )
+
+        self.assertEqual(service.list_turns(OWNER, conversation["id"]), [])
+
+    def test_mark_turn_retrying_rejects_ineligible_turns(self):
+        for status in ("success", "queued", "running"):
+            with self.subTest(status=status):
+                service, _storage, _path = self.make_service()
+                project = service.create_project(OWNER, "Spring")
+                conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+                turn = service.create_turn(
+                    OWNER,
+                    conversation["id"],
+                    client_task_id="task-1",
+                    task_id="task-1",
+                    mode="generate",
+                    prompt="cat",
+                    status=status,
+                    error="",
+                )
+
+                with self.assertRaises(ValueError):
+                    service.mark_turn_retrying(OWNER, turn["id"], "task-2")
+
+                stored = service.get_turn(OWNER, turn["id"])
+                self.assertEqual(stored["status"], status)
+                self.assertEqual(stored["task_id"], "task-1")
+
+    def test_mark_turn_retrying_rejects_edit_turns(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "edit")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="edit",
+            prompt="cat",
+            status="error",
+            error="failed",
+        )
+
+        with self.assertRaises(ValueError):
+            service.mark_turn_retrying(OWNER, turn["id"], "task-2")
+
+        stored = service.get_turn(OWNER, turn["id"])
+        self.assertEqual(stored["status"], "error")
+        self.assertEqual(stored["task_id"], "task-1")
+        self.assertEqual(stored["error"], "failed")
+
+    def test_mark_turn_retrying_rejects_blank_client_task_id(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            status="error",
+            error="failed",
+        )
+
+        with self.assertRaises(ValueError):
+            service.mark_turn_retrying(OWNER, turn["id"], "   ")
+
+        stored = service.get_turn(OWNER, turn["id"])
+        self.assertEqual(stored["status"], "error")
+        self.assertEqual(stored["task_id"], "task-1")
+        self.assertEqual(stored["error"], "failed")
+
     def test_create_project_rolls_back_in_memory_state_on_save_failure(self):
         class FailingSaveStorage(JSONStorageBackend):
             def save_studio_state(self, state):
