@@ -1,0 +1,1920 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kiln · 设计稿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Noto+Serif+SC:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* =====================================================================
+   Kiln design tokens
+   ===================================================================== */
+:root{
+  /* Surface */
+  --ink-950:#0A0807;
+  --ink-900:#14110D;
+  --ink-850:#1A1611;
+  --ink-800:#1F1A14;
+  --ink-700:#2C251C;
+  --ink-600:#4A4034;
+  --ink-500:#6B5E4D;
+  --ink-400:#8F8270;
+  --ink-300:#B8AC97;
+  --ink-200:#D9CFBA;
+  --ink-100:#F4ECDD;
+
+  /* Brand */
+  --ember-300:#F8D69A;
+  --ember-400:#F2BE6B;
+  --ember-500:#E8A84A;
+  --ember-600:#C8743A;
+  --ember-700:#8B3F2E;
+  --ember-glow:rgba(232,168,74,.20);
+
+  /* Semantic */
+  --success:#6FBF8B;
+  --warn:#E8B85A;
+  --danger:#E07A6B;
+  --info:#7BAACF;
+
+  /* Gradients */
+  --gradient-kiln:linear-gradient(135deg,#F2BE6B 0%,#E8A84A 35%,#C8743A 70%,#8B3F2E 100%);
+  --gradient-ember-glow:radial-gradient(ellipse 60% 80% at 50% 100%, rgba(232,168,74,.18), transparent 60%);
+  --gradient-card:linear-gradient(180deg, rgba(255,255,255,.015), rgba(0,0,0,.15));
+
+  /* Radii / shadow / spacing */
+  --r-card:20px;
+  --r-button:14px;
+  --r-input:16px;
+  --r-chip:999px;
+  --shadow-card:0 8px 24px rgba(0,0,0,.5);
+  --shadow-float:0 16px 48px rgba(0,0,0,.6);
+  --shadow-cta:0 8px 24px rgba(200,116,58,.35), 0 0 0 1px rgba(255,200,140,.18) inset;
+  --hairline:1px solid rgba(244,236,221,.06);
+  --hairline-strong:1px solid rgba(244,236,221,.12);
+
+  /* Type */
+  --f-display:'Fraunces','Noto Serif SC','Songti SC','Times New Roman',serif;
+  --f-ui:'Inter','Noto Sans SC','PingFang SC','Microsoft YaHei','Helvetica Neue',Arial,sans-serif;
+  --f-mono:'JetBrains Mono',ui-monospace,monospace;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--ink-950);color:var(--ink-100);font-family:var(--f-ui);-webkit-font-smoothing:antialiased;font-feature-settings:"ss01","cv11"}
+img{display:block;max-width:100%}
+a{color:inherit;text-decoration:none}
+
+/* Global noise overlay */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:1000;opacity:.04;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.95 0 0 0 0 0.93 0 0 0 0 0.87 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* =====================================================================
+   Page shell
+   ===================================================================== */
+.page{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+
+/* Sidebar */
+.side{
+  position:sticky;top:0;height:100vh;
+  padding:36px 28px;border-right:var(--hairline);
+  background:linear-gradient(180deg,#0E0B09 0%, #0A0807 100%);
+  display:flex;flex-direction:column;gap:36px;z-index:5;
+}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand .mark{
+  width:28px;height:28px;border-radius:8px;
+  background:var(--gradient-kiln);
+  box-shadow:0 4px 14px rgba(232,168,74,.35), 0 0 0 1px rgba(255,200,140,.25) inset;
+  position:relative;
+}
+.brand .mark::after{
+  content:"";position:absolute;inset:6px;
+  border-radius:4px;background:radial-gradient(circle at 50% 70%, rgba(255,230,180,.7), transparent 60%);
+}
+.brand .name{
+  font-family:var(--f-display);font-weight:600;font-size:24px;letter-spacing:-.02em;
+  font-variation-settings:"opsz" 144;
+}
+.brand .sub{
+  font-family:var(--f-mono);font-size:10px;color:var(--ink-400);text-transform:uppercase;letter-spacing:.18em;margin-left:auto;align-self:center;
+}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{
+  display:grid;grid-template-columns:32px 1fr auto;align-items:center;gap:12px;
+  padding:10px 12px;border-radius:10px;color:var(--ink-300);
+  font-size:13px;font-weight:500;transition:.2s;
+}
+.nav a:hover{background:var(--ink-850);color:var(--ink-100)}
+.nav a.active{background:var(--ink-800);color:var(--ink-100)}
+.nav a .num{font-family:var(--f-mono);font-size:10px;color:var(--ink-500);letter-spacing:.1em}
+.nav a .dot{width:6px;height:6px;border-radius:50%;background:var(--ember-500);opacity:0;transition:.2s}
+.nav a.active .dot{opacity:1}
+
+.side .foot{
+  margin-top:auto;font-family:var(--f-mono);font-size:10px;color:var(--ink-500);
+  line-height:1.7;letter-spacing:.05em;
+}
+
+/* Main canvas */
+.main{padding:64px 72px 120px}
+.section{margin-bottom:140px;scroll-margin-top:40px}
+.section-head{display:grid;grid-template-columns:80px 1fr;gap:32px;margin-bottom:48px;align-items:end}
+.section-num{
+  font-family:var(--f-mono);font-size:11px;color:var(--ember-500);
+  letter-spacing:.2em;text-transform:uppercase;padding-top:6px;
+  border-top:1px solid var(--ember-600);
+}
+.section-title{
+  font-family:var(--f-display);font-weight:400;font-size:54px;line-height:1.05;
+  letter-spacing:-.025em;font-variation-settings:"opsz" 144;color:var(--ink-100);
+  margin:0 0 12px;
+}
+.section-title em{font-style:italic;color:var(--ember-400);font-weight:300}
+.section-desc{font-size:14px;color:var(--ink-300);max-width:560px;line-height:1.6}
+
+.frame-row{display:flex;gap:48px;flex-wrap:wrap;align-items:flex-start}
+.frame-row.center{justify-content:flex-start}
+
+.caption{margin-top:18px;font-family:var(--f-mono);font-size:10.5px;color:var(--ink-500);text-transform:uppercase;letter-spacing:.15em;text-align:center}
+
+/* =====================================================================
+   Device frames
+   ===================================================================== */
+.phone{
+  width:380px;height:800px;border-radius:48px;
+  background:linear-gradient(180deg,#1c1813,#0a0807);
+  padding:14px;
+  box-shadow:0 40px 100px rgba(0,0,0,.7),0 0 0 1px rgba(244,236,221,.06), 0 0 60px -10px rgba(232,168,74,.06);
+  position:relative;flex-shrink:0;
+}
+.phone::after{
+  content:"";position:absolute;inset:14px;border-radius:36px;
+  pointer-events:none;
+  box-shadow:0 0 0 1px rgba(244,236,221,.04) inset;
+}
+.phone .screen{
+  width:100%;height:100%;border-radius:36px;overflow:hidden;
+  background:var(--ink-950);position:relative;
+  display:flex;flex-direction:column;
+}
+.phone .notch{
+  position:absolute;top:14px;left:50%;transform:translateX(-50%);
+  width:108px;height:30px;background:#000;border-radius:18px;z-index:30;
+}
+.status-bar{
+  position:absolute;top:0;left:0;right:0;height:48px;z-index:25;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 28px 0;font-family:var(--f-ui);font-weight:600;font-size:13px;color:var(--ink-100);
+}
+.status-bar .icons{display:flex;align-items:center;gap:6px;font-size:12px}
+.status-bar .icons svg{width:14px;height:14px}
+
+.desktop{
+  width:1180px;height:740px;border-radius:18px;background:#0a0807;
+  box-shadow:0 60px 120px rgba(0,0,0,.7),0 0 0 1px rgba(244,236,221,.05);
+  overflow:hidden;flex-shrink:0;display:flex;flex-direction:column;
+}
+.desktop .titlebar{
+  height:34px;background:#1a1611;display:flex;align-items:center;gap:8px;padding:0 14px;
+  border-bottom:var(--hairline);
+}
+.desktop .titlebar .tdot{width:11px;height:11px;border-radius:50%}
+.desktop .titlebar .red{background:#FF5F57}
+.desktop .titlebar .yel{background:#FEBC2E}
+.desktop .titlebar .grn{background:#28C840}
+.desktop .titlebar .url{
+  margin:0 auto;font-family:var(--f-mono);font-size:11px;color:var(--ink-400);
+  padding:4px 14px;background:var(--ink-900);border-radius:6px;letter-spacing:.05em;
+}
+.desktop .body{flex:1;display:grid;grid-template-columns:280px 1fr 340px;min-height:0}
+
+/* =====================================================================
+   Reusable UI atoms
+   ===================================================================== */
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  height:28px;padding:0 12px;border-radius:var(--r-chip);
+  font-family:var(--f-mono);font-size:11px;color:var(--ink-200);
+  background:var(--ink-800);border:1px solid rgba(244,236,221,.08);
+  letter-spacing:.04em;white-space:nowrap;
+}
+.chip.dot::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--ember-500)}
+.chip.active{background:rgba(232,168,74,.12);color:var(--ember-400);border-color:rgba(232,168,74,.3)}
+.chip.icon{padding-left:8px}
+.chip svg{width:12px;height:12px}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  height:48px;padding:0 22px;border-radius:var(--r-button);
+  font-family:var(--f-ui);font-weight:600;font-size:14px;letter-spacing:.01em;
+  border:none;cursor:pointer;transition:.2s;
+}
+.btn-primary{
+  background:var(--gradient-kiln);color:#1A0E04;
+  box-shadow:var(--shadow-cta);
+}
+.btn-secondary{
+  background:var(--ink-800);color:var(--ink-100);border:1px solid rgba(244,236,221,.08);
+}
+.btn-ghost{
+  background:transparent;color:var(--ink-200);border:1px solid rgba(244,236,221,.12);
+}
+.btn-danger{
+  background:transparent;color:var(--danger);border:1px solid rgba(224,122,107,.35);
+}
+.btn-sm{height:36px;padding:0 16px;font-size:13px;border-radius:10px}
+.btn-icon{
+  width:40px;height:40px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;
+  background:rgba(244,236,221,.05);color:var(--ink-200);border:1px solid rgba(244,236,221,.08);
+}
+.btn-icon:hover{background:rgba(244,236,221,.08)}
+.btn svg{width:16px;height:16px}
+
+.input{
+  width:100%;height:54px;padding:0 18px;border-radius:var(--r-input);
+  background:var(--ink-900);border:1px solid rgba(244,236,221,.08);
+  color:var(--ink-100);font-family:var(--f-ui);font-size:14px;outline:none;
+}
+.input:focus{border-color:var(--ember-500);box-shadow:0 0 0 4px var(--ember-glow)}
+.label{
+  font-family:var(--f-mono);font-size:10px;letter-spacing:.18em;
+  color:var(--ink-400);text-transform:uppercase;margin-bottom:8px;display:block;
+}
+
+.card{
+  background:var(--ink-900);border-radius:var(--r-card);
+  border:var(--hairline);box-shadow:var(--shadow-card);
+  background-image:var(--gradient-card);
+}
+
+/* Shimmer */
+@keyframes shimmer{
+  0%{background-position:-200% 0}
+  100%{background-position:200% 0}
+}
+.shimmer{
+  background:linear-gradient(90deg, var(--ink-850) 0%, var(--ink-800) 50%, var(--ink-850) 100%);
+  background-size:200% 100%;
+  animation:shimmer 1.8s ease-in-out infinite;
+}
+
+@keyframes ember-pulse{
+  0%,100%{opacity:.4;transform:scale(1)}
+  50%{opacity:.8;transform:scale(1.05)}
+}
+.ember-pulse{animation:ember-pulse 2.4s ease-in-out infinite}
+
+/* =====================================================================
+   SCREEN 1 — Onboarding / Login
+   ===================================================================== */
+.onb{
+  flex:1;display:flex;flex-direction:column;position:relative;
+  padding:64px 28px 32px;
+  background:
+    radial-gradient(ellipse 100% 60% at 50% 0%, rgba(232,168,74,.18), transparent 70%),
+    radial-gradient(ellipse 80% 40% at 50% 100%, rgba(139,63,46,.25), transparent 70%),
+    var(--ink-950);
+}
+.onb .crest{
+  width:56px;height:56px;border-radius:18px;background:var(--gradient-kiln);
+  box-shadow:0 12px 36px rgba(200,116,58,.45), 0 0 0 1px rgba(255,200,140,.3) inset;
+  position:relative;margin-bottom:32px;
+}
+.onb .crest::after{
+  content:"";position:absolute;inset:14px;border-radius:8px;
+  background:radial-gradient(circle at 50% 80%, rgba(255,235,200,.9), transparent 65%);
+}
+.onb .wordmark{
+  font-family:var(--f-display);font-weight:300;font-size:64px;line-height:1;
+  letter-spacing:-.04em;font-variation-settings:"opsz" 144;color:var(--ink-100);
+}
+.onb .tagline{
+  font-family:var(--f-display);font-weight:300;font-style:italic;font-size:18px;
+  color:var(--ink-300);margin-top:12px;letter-spacing:.01em;
+}
+.onb .step{
+  font-family:var(--f-mono);font-size:10px;color:var(--ember-400);
+  letter-spacing:.25em;text-transform:uppercase;margin-top:auto;margin-bottom:14px;
+}
+.onb-card{
+  background:rgba(20,17,13,.6);backdrop-filter:blur(20px);
+  border:1px solid rgba(244,236,221,.08);border-radius:24px;
+  padding:24px;box-shadow:var(--shadow-float);
+}
+.onb-card .head{font-family:var(--f-display);font-size:22px;font-weight:500;margin-bottom:6px}
+.onb-card .help{font-size:12px;color:var(--ink-400);margin-bottom:18px;line-height:1.5}
+
+.onb-card .input{height:50px;font-family:var(--f-mono);font-size:13px}
+
+.onb .footnote{margin-top:14px;text-align:center;font-size:11px;color:var(--ink-500)}
+.onb .footnote a{color:var(--ember-400)}
+
+/* =====================================================================
+   SCREEN 2 — Studio
+   ===================================================================== */
+.studio{flex:1;display:flex;flex-direction:column;position:relative;overflow:hidden;background:var(--ink-950)}
+.studio-top{
+  padding:56px 20px 14px;display:flex;align-items:center;gap:10px;
+  border-bottom:var(--hairline);
+}
+.session-title{
+  flex:1;display:flex;align-items:center;gap:6px;min-width:0;
+  font-family:var(--f-display);font-size:17px;font-weight:500;color:var(--ink-100);
+  letter-spacing:-.01em;
+}
+.session-title svg{width:14px;height:14px;color:var(--ink-400);flex-shrink:0}
+
+.studio-feed{
+  flex:1;overflow:auto;padding:18px 18px 200px;display:flex;flex-direction:column;gap:18px;
+}
+.turn{
+  background:var(--ink-900);border-radius:var(--r-card);
+  border:var(--hairline);box-shadow:var(--shadow-card);
+  padding:18px;position:relative;overflow:hidden;
+}
+.turn::after{
+  /* Ember glow at bottom edge — the kiln signature */
+  content:"";position:absolute;left:0;right:0;bottom:0;height:80px;
+  background:radial-gradient(ellipse 80% 100% at 50% 100%, rgba(232,168,74,.10), transparent 70%);
+  pointer-events:none;
+}
+.turn .prompt{
+  font-family:var(--f-display);font-size:17px;font-weight:400;line-height:1.4;color:var(--ink-100);
+  letter-spacing:-.005em;
+}
+.turn .meta{
+  display:flex;align-items:center;gap:8px;margin-top:6px;flex-wrap:wrap;
+  font-family:var(--f-mono);font-size:10.5px;color:var(--ink-400);letter-spacing:.04em;
+}
+.turn .meta .sep{opacity:.5}
+.turn .images{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.turn .images .img{aspect-ratio:1;border-radius:14px;overflow:hidden;background:#000;position:relative}
+.turn .images .img img{width:100%;height:100%;object-fit:cover}
+.turn .actions{display:flex;align-items:center;gap:2px;margin-top:14px;padding-top:14px;border-top:var(--hairline)}
+.turn .actions button{
+  flex:1;height:36px;background:transparent;border:none;color:var(--ink-300);
+  font-family:var(--f-ui);font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;
+  border-radius:8px;cursor:pointer;
+}
+.turn .actions button:hover{background:rgba(244,236,221,.04);color:var(--ink-100)}
+.turn .actions button.fav{color:var(--ember-400)}
+.turn .actions svg{width:14px;height:14px}
+
+/* Running shimmer card */
+.turn.running .images .img{background:transparent;padding:0}
+.turn.running .placeholder{
+  width:100%;height:100%;border-radius:14px;
+}
+.turn.running .status{
+  display:flex;align-items:center;gap:8px;
+  font-family:var(--f-mono);font-size:11px;color:var(--ember-400);margin-top:12px;
+  letter-spacing:.08em;text-transform:uppercase;
+}
+.turn.running .status .pulse{
+  width:8px;height:8px;border-radius:50%;background:var(--ember-500);
+  box-shadow:0 0 12px var(--ember-500);
+}
+
+/* Error card */
+.turn.error{border-color:rgba(224,122,107,.3);background:linear-gradient(180deg,rgba(224,122,107,.04),transparent)}
+.turn.error::after{display:none}
+.turn.error .err-block{
+  display:flex;gap:12px;padding:14px;background:rgba(224,122,107,.07);
+  border:1px solid rgba(224,122,107,.18);border-radius:14px;margin-top:14px;
+}
+.turn.error .err-block .ico{
+  width:32px;height:32px;border-radius:8px;background:rgba(224,122,107,.18);
+  display:flex;align-items:center;justify-content:center;color:var(--danger);flex-shrink:0;
+}
+.turn.error .err-block .ico svg{width:16px;height:16px}
+.turn.error .err-block .txt{flex:1;min-width:0}
+.turn.error .err-block .title{font-size:13px;color:var(--ink-100);font-weight:600;margin-bottom:2px}
+.turn.error .err-block .body{font-size:12px;color:var(--ink-300);line-height:1.5;font-family:var(--f-mono)}
+.turn.error .err-actions{display:flex;gap:10px;margin-top:14px}
+
+/* Composer bar (sticky bottom) */
+.composer{
+  position:absolute;left:14px;right:14px;bottom:20px;z-index:20;
+  background:rgba(20,17,13,.92);backdrop-filter:blur(24px);
+  border:1px solid rgba(244,236,221,.10);border-radius:24px;
+  box-shadow:0 20px 50px rgba(0,0,0,.6), 0 0 0 1px rgba(232,168,74,.06);
+  padding:14px;
+}
+.composer .row1{display:flex;align-items:flex-start;gap:10px}
+.composer .add{
+  width:36px;height:36px;border-radius:10px;flex-shrink:0;
+  background:rgba(244,236,221,.06);display:flex;align-items:center;justify-content:center;
+  color:var(--ink-300);
+}
+.composer .field{
+  flex:1;min-width:0;font-family:var(--f-ui);font-size:14px;color:var(--ink-100);
+  padding:8px 0;line-height:1.4;
+}
+.composer .field .placeholder{color:var(--ink-500)}
+.composer .send{
+  width:44px;height:44px;border-radius:14px;background:var(--gradient-kiln);
+  display:flex;align-items:center;justify-content:center;color:#1A0E04;flex-shrink:0;
+  box-shadow:var(--shadow-cta);
+}
+.composer .send svg{width:18px;height:18px}
+.composer .row2{
+  display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;
+  border-top:var(--hairline);overflow-x:auto;
+}
+.composer .row2::-webkit-scrollbar{display:none}
+
+/* =====================================================================
+   Desktop Studio (three pane)
+   ===================================================================== */
+.d-projects{
+  padding:24px 18px;border-right:var(--hairline);
+  display:flex;flex-direction:column;gap:18px;overflow:auto;
+}
+.d-projects .head{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:6px;
+}
+.d-projects .head h3{
+  margin:0;font-family:var(--f-display);font-size:18px;font-weight:500;
+  letter-spacing:-.01em;
+}
+.d-projects .section-label{
+  font-family:var(--f-mono);font-size:10px;letter-spacing:.18em;
+  color:var(--ink-400);text-transform:uppercase;margin-top:8px;margin-bottom:6px;
+}
+.proj-item{
+  display:flex;align-items:center;gap:12px;padding:10px;border-radius:12px;cursor:pointer;
+}
+.proj-item:hover{background:var(--ink-850)}
+.proj-item.active{background:var(--ink-800)}
+.proj-item .cover{
+  width:40px;height:40px;border-radius:10px;background:#000;overflow:hidden;flex-shrink:0;
+  box-shadow:0 4px 10px rgba(0,0,0,.3);
+}
+.proj-item .cover img{width:100%;height:100%;object-fit:cover}
+.proj-item .meta{flex:1;min-width:0}
+.proj-item .name{font-size:13px;font-weight:500;color:var(--ink-100);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proj-item .sub{font-family:var(--f-mono);font-size:10px;color:var(--ink-500);margin-top:2px;letter-spacing:.04em}
+.proj-item .dot{width:6px;height:6px;border-radius:50%;background:var(--ember-500);opacity:0;flex-shrink:0}
+.proj-item.active .dot{opacity:1}
+
+.conv-item{
+  display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;cursor:pointer;
+}
+.conv-item:hover{background:var(--ink-850)}
+.conv-item.active{background:var(--ink-800);border-left:2px solid var(--ember-500);padding-left:8px}
+.conv-item .t{font-size:12.5px;color:var(--ink-100);font-weight:500}
+.conv-item .s{font-family:var(--f-mono);font-size:10px;color:var(--ink-500);margin-top:2px}
+
+.d-center{padding:0;position:relative;display:flex;flex-direction:column;min-width:0;background:var(--ink-950)}
+.d-top{
+  padding:16px 28px;border-bottom:var(--hairline);
+  display:flex;align-items:center;gap:14px;
+}
+.d-top .title{font-family:var(--f-display);font-size:20px;font-weight:500;letter-spacing:-.01em;flex:1}
+.d-feed{flex:1;overflow:auto;padding:28px 28px 200px;display:flex;flex-direction:column;gap:24px}
+.d-feed .turn .images{grid-template-columns:repeat(4,1fr)}
+.d-feed .composer{left:28px;right:28px;bottom:28px}
+
+.d-inspector{
+  border-left:var(--hairline);background:var(--ink-900);
+  display:flex;flex-direction:column;overflow:auto;
+}
+.d-inspector .preview{aspect-ratio:1;background:#000;position:relative;overflow:hidden}
+.d-inspector .preview img{width:100%;height:100%;object-fit:cover}
+.d-inspector .preview::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg,transparent 60%, rgba(10,8,7,.5));
+}
+.insp-body{padding:22px;display:flex;flex-direction:column;gap:18px}
+.insp-row{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--ink-300);padding:8px 0;border-bottom:var(--hairline)}
+.insp-row:last-child{border:none}
+.insp-row .k{font-family:var(--f-mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink-500)}
+.insp-row .v{font-family:var(--f-mono);font-size:11.5px;color:var(--ink-100)}
+.insp-actions{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.insp-actions .btn{justify-content:flex-start;height:42px;padding:0 14px;border-radius:12px;font-size:13px}
+
+/* =====================================================================
+   SCREEN 4 — Immersive Viewer
+   ===================================================================== */
+.viewer{flex:1;position:relative;background:#000;display:flex;flex-direction:column}
+.viewer .top{
+  position:absolute;top:0;left:0;right:0;z-index:20;
+  padding:54px 16px 12px;display:flex;align-items:center;gap:10px;
+  background:linear-gradient(180deg,rgba(0,0,0,.6),transparent);
+}
+.viewer .top .meta{flex:1;min-width:0}
+.viewer .top .meta .t{font-family:var(--f-display);font-size:14px;font-weight:500;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.viewer .top .meta .s{font-family:var(--f-mono);font-size:10px;color:rgba(255,255,255,.55);margin-top:2px;letter-spacing:.05em}
+.viewer .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:80px 16px 0}
+.viewer .stage img{max-width:100%;max-height:100%;border-radius:6px;box-shadow:0 30px 80px rgba(232,168,74,.15)}
+.viewer .pages{
+  position:absolute;left:0;right:0;bottom:170px;display:flex;justify-content:center;gap:6px;z-index:10;
+}
+.viewer .pages span{width:24px;height:3px;border-radius:2px;background:rgba(255,255,255,.2)}
+.viewer .pages span.on{background:var(--ember-500)}
+
+.viewer .drawer{
+  position:absolute;left:14px;right:14px;bottom:14px;z-index:15;
+  background:rgba(20,17,13,.92);backdrop-filter:blur(28px);
+  border:1px solid rgba(244,236,221,.10);border-radius:24px;
+  padding:18px;box-shadow:var(--shadow-float);
+}
+.viewer .drawer .handle{
+  width:36px;height:4px;border-radius:2px;background:rgba(255,255,255,.18);
+  margin:0 auto 14px;
+}
+.viewer .drawer .pq{font-family:var(--f-display);font-size:15px;font-weight:400;line-height:1.45;color:var(--ink-100)}
+.viewer .drawer .pmeta{
+  display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;
+}
+.viewer .drawer .actions{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:14px}
+.viewer .drawer .actions button{
+  flex-direction:column;height:60px;border-radius:14px;background:rgba(244,236,221,.05);
+  border:1px solid rgba(244,236,221,.06);color:var(--ink-200);font-size:10px;
+  font-family:var(--f-ui);font-weight:500;gap:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.viewer .drawer .actions button.fav{color:var(--ember-400);background:rgba(232,168,74,.08);border-color:rgba(232,168,74,.2)}
+.viewer .drawer .actions svg{width:18px;height:18px}
+
+/* =====================================================================
+   SCREEN 5 — Gallery
+   ===================================================================== */
+.gallery{flex:1;display:flex;flex-direction:column;background:var(--ink-950);overflow:hidden}
+.gallery .head{padding:54px 20px 10px}
+.gallery .head h1{
+  font-family:var(--f-display);font-size:32px;font-weight:400;letter-spacing:-.02em;margin:0;
+  font-variation-settings:"opsz" 144;
+}
+.gallery .head .sub{font-family:var(--f-mono);font-size:11px;color:var(--ink-400);margin-top:4px;letter-spacing:.05em}
+.gallery .chips{display:flex;gap:8px;padding:14px 20px 4px;overflow-x:auto}
+.gallery .chips::-webkit-scrollbar{display:none}
+.gallery .masonry{
+  flex:1;overflow:auto;padding:14px 14px 40px;
+  columns:2;column-gap:10px;
+}
+.gallery .masonry .tile{
+  display:block;break-inside:avoid;margin-bottom:10px;border-radius:14px;overflow:hidden;
+  position:relative;background:#000;box-shadow:0 4px 14px rgba(0,0,0,.4);
+}
+.gallery .masonry .tile img{width:100%;height:auto;display:block}
+.gallery .masonry .tile .fav{
+  position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;
+  background:rgba(0,0,0,.4);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;color:var(--ember-400);
+}
+.gallery .masonry .tile .fav svg{width:14px;height:14px}
+
+/* Desktop gallery */
+.d-gallery{flex:1;display:flex;flex-direction:column;background:var(--ink-950);overflow:hidden;grid-column:span 3}
+.d-gallery .head{padding:24px 36px 8px;display:flex;align-items:end;gap:24px}
+.d-gallery .head h1{font-family:var(--f-display);font-size:38px;margin:0;font-weight:400;letter-spacing:-.02em;font-variation-settings:"opsz" 144}
+.d-gallery .head .sub{font-family:var(--f-mono);font-size:11px;color:var(--ink-400);margin-bottom:8px;flex:1}
+.d-gallery .chips{padding:16px 36px;display:flex;gap:8px;border-bottom:var(--hairline)}
+.d-gallery .masonry{flex:1;overflow:auto;padding:24px 36px 60px;columns:4;column-gap:14px}
+.d-gallery .masonry .tile{margin-bottom:14px}
+
+/* =====================================================================
+   SCREEN 6 — Projects + Detail
+   ===================================================================== */
+.projects-p{flex:1;display:flex;flex-direction:column;background:var(--ink-950)}
+.projects-p .head{padding:54px 20px 14px;display:flex;align-items:end;justify-content:space-between}
+.projects-p .head h1{font-family:var(--f-display);font-size:32px;font-weight:400;letter-spacing:-.02em;margin:0}
+.projects-p .head .add{
+  width:44px;height:44px;border-radius:14px;background:var(--gradient-kiln);
+  color:#1A0E04;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-cta);
+}
+.projects-p .head .add svg{width:18px;height:18px}
+.projects-p .grid{
+  padding:14px 20px;display:grid;grid-template-columns:1fr 1fr;gap:12px;overflow:auto;
+}
+.cover-card{
+  aspect-ratio:.78;border-radius:18px;overflow:hidden;position:relative;background:#000;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+.cover-card img{width:100%;height:100%;object-fit:cover}
+.cover-card::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg,transparent 30%, rgba(20,8,4,.85));
+}
+.cover-card .info{
+  position:absolute;left:14px;right:14px;bottom:14px;z-index:2;
+}
+.cover-card .info h3{
+  font-family:var(--f-display);font-size:18px;font-weight:500;margin:0 0 4px;
+  letter-spacing:-.01em;color:#fff;
+}
+.cover-card .info .stats{font-family:var(--f-mono);font-size:10px;color:rgba(255,255,255,.65);letter-spacing:.05em}
+.cover-card .badge{
+  position:absolute;top:10px;left:10px;z-index:2;
+  font-family:var(--f-mono);font-size:9px;color:var(--ember-400);
+  padding:4px 8px;border-radius:6px;background:rgba(0,0,0,.5);backdrop-filter:blur(8px);
+  letter-spacing:.18em;text-transform:uppercase;
+}
+
+/* Project detail */
+.pd{flex:1;display:flex;flex-direction:column;background:var(--ink-950);position:relative;overflow:hidden}
+.pd .banner{height:280px;position:relative;overflow:hidden}
+.pd .banner img{width:100%;height:100%;object-fit:cover;filter:saturate(.9)}
+.pd .banner::after{
+  content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(10,8,7,0) 30%, rgba(10,8,7,1));
+}
+.pd .banner .back{
+  position:absolute;top:54px;left:14px;z-index:2;width:38px;height:38px;border-radius:12px;
+  background:rgba(0,0,0,.5);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;
+}
+.pd .banner .info{position:absolute;left:20px;right:20px;bottom:22px;z-index:2}
+.pd .banner .info h1{font-family:var(--f-display);font-size:30px;font-weight:400;margin:0 0 6px;letter-spacing:-.02em}
+.pd .banner .info .stats{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-300);letter-spacing:.06em;display:flex;gap:10px}
+.pd .banner .info .stats span:not(:last-child)::after{content:"·";margin-left:10px;opacity:.5}
+
+.pd .sessions{flex:1;overflow:auto;padding:20px;display:flex;flex-direction:column;gap:12px}
+.session-mini{
+  display:flex;gap:14px;padding:14px;background:var(--ink-900);border-radius:18px;
+  border:var(--hairline);
+}
+.session-mini .thumbs{display:flex;flex-shrink:0;gap:2px;width:88px;height:88px}
+.session-mini .thumbs .t{flex:1;background:#000;border-radius:6px;overflow:hidden}
+.session-mini .thumbs .t img{width:100%;height:100%;object-fit:cover}
+.session-mini .body{flex:1;min-width:0;display:flex;flex-direction:column;justify-content:space-between}
+.session-mini .body h4{font-family:var(--f-display);font-size:15px;font-weight:500;margin:0;letter-spacing:-.01em;color:var(--ink-100)}
+.session-mini .body .sub{font-family:var(--f-mono);font-size:10px;color:var(--ink-400);margin-top:2px;letter-spacing:.04em}
+.session-mini .body .foot{font-family:var(--f-mono);font-size:10px;color:var(--ink-500);letter-spacing:.05em;display:flex;justify-content:space-between;align-items:center}
+.session-mini .body .foot .updated{color:var(--ember-400)}
+
+/* =====================================================================
+   SCREEN 7 — Me
+   ===================================================================== */
+.me{flex:1;display:flex;flex-direction:column;background:var(--ink-950);overflow:hidden}
+.me .head{padding:54px 20px 18px}
+.me .head h1{font-family:var(--f-display);font-size:32px;font-weight:400;letter-spacing:-.02em;margin:0}
+.me .body{flex:1;overflow:auto;padding:8px 20px 40px;display:flex;flex-direction:column;gap:14px}
+
+.me-card{
+  background:var(--ink-900);border-radius:20px;padding:18px;border:var(--hairline);
+  box-shadow:0 6px 18px rgba(0,0,0,.4);
+}
+.me-card .ctitle{
+  font-family:var(--f-mono);font-size:10px;letter-spacing:.2em;color:var(--ink-400);
+  text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:8px;
+}
+.me-card .ctitle::after{content:"";flex:1;height:1px;background:rgba(244,236,221,.06)}
+
+.acct{display:flex;align-items:center;gap:14px}
+.acct .ava{
+  width:54px;height:54px;border-radius:18px;background:var(--gradient-kiln);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--f-display);font-weight:500;font-size:22px;color:#1A0E04;
+  box-shadow:var(--shadow-cta);
+}
+.acct .info{flex:1;min-width:0}
+.acct .info .name{font-family:var(--f-display);font-size:18px;font-weight:500;color:var(--ink-100)}
+.acct .info .srv{font-family:var(--f-mono);font-size:11px;color:var(--ink-400);margin-top:3px;display:flex;align-items:center;gap:6px}
+.acct .info .srv .key-dot{width:6px;height:6px;border-radius:50%;background:var(--success);box-shadow:0 0 8px var(--success)}
+
+.row-toggle{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:var(--hairline)}
+.row-toggle:last-child{border-bottom:none}
+.row-toggle .l{font-size:13px;color:var(--ink-100)}
+.row-toggle .sub{font-family:var(--f-mono);font-size:10px;color:var(--ink-500);margin-top:2px;letter-spacing:.04em}
+.row-toggle .v{font-family:var(--f-mono);font-size:11px;color:var(--ember-400);display:flex;align-items:center;gap:4px}
+.row-toggle .v svg{width:12px;height:12px}
+
+.toggle{
+  width:36px;height:20px;border-radius:999px;background:var(--ink-700);position:relative;
+}
+.toggle.on{background:var(--ember-500)}
+.toggle::after{
+  content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.2s;
+}
+.toggle.on::after{left:18px;background:#fff}
+
+.swatch-row{display:flex;gap:10px;margin-top:8px}
+.swatch{width:36px;height:36px;border-radius:12px;cursor:pointer;position:relative;border:2px solid transparent}
+.swatch.on{border-color:var(--ink-100)}
+.swatch.ember{background:var(--gradient-kiln)}
+.swatch.sage{background:linear-gradient(135deg,#9CC09F,#5E8B6C,#2E4F3A)}
+.swatch.indigo{background:linear-gradient(135deg,#A3B0F2,#5E73C8,#2B3580)}
+.swatch.slate{background:linear-gradient(135deg,#B8B4A8,#7A766B,#3F3D38)}
+
+.storage-bar{height:8px;border-radius:4px;background:var(--ink-700);overflow:hidden;margin-top:8px}
+.storage-bar .fill{height:100%;background:var(--gradient-kiln);width:34%;border-radius:4px}
+.storage-meta{display:flex;justify-content:space-between;margin-top:8px;font-family:var(--f-mono);font-size:10px;color:var(--ink-400);letter-spacing:.05em}
+
+/* =====================================================================
+   misc / icons / utility
+   ===================================================================== */
+.divider{height:1px;background:rgba(244,236,221,.06);margin:14px 0}
+.spacer-12{height:12px}
+.spacer-20{height:20px}
+
+.hr-text{
+  display:flex;align-items:center;gap:14px;color:var(--ink-500);
+  font-family:var(--f-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+  margin:24px 0;
+}
+.hr-text::before,.hr-text::after{content:"";flex:1;height:1px;background:rgba(244,236,221,.06)}
+
+/* Print/screen captions */
+.frame-label{
+  display:inline-block;font-family:var(--f-mono);font-size:10px;color:var(--ink-500);
+  letter-spacing:.18em;text-transform:uppercase;padding:6px 10px;
+  background:var(--ink-900);border:var(--hairline);border-radius:6px;margin-bottom:14px;
+}
+
+/* Hide horizontal scrollbars inside frames */
+.studio-feed::-webkit-scrollbar,.gallery .masonry::-webkit-scrollbar,.projects-p .grid::-webkit-scrollbar,
+.me .body::-webkit-scrollbar,.pd .sessions::-webkit-scrollbar,.d-feed::-webkit-scrollbar,.d-projects::-webkit-scrollbar,
+.d-inspector::-webkit-scrollbar,.d-gallery .masonry::-webkit-scrollbar{width:0;height:0}
+
+</style>
+</head>
+<body>
+
+<!-- Reusable SVG icon set -->
+<svg style="display:none">
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="none"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="2.4" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-gallery" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M4 21a8 8 0 0 1 16 0" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.3-9C.9 8.6 3.5 4 7.5 4c2 0 3.5 1 4.5 2.6C13 5 14.5 4 16.5 4c4 0 6.6 4.6 4.8 8C19 16.5 12 21 12 21Z"/></symbol>
+  <symbol id="i-heart-o" viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-4.5-9.3-9C.9 8.6 3.5 4 7.5 4c2 0 3.5 1 4.5 2.6C13 5 14.5 4 16.5 4c4 0 6.6 4.6 4.8 8C19 16.5 12 21 12 21Z" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 0 1 15.5-6.3M21 4v5h-5M21 12a9 9 0 0 1-15.5 6.3M3 20v-5h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-edit" viewBox="0 0 24 24" fill="none"><path d="M4 20h4l10.5-10.5a2.5 2.5 0 0 0-3.5-3.5L4.5 16.5V20Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24" fill="none"><path d="M12 4v12M12 4l-4 4M12 4l4 4M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-download" viewBox="0 0 24 24" fill="none"><path d="M12 4v12M12 16l-4-4M12 16l4-4M5 20h14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24" fill="none"><path d="M12 9v4M12 17v.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10.3 3.7 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.7a2 2 0 0 0-3.4 0Z" stroke="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-cancel" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-wifi" viewBox="0 0 24 24" fill="none"><path d="M5 13a10 10 0 0 1 14 0M8 16a6 6 0 0 1 8 0M11 19h2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-battery" viewBox="0 0 24 24" fill="none"><rect x="2" y="7" width="18" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="9" width="13" height="6" rx="1" fill="currentColor"/><path d="M22 11v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></symbol>
+  <symbol id="i-fork" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="6" r="2.2" stroke="currentColor" stroke-width="1.6"/><circle cx="6" cy="18" r="2.2" stroke="currentColor" stroke-width="1.6"/><circle cx="18" cy="8" r="2.2" stroke="currentColor" stroke-width="1.6"/><path d="M6 8v8M8 6h6a4 4 0 0 1 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-source" viewBox="0 0 24 24" fill="none"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4M14 4h6v6M10 14L20 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.6"/><path d="M20 20l-3.5-3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24" fill="none"><circle cx="8" cy="14" r="4" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l9-9M16 7l3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none"><path d="M5 12l5 5L20 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<div class="page">
+  <!-- ============================== SIDEBAR ============================== -->
+  <aside class="side">
+    <div class="brand">
+      <div class="mark"></div>
+      <div class="name">Kiln</div>
+      <div class="sub">设计稿 · v1</div>
+    </div>
+
+    <nav class="nav">
+      <a href="#s1" class="active"><span class="num">01</span> <span>登录引导</span> <span class="dot"></span></a>
+      <a href="#s2"><span class="num">02</span> <span>工作台 · 移动端</span> <span class="dot"></span></a>
+      <a href="#s3"><span class="num">03</span> <span>生成卡 · 三种状态</span> <span class="dot"></span></a>
+      <a href="#s4"><span class="num">04</span> <span>沉浸式预览</span> <span class="dot"></span></a>
+      <a href="#s5"><span class="num">05</span> <span>图库</span> <span class="dot"></span></a>
+      <a href="#s6"><span class="num">06</span> <span>项目 · 详情</span> <span class="dot"></span></a>
+      <a href="#s7"><span class="num">07</span> <span>我的</span> <span class="dot"></span></a>
+      <a href="#s8"><span class="num">08</span> <span>工作台 · 桌面端</span> <span class="dot"></span></a>
+    </nav>
+
+    <div class="foot">
+      Kiln · 设计体系 v1<br>
+      Fraunces · Inter · 思源宋体 · 思源黑体<br>
+      © 2026
+    </div>
+  </aside>
+
+  <!-- ============================== MAIN ============================== -->
+  <main class="main">
+
+    <!-- ================================================================ SECTION 1 -->
+    <section id="s1" class="section">
+      <div class="section-head">
+        <div class="section-num">01 / 入口</div>
+        <div>
+          <h2 class="section-title">登录 <em>引导</em></h2>
+          <p class="section-desc">用户与 Kiln 的第一次对话。Fraunces 体的英文字标 + 中文标语，分两步的玻璃质感登录卡（先连接服务器再录入密钥），品牌渐变在边缘呼吸。</p>
+        </div>
+      </div>
+
+      <div class="frame-row">
+        <!-- Frame A: onboarding -->
+        <div>
+          <div class="frame-label">A · 欢迎</div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="status-bar">
+                <span>9:41</span>
+                <div class="icons">
+                  <svg><use href="#i-wifi"/></svg>
+                  <svg><use href="#i-battery"/></svg>
+                </div>
+              </div>
+
+              <div class="onb">
+                <div class="crest"></div>
+                <div class="wordmark">Kiln</div>
+                <div class="tagline">把每一次 prompt<br>变成一段视觉对话。</div>
+
+                <div class="step">第 1 步 / 共 2 步 · 服务器</div>
+                <div class="onb-card">
+                  <div class="head">连接你的工作室</div>
+                  <div class="help">填入任意 chatgpt2api 服务地址。之后可以随时在「我的」里更换。</div>
+                  <div class="label">服务器地址</div>
+                  <div class="input" style="display:flex;align-items:center">https://192.168.5.35:3030</div>
+                  <div class="spacer-12"></div>
+                  <button class="btn btn-primary" style="width:100%">
+                    继续
+                    <svg><use href="#i-arrow-up" style="transform:rotate(90deg)"/></svg>
+                  </button>
+                </div>
+
+                <div class="footnote">需要帮助？<a>查看接入指南 ↗</a></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Frame B: login -->
+        <div>
+          <div class="frame-label">B · 登录</div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="status-bar">
+                <span>9:41</span>
+                <div class="icons">
+                  <svg><use href="#i-wifi"/></svg>
+                  <svg><use href="#i-battery"/></svg>
+                </div>
+              </div>
+
+              <div class="onb">
+                <div class="crest"></div>
+                <div class="wordmark">Kiln</div>
+                <div class="tagline">提示，迭代，<br>留存。</div>
+
+                <div class="step">第 2 步 / 共 2 步 · 凭证</div>
+                <div class="onb-card">
+                  <div class="head">录入你的密钥</div>
+                  <div class="help">只保存在设备的安全存储里，不会上传到任何地方，仅用于和你的工作室通信。</div>
+                  <div class="label">Bearer 密钥</div>
+                  <div class="input" style="display:flex;align-items:center;font-family:var(--f-mono);letter-spacing:.2em">••••••••••••••••</div>
+                  <div class="spacer-12"></div>
+                  <button class="btn btn-primary" style="width:100%">
+                    <svg><use href="#i-key"/></svg> 进入工作室
+                  </button>
+                </div>
+
+                <div class="footnote">已连接到 <span style="color:var(--ink-300);font-family:var(--f-mono)">192.168.5.35:3030</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ SECTION 2 -->
+    <section id="s2" class="section">
+      <div class="section-head">
+        <div class="section-num">02 / 创作</div>
+        <div>
+          <h2 class="section-title">工作台 <em>·</em> 移动端</h2>
+          <p class="section-desc">app 的心脏。一条纵向时间线像创作日志：Prompt 用 Fraunces，元数据用 mono，把最多的空间留给图。底部固定的"创作栏"让"⚡ 生成"永远在拇指可及处。</p>
+        </div>
+      </div>
+
+      <div class="frame-row">
+        <div>
+          <div class="frame-label">工作台 — 进行中的会话</div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="status-bar">
+                <span>9:41</span>
+                <div class="icons">
+                  <svg><use href="#i-wifi"/></svg>
+                  <svg><use href="#i-battery"/></svg>
+                </div>
+              </div>
+
+              <div class="studio">
+                <!-- Top bar -->
+                <div class="studio-top">
+                  <div class="session-title">
+                    森林精灵研究
+                    <svg><use href="#i-chevron"/></svg>
+                  </div>
+                  <div class="chip">gpt-image-2</div>
+                  <button class="btn-icon"><svg><use href="#i-plus"/></svg></button>
+                </div>
+
+                <!-- Feed -->
+                <div class="studio-feed">
+
+                  <!-- Turn 1: success with images -->
+                  <div class="turn">
+                    <div class="prompt">苔藓覆盖的森林精灵，金色午后光线，画意感，柔焦，吉卜力风格</div>
+                    <div class="meta">
+                      <span>gpt-image-2</span><span class="sep">·</span>
+                      <span>1024×1024</span><span class="sep">·</span>
+                      <span>×2 张</span><span class="sep">·</span>
+                      <span>14:23</span>
+                    </div>
+                    <div class="images">
+                      <div class="img"><img src="https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=600&auto=format&fit=crop&q=80" alt=""/></div>
+                      <div class="img"><img src="https://images.unsplash.com/photo-1448375240586-882707db888b?w=600&auto=format&fit=crop&q=80" alt=""/></div>
+                    </div>
+                    <div class="actions">
+                      <button class="fav"><svg><use href="#i-heart"/></svg></button>
+                      <button><svg><use href="#i-refresh"/></svg> 变体</button>
+                      <button><svg><use href="#i-edit"/></svg> 编辑</button>
+                      <button><svg><use href="#i-download"/></svg></button>
+                      <button><svg><use href="#i-share"/></svg></button>
+                    </div>
+                  </div>
+
+                  <!-- Turn 2: running shimmer -->
+                  <div class="turn running">
+                    <div class="prompt">同样的场景，黎明时分，余烬色调透过薄雾</div>
+                    <div class="meta">
+                      <span>gpt-image-2</span><span class="sep">·</span>
+                      <span>1024×1024</span><span class="sep">·</span>
+                      <span>×2 张</span>
+                    </div>
+                    <div class="images">
+                      <div class="img"><div class="placeholder shimmer"></div></div>
+                      <div class="img"><div class="placeholder shimmer"></div></div>
+                    </div>
+                    <div class="status">
+                      <div class="pulse ember-pulse"></div>
+                      正在绘制 · 00:12
+                    </div>
+                  </div>
+
+                </div>
+
+                <!-- Composer -->
+                <div class="composer">
+                  <div class="row1">
+                    <div class="add"><svg><use href="#i-plus"/></svg></div>
+                    <div class="field">
+                      <span class="placeholder">描述下一个变体…</span>
+                    </div>
+                    <div class="send"><svg><use href="#i-spark"/></svg></div>
+                  </div>
+                  <div class="row2">
+                    <div class="chip active">gpt-image-2</div>
+                    <div class="chip">1024×1024</div>
+                    <div class="chip">×2 张</div>
+                    <div class="chip">无风格</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Frame B: empty studio (first session) -->
+        <div>
+          <div class="frame-label">工作台 — 空状态</div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="status-bar">
+                <span>9:41</span>
+                <div class="icons">
+                  <svg><use href="#i-wifi"/></svg>
+                  <svg><use href="#i-battery"/></svg>
+                </div>
+              </div>
+
+              <div class="studio">
+                <div class="studio-top">
+                  <div class="session-title">
+                    未命名会话
+                    <svg><use href="#i-chevron"/></svg>
+                  </div>
+                  <div class="chip">gpt-image-2</div>
+                  <button class="btn-icon"><svg><use href="#i-plus"/></svg></button>
+                </div>
+
+                <div class="studio-feed" style="align-items:center;justify-content:center;display:flex;flex-direction:column;padding-top:80px">
+                  <div style="width:88px;height:88px;border-radius:28px;background:var(--gradient-kiln);box-shadow:0 18px 60px rgba(232,168,74,.3), 0 0 0 1px rgba(255,200,140,.25) inset;position:relative;margin-bottom:28px">
+                    <div style="position:absolute;inset:24px;border-radius:10px;background:radial-gradient(circle at 50% 70%, rgba(255,235,200,.85), transparent 60%)"></div>
+                  </div>
+                  <div style="font-family:var(--f-display);font-size:24px;font-weight:400;letter-spacing:-.015em;color:var(--ink-100);text-align:center;line-height:1.4">
+                    今天想<em style="font-style:italic;color:var(--ember-400)">画点什么</em>？
+                  </div>
+                  <div style="font-size:13px;color:var(--ink-400);text-align:center;margin-top:14px;max-width:240px;line-height:1.6">
+                    从一句 prompt 开始。每张图都会留在这段对话里。
+                  </div>
+
+                  <div style="margin-top:36px;display:flex;flex-direction:column;gap:8px;width:100%;padding:0 16px">
+                    <div class="label" style="text-align:center;margin-bottom:6px">试试这些开头</div>
+                    <div class="chip" style="justify-content:center;width:100%;height:36px;font-family:var(--f-display);font-size:13px;font-style:italic;color:var(--ink-200)">"黄昏时从水下仰望锦鲤池"</div>
+                    <div class="chip" style="justify-content:center;width:100%;height:36px;font-family:var(--f-display);font-size:13px;font-style:italic;color:var(--ink-200)">"粗野主义酒店大堂，1973 年"</div>
+                    <div class="chip" style="justify-content:center;width:100%;height:36px;font-family:var(--f-display);font-size:13px;font-style:italic;color:var(--ink-200)">"老铁匠的电影感肖像"</div>
+                  </div>
+                </div>
+
+                <div class="composer">
+                  <div class="row1">
+                    <div class="add"><svg><use href="#i-plus"/></svg></div>
+                    <div class="field"><span class="placeholder">描述你想要的画面…</span></div>
+                    <div class="send"><svg><use href="#i-spark"/></svg></div>
+                  </div>
+                  <div class="row2">
+                    <div class="chip active">gpt-image-2</div>
+                    <div class="chip">1024×1024</div>
+                    <div class="chip">×1 张</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ SECTION 3 -->
+    <section id="s3" class="section">
+      <div class="section-head">
+        <div class="section-num">03 / 状态</div>
+        <div>
+          <h2 class="section-title">生成卡 <em>·</em> 三种状态</h2>
+          <p class="section-desc">一张生成卡的三种面貌：成功（底部那道安静的"窑火"暖辉）、生成中（暖色 shimmer 占位 + 缓慢脉动）、失败（克制的红边块和清晰的"重试"出口）。</p>
+        </div>
+      </div>
+
+      <div class="frame-row" style="background:#0E0B09;padding:48px;border-radius:24px;gap:24px;align-items:flex-start;border:var(--hairline)">
+        <!-- Success -->
+        <div style="flex:1;min-width:280px;max-width:340px">
+          <div class="frame-label">A · 成功</div>
+          <div class="turn">
+            <div class="prompt">粗野主义酒店大堂，黄铜装饰，1973 年，柔和自然光透过落地窗</div>
+            <div class="meta">
+              <span>gpt-image-2</span><span class="sep">·</span>
+              <span>1024×1024</span><span class="sep">·</span>
+              <span>×2 张</span><span class="sep">·</span>
+              <span>09:14</span>
+            </div>
+            <div class="images">
+              <div class="img"><img src="https://images.unsplash.com/photo-1564540583246-934409427776?w=600&auto=format&fit=crop&q=80" alt=""/></div>
+              <div class="img"><img src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&auto=format&fit=crop&q=80" alt=""/></div>
+            </div>
+            <div class="actions">
+              <button class="fav"><svg><use href="#i-heart"/></svg></button>
+              <button><svg><use href="#i-refresh"/></svg> 变体</button>
+              <button><svg><use href="#i-edit"/></svg> 编辑</button>
+              <button><svg><use href="#i-download"/></svg></button>
+              <button><svg><use href="#i-share"/></svg></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Running -->
+        <div style="flex:1;min-width:280px;max-width:340px">
+          <div class="frame-label">B · 生成中</div>
+          <div class="turn running">
+            <div class="prompt">黄昏时从水下仰望锦鲤池，画意感，斑驳阳光透过水面</div>
+            <div class="meta">
+              <span>gpt-image-2</span><span class="sep">·</span>
+              <span>1024×1024</span><span class="sep">·</span>
+              <span>×2 张</span>
+            </div>
+            <div class="images">
+              <div class="img"><div class="placeholder shimmer"></div></div>
+              <div class="img"><div class="placeholder shimmer"></div></div>
+            </div>
+            <div class="status">
+              <div class="pulse ember-pulse"></div>
+              正在绘制 · 00:08
+            </div>
+            <div class="actions">
+              <button style="flex:1"><svg><use href="#i-cancel"/></svg> 取消</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error -->
+        <div style="flex:1;min-width:280px;max-width:340px">
+          <div class="frame-label">C · 失败</div>
+          <div class="turn error">
+            <div class="prompt">老铁匠的电影感肖像，余烬照亮的锻炉，浅景深</div>
+            <div class="meta">
+              <span>gpt-image-2</span><span class="sep">·</span>
+              <span>1024×1024</span><span class="sep">·</span>
+              <span>×2 张</span><span class="sep">·</span>
+              <span>09:21</span>
+            </div>
+            <div class="err-block">
+              <div class="ico"><svg><use href="#i-warn"/></svg></div>
+              <div class="txt">
+                <div class="title">上游请求失败</div>
+                <div class="body">model_overloaded · 请在 30 秒后重试</div>
+              </div>
+            </div>
+            <div class="err-actions">
+              <button class="btn btn-secondary btn-sm" style="flex:1"><svg><use href="#i-edit"/></svg> 编辑 prompt</button>
+              <button class="btn btn-primary btn-sm" style="flex:1"><svg><use href="#i-refresh"/></svg> 重试</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ SECTION 4 -->
+    <section id="s4" class="section">
+      <div class="section-head">
+        <div class="section-num">04 / 查看</div>
+        <div>
+          <h2 class="section-title">沉浸式 <em>预览</em></h2>
+          <p class="section-desc">点开任意一张图，世界都安静下来。捏合放大；左右滑动切换同一 turn 内的其他作品。上拉抽屉把 prompt 和元信息托起来；五个高大的操作格子让你不用找。</p>
+        </div>
+      </div>
+
+      <div class="frame-row">
+        <div>
+          <div class="frame-label">预览 · 抽屉展开</div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="status-bar" style="color:#fff">
+                <span>9:41</span>
+                <div class="icons">
+                  <svg><use href="#i-wifi"/></svg>
+                  <svg><use href="#i-battery"/></svg>
+                </div>
+              </div>
+
+              <div class="viewer">
+                <div class="top">
+                  <button class="btn-icon" style="background:rgba(0,0,0,.4);color:#fff;border-color:transparent"><svg><use href="#i-back"/></svg></button>
+                  <div class="meta">
+                    <div class="t">森林精灵研究</div>
+                    <div class="s">第 1 / 2 张 · 14:23</div>
+                  </div>
+                  <button class="btn-icon" style="background:rgba(0,0,0,.4);color:#fff;border-color:transparent"><svg><use href="#i-share"/></svg></button>
+                </div>
+
+                <div class="stage">
+                  <img src="https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=900&auto=format&fit=crop&q=85" alt=""/>
+                </div>
+
+                <div class="pages">
+                  <span class="on"></span>
+                  <span></span>
+                </div>
+
+                <div class="drawer">
+                  <div class="handle"></div>
+                  <div class="pq">苔藓覆盖的森林精灵，金色午后光线，画意感，柔焦，吉卜力风格</div>
+                  <div class="pmeta">
+                    <div class="chip">gpt-image-2</div>
+                    <div class="chip">1024×1024</div>
+                    <div class="chip">seed · 4421</div>
+                  </div>
+                  <div class="actions">
+                    <button class="fav"><svg><use href="#i-heart"/></svg>收藏</button>
+                    <button><svg><use href="#i-download"/></svg>保存</button>
+                    <button><svg><use href="#i-share"/></svg>分享</button>
+                    <button><svg><use href="#i-fork"/></svg>变体</button>
+                    <button><svg><use href="#i-source"/></svg>来源</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Variant: no drawer -->
+        <div>
+          <div class="frame-label">预览 · 纯净浏览</div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="status-bar" style="color:#fff">
+                <span>9:41</span>
+                <div class="icons">
+                  <svg><use href="#i-wifi"/></svg>
+                  <svg><use href="#i-battery"/></svg>
+                </div>
+              </div>
+
+              <div class="viewer">
+                <div class="top">
+                  <button class="btn-icon" style="background:rgba(0,0,0,.4);color:#fff;border-color:transparent"><svg><use href="#i-back"/></svg></button>
+                  <div class="meta">
+                    <div class="t">森林精灵研究</div>
+                    <div class="s">第 2 / 2 张 · 14:23</div>
+                  </div>
+                  <button class="btn-icon" style="background:rgba(0,0,0,.4);color:#fff;border-color:transparent"><svg><use href="#i-share"/></svg></button>
+                </div>
+
+                <div class="stage" style="padding-bottom:120px">
+                  <img src="https://images.unsplash.com/photo-1448375240586-882707db888b?w=900&auto=format&fit=crop&q=85" alt=""/>
+                </div>
+
+                <div class="pages" style="bottom:120px">
+                  <span></span>
+                  <span class="on"></span>
+                </div>
+
+                <!-- Floating mini toolbar -->
+                <div style="position:absolute;bottom:30px;left:50%;transform:translateX(-50%);z-index:15;display:flex;gap:6px;background:rgba(20,17,13,.92);backdrop-filter:blur(28px);border:1px solid rgba(244,236,221,.10);border-radius:999px;padding:6px;box-shadow:var(--shadow-float)">
+                  <button class="btn-icon" style="width:46px;height:46px;border-radius:999px;background:transparent;color:var(--ember-400);border:none"><svg><use href="#i-heart"/></svg></button>
+                  <button class="btn-icon" style="width:46px;height:46px;border-radius:999px;background:transparent;border:none"><svg><use href="#i-download"/></svg></button>
+                  <button class="btn-icon" style="width:46px;height:46px;border-radius:999px;background:transparent;border:none"><svg><use href="#i-share"/></svg></button>
+                  <button class="btn-icon" style="width:46px;height:46px;border-radius:999px;background:transparent;border:none"><svg><use href="#i-fork"/></svg></button>
+                  <button class="btn-icon" style="width:46px;height:46px;border-radius:999px;background:transparent;border:none"><svg><use href="#i-chevron" style="transform:rotate(180deg)"/></svg></button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ SECTION 5 -->
+    <section id="s5" class="section">
+      <div class="section-head">
+        <div class="section-num">05 / 图库</div>
+        <div>
+          <h2 class="section-title">图库 <em>·</em> 你的全部作品</h2>
+          <p class="section-desc">每一张你做过的图，按真实比例瀑布流陈列。顶部一排筛选 chip，长按进多选模式，下拉刷新。</p>
+        </div>
+      </div>
+
+      <div class="frame-row">
+        <!-- Mobile gallery -->
+        <div>
+          <div class="frame-label">图库 — 移动端</div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="status-bar">
+                <span>9:41</span>
+                <div class="icons">
+                  <svg><use href="#i-wifi"/></svg>
+                  <svg><use href="#i-battery"/></svg>
+                </div>
+              </div>
+
+              <div class="gallery">
+                <div class="head">
+                  <h1>图库</h1>
+                  <div class="sub">412 张作品 · 38 个收藏</div>
+                </div>
+                <div class="chips">
+                  <div class="chip active">全部</div>
+                  <div class="chip"><svg><use href="#i-heart-o"/></svg> 收藏</div>
+                  <div class="chip">项目 ▾</div>
+                  <div class="chip">模型 ▾</div>
+                  <div class="chip">最新 ▾</div>
+                </div>
+                <div class="masonry">
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=400&auto=format&fit=crop&q=80" alt=""/><div class="fav"><svg><use href="#i-heart"/></svg></div></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1564540583246-934409427776?w=400&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=400&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1448375240586-882707db888b?w=400&auto=format&fit=crop&q=80" alt=""/><div class="fav"><svg><use href="#i-heart"/></svg></div></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=400&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?w=400&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=400&auto=format&fit=crop&q=80" alt=""/><div class="fav"><svg><use href="#i-heart"/></svg></div></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1487621167305-5d248087c724?w=400&auto=format&fit=crop&q=80" alt=""/></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop gallery -->
+        <div style="flex:1;min-width:0">
+          <div class="frame-label">图库 — 桌面端</div>
+          <div class="desktop">
+            <div class="titlebar">
+              <div class="tdot red"></div><div class="tdot yel"></div><div class="tdot grn"></div>
+              <div class="url">kiln · 图库</div>
+              <div style="width:50px"></div>
+            </div>
+            <div class="body" style="grid-template-columns:1fr">
+              <div class="d-gallery">
+                <div class="head">
+                  <h1>图库</h1>
+                  <div class="sub">412 张作品 · 38 个收藏 · 14 分钟前更新</div>
+                  <div class="chip"><svg><use href="#i-search"/></svg> 搜索…</div>
+                </div>
+                <div class="chips">
+                  <div class="chip active">全部</div>
+                  <div class="chip"><svg><use href="#i-heart-o"/></svg> 收藏</div>
+                  <div class="chip">项目：森林精灵研究 ▾</div>
+                  <div class="chip">模型：gpt-image-2 ▾</div>
+                  <div class="chip">最新 ▾</div>
+                  <div style="flex:1"></div>
+                  <div class="chip">▦ 瀑布</div>
+                  <div class="chip">▤ 网格</div>
+                </div>
+                <div class="masonry">
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=500&auto=format&fit=crop&q=80" alt=""/><div class="fav"><svg><use href="#i-heart"/></svg></div></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1564540583246-934409427776?w=500&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=500&auto=format&fit=crop&q=80" alt=""/><div class="fav"><svg><use href="#i-heart"/></svg></div></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1448375240586-882707db888b?w=500&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=500&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=500&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?w=500&auto=format&fit=crop&q=80" alt=""/><div class="fav"><svg><use href="#i-heart"/></svg></div></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=500&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1487621167305-5d248087c724?w=500&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=500&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=500&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="tile"><img src="https://images.unsplash.com/photo-1490604001847-b712b0c2f967?w=500&auto=format&fit=crop&q=80" alt=""/><div class="fav"><svg><use href="#i-heart"/></svg></div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ SECTION 6 -->
+    <section id="s6" class="section">
+      <div class="section-head">
+        <div class="section-num">06 / 集合</div>
+        <div>
+          <h2 class="section-title">项目 <em>与</em> 详情</h2>
+          <p class="section-desc">项目像工作室里的一面面陈列架。每个项目有一张自动取自最新作品的封面图，下沉的会话像分册的速写本。详情页打开像翻开一本作品集——顶部 banner，下面是按时间排好的会话小卡。</p>
+        </div>
+      </div>
+
+      <div class="frame-row">
+        <!-- Projects index -->
+        <div>
+          <div class="frame-label">项目 — 索引</div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="status-bar">
+                <span>9:41</span>
+                <div class="icons">
+                  <svg><use href="#i-wifi"/></svg>
+                  <svg><use href="#i-battery"/></svg>
+                </div>
+              </div>
+
+              <div class="projects-p">
+                <div class="head">
+                  <h1>项目</h1>
+                  <div class="add"><svg><use href="#i-plus"/></svg></div>
+                </div>
+                <div style="padding:0 20px 8px;font-family:var(--f-mono);font-size:11px;color:var(--ink-400);letter-spacing:.05em">8 个项目 · 共 412 张作品</div>
+                <div class="grid">
+                  <div class="cover-card">
+                    <img src="https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=500&auto=format&fit=crop&q=80" alt=""/>
+                    <div class="badge">进行中</div>
+                    <div class="info">
+                      <h3>森林精灵研究</h3>
+                      <div class="stats">12 个会话 · 87 张</div>
+                    </div>
+                  </div>
+                  <div class="cover-card">
+                    <img src="https://images.unsplash.com/photo-1564540583246-934409427776?w=500&auto=format&fit=crop&q=80" alt=""/>
+                    <div class="info">
+                      <h3>粗野主义室内</h3>
+                      <div class="stats">6 个会话 · 41 张</div>
+                    </div>
+                  </div>
+                  <div class="cover-card">
+                    <img src="https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=500&auto=format&fit=crop&q=80" alt=""/>
+                    <div class="info">
+                      <h3>锦鲤池系列</h3>
+                      <div class="stats">4 个会话 · 28 张</div>
+                    </div>
+                  </div>
+                  <div class="cover-card">
+                    <img src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=500&auto=format&fit=crop&q=80" alt=""/>
+                    <div class="info">
+                      <h3>老铁匠</h3>
+                      <div class="stats">3 个会话 · 19 张</div>
+                    </div>
+                  </div>
+                  <div class="cover-card">
+                    <img src="https://images.unsplash.com/photo-1487621167305-5d248087c724?w=500&auto=format&fit=crop&q=80" alt=""/>
+                    <div class="info">
+                      <h3>70 年代酒店大堂</h3>
+                      <div class="stats">5 个会话 · 33 张</div>
+                    </div>
+                  </div>
+                  <div class="cover-card">
+                    <img src="https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=500&auto=format&fit=crop&q=80" alt=""/>
+                    <div class="info">
+                      <h3>雾的研究</h3>
+                      <div class="stats">2 个会话 · 14 张</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Project detail -->
+        <div>
+          <div class="frame-label">项目 — 详情</div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="status-bar" style="color:#fff">
+                <span>9:41</span>
+                <div class="icons">
+                  <svg><use href="#i-wifi"/></svg>
+                  <svg><use href="#i-battery"/></svg>
+                </div>
+              </div>
+
+              <div class="pd">
+                <div class="banner">
+                  <img src="https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=800&auto=format&fit=crop&q=85" alt=""/>
+                  <div class="back"><svg><use href="#i-back"/></svg></div>
+                  <div class="info">
+                    <h1>森林精灵研究</h1>
+                    <div class="stats">
+                      <span>12 个会话</span>
+                      <span>87 张作品</span>
+                      <span style="color:var(--ember-400)">14 分钟前更新</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="sessions">
+                  <div class="session-mini">
+                    <div class="thumbs">
+                      <div class="t" style="height:88px"><img src="https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=300&auto=format&fit=crop&q=80" alt=""/></div>
+                    </div>
+                    <div class="body">
+                      <div>
+                        <h4>黎明余烬</h4>
+                        <div class="sub">6 次生成 · gpt-image-2</div>
+                      </div>
+                      <div class="foot">
+                        <span>14 张</span>
+                        <span class="updated">14 分钟前</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="session-mini">
+                    <div class="thumbs" style="display:grid;grid-template-columns:1fr 1fr;gap:2px">
+                      <div class="t"><img src="https://images.unsplash.com/photo-1448375240586-882707db888b?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                      <div class="t"><img src="https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                      <div class="t"><img src="https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                      <div class="t"><img src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                    </div>
+                    <div class="body">
+                      <div>
+                        <h4>吉卜力风格探索</h4>
+                        <div class="sub">11 次生成 · gpt-image-2</div>
+                      </div>
+                      <div class="foot">
+                        <span>22 张</span>
+                        <span>昨天</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="session-mini">
+                    <div class="thumbs">
+                      <div class="t" style="height:88px"><img src="https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=300&auto=format&fit=crop&q=80" alt=""/></div>
+                    </div>
+                    <div class="body">
+                      <div>
+                        <h4>参考：真实苔藓质感</h4>
+                        <div class="sub">3 次生成 · gpt-image-2</div>
+                      </div>
+                      <div class="foot">
+                        <span>6 张</span>
+                        <span>3 天前</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="session-mini">
+                    <div class="thumbs" style="display:grid;grid-template-columns:1fr 1fr;gap:2px">
+                      <div class="t"><img src="https://images.unsplash.com/photo-1542273917363-3b1817f69a2d?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                      <div class="t"><img src="https://images.unsplash.com/photo-1487621167305-5d248087c724?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                      <div class="t"><img src="https://images.unsplash.com/photo-1470770841072-f978cf4d019e?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                      <div class="t"><img src="https://images.unsplash.com/photo-1490604001847-b712b0c2f967?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                    </div>
+                    <div class="body">
+                      <div>
+                        <h4>初次探索</h4>
+                        <div class="sub">8 次生成 · gpt-image-2</div>
+                      </div>
+                      <div class="foot">
+                        <span>17 张</span>
+                        <span>上周</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ SECTION 7 -->
+    <section id="s7" class="section">
+      <div class="section-head">
+        <div class="section-num">07 / 账号</div>
+        <div>
+          <h2 class="section-title">我的 <em>·</em> 五张安静卡片</h2>
+          <p class="section-desc">设置不该读起来像一张报税单。五张卡：账号、生成偏好、外观、存储、关于。每张都用 mono 字标题，像翻一本编辑杂志的侧栏。</p>
+        </div>
+      </div>
+
+      <div class="frame-row">
+        <div>
+          <div class="frame-label">我的 — 主页</div>
+          <div class="phone">
+            <div class="notch"></div>
+            <div class="screen">
+              <div class="status-bar">
+                <span>9:41</span>
+                <div class="icons">
+                  <svg><use href="#i-wifi"/></svg>
+                  <svg><use href="#i-battery"/></svg>
+                </div>
+              </div>
+
+              <div class="me">
+                <div class="head">
+                  <h1>我的</h1>
+                </div>
+                <div class="body">
+
+                  <div class="me-card">
+                    <div class="ctitle">账号</div>
+                    <div class="acct">
+                      <div class="ava">王</div>
+                      <div class="info">
+                        <div class="name">王剑锋</div>
+                        <div class="srv">
+                          <span class="key-dot"></span>
+                          192.168.5.35:3030 · 密钥有效
+                        </div>
+                      </div>
+                    </div>
+                    <div class="spacer-20"></div>
+                    <button class="btn btn-danger" style="width:100%;height:40px;font-size:13px">退出登录</button>
+                  </div>
+
+                  <div class="me-card">
+                    <div class="ctitle">生成偏好</div>
+                    <div class="row-toggle">
+                      <div>
+                        <div class="l">默认模型</div>
+                        <div class="sub">用于每一个新会话</div>
+                      </div>
+                      <div class="v">gpt-image-2 <svg><use href="#i-chevron"/></svg></div>
+                    </div>
+                    <div class="row-toggle">
+                      <div>
+                        <div class="l">默认尺寸</div>
+                        <div class="sub">新作品的画幅</div>
+                      </div>
+                      <div class="v">1024×1024 <svg><use href="#i-chevron"/></svg></div>
+                    </div>
+                    <div class="row-toggle">
+                      <div>
+                        <div class="l">每次生成张数</div>
+                      </div>
+                      <div class="v">2</div>
+                    </div>
+                    <div class="row-toggle">
+                      <div>
+                        <div class="l">成功后自动收藏</div>
+                        <div class="sub">每张成功生成的图自动加星</div>
+                      </div>
+                      <div class="toggle"></div>
+                    </div>
+                  </div>
+
+                  <div class="me-card">
+                    <div class="ctitle">外观</div>
+                    <div class="row-toggle">
+                      <div>
+                        <div class="l">主题</div>
+                        <div class="sub">浅色主题敬请期待</div>
+                      </div>
+                      <div class="v">深色</div>
+                    </div>
+                    <div style="padding-top:14px">
+                      <div class="label" style="margin-bottom:8px">强调色</div>
+                      <div class="swatch-row">
+                        <div class="swatch ember on"></div>
+                        <div class="swatch sage"></div>
+                        <div class="swatch indigo"></div>
+                        <div class="swatch slate"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="me-card">
+                    <div class="ctitle">存储</div>
+                    <div style="font-size:13px;color:var(--ink-100)">图片缓存</div>
+                    <div class="storage-bar"><div class="fill"></div></div>
+                    <div class="storage-meta">
+                      <span>已用 342 MB</span>
+                      <span>上限 1 GB</span>
+                    </div>
+                    <div class="spacer-20"></div>
+                    <div style="display:flex;gap:8px">
+                      <button class="btn btn-secondary btn-sm" style="flex:1">清理缓存</button>
+                      <button class="btn btn-secondary btn-sm" style="flex:1">导出收藏</button>
+                    </div>
+                  </div>
+
+                  <div class="me-card">
+                    <div class="ctitle">关于</div>
+                    <div class="row-toggle">
+                      <div class="l">版本</div>
+                      <div class="v">1.0.0 (24)</div>
+                    </div>
+                    <div class="row-toggle">
+                      <div class="l">GitHub 源码</div>
+                      <div class="v">↗</div>
+                    </div>
+                    <div class="row-toggle">
+                      <div class="l">反馈意见</div>
+                      <div class="v">✉</div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column: copy block describing the design language with a single decorative tile -->
+        <div style="flex:1;min-width:300px;max-width:520px;padding-top:30px">
+          <div class="frame-label">设计意图</div>
+          <p style="font-family:var(--f-display);font-weight:300;font-size:28px;line-height:1.4;letter-spacing:-.015em;color:var(--ink-100);margin:0 0 24px">
+            "设置不该让人感觉像填表。<em style="font-style:italic;color:var(--ember-400)">每一项偏好都是一面安静的陈列架</em>——有标签，温和，不催促。"
+          </p>
+          <p style="font-size:14px;line-height:1.8;color:var(--ink-300);margin:0 0 20px">
+            五张卡共用同一道细描边、同一层柔和内阴影、同一种 mono 体小标。只有开关和强调色 swatch 会有色彩出现，其他全部留在墨色与琥珀之间。
+          </p>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:28px">
+            <div style="aspect-ratio:1;border-radius:12px;background:var(--ink-900);border:var(--hairline);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px">
+              <div style="width:24px;height:24px;border-radius:8px;background:var(--gradient-kiln)"></div>
+              <div style="font-family:var(--f-mono);font-size:9px;color:var(--ink-500);letter-spacing:.15em">琥珀</div>
+            </div>
+            <div style="aspect-ratio:1;border-radius:12px;background:var(--ink-900);border:var(--hairline);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px">
+              <div style="width:24px;height:24px;border-radius:8px;background:linear-gradient(135deg,#9CC09F,#5E8B6C,#2E4F3A)"></div>
+              <div style="font-family:var(--f-mono);font-size:9px;color:var(--ink-500);letter-spacing:.15em">青苔</div>
+            </div>
+            <div style="aspect-ratio:1;border-radius:12px;background:var(--ink-900);border:var(--hairline);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px">
+              <div style="width:24px;height:24px;border-radius:8px;background:linear-gradient(135deg,#A3B0F2,#5E73C8,#2B3580)"></div>
+              <div style="font-family:var(--f-mono);font-size:9px;color:var(--ink-500);letter-spacing:.15em">靛蓝</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================ SECTION 8 — DESKTOP STUDIO -->
+    <section id="s8" class="section">
+      <div class="section-head">
+        <div class="section-num">08 / 桌面</div>
+        <div>
+          <h2 class="section-title">工作台 <em>·</em> 桌面三栏</h2>
+          <p class="section-desc">屏幕够宽时，工作台值得一次展开三栏：左侧项目导航，中间是正在进行的对话，右侧 Inspector 展示当前选中作品的元信息和衍生操作。</p>
+        </div>
+      </div>
+
+      <div class="frame-row">
+        <div style="flex:1;min-width:0">
+          <div class="frame-label">桌面 · 三栏展开</div>
+          <div class="desktop">
+            <div class="titlebar">
+              <div class="tdot red"></div><div class="tdot yel"></div><div class="tdot grn"></div>
+              <div class="url">kiln · 森林精灵研究</div>
+              <div style="width:50px"></div>
+            </div>
+            <div class="body">
+
+              <!-- LEFT: projects -->
+              <div class="d-projects">
+                <div class="head">
+                  <h3>项目</h3>
+                  <div class="btn-icon" style="width:32px;height:32px"><svg><use href="#i-plus"/></svg></div>
+                </div>
+                <div class="chip" style="width:fit-content"><svg><use href="#i-search"/></svg> 搜索项目</div>
+
+                <div class="section-label">置顶</div>
+                <div class="proj-item active">
+                  <div class="cover"><img src="https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="meta">
+                    <div class="name">森林精灵研究</div>
+                    <div class="sub">12 个会话 · 87 张</div>
+                  </div>
+                  <div class="dot"></div>
+                </div>
+                <div class="proj-item">
+                  <div class="cover"><img src="https://images.unsplash.com/photo-1564540583246-934409427776?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="meta">
+                    <div class="name">粗野主义室内</div>
+                    <div class="sub">6 个会话 · 41 张</div>
+                  </div>
+                  <div class="dot"></div>
+                </div>
+                <div class="proj-item">
+                  <div class="cover"><img src="https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="meta">
+                    <div class="name">锦鲤池系列</div>
+                    <div class="sub">4 个会话 · 28 张</div>
+                  </div>
+                  <div class="dot"></div>
+                </div>
+
+                <div class="section-label">森林精灵研究 · 会话</div>
+                <div class="conv-item active">
+                  <div class="t">黎明余烬</div>
+                  <div class="s">6 次生成 · 14 分钟前</div>
+                </div>
+                <div class="conv-item">
+                  <div class="t">吉卜力风格探索</div>
+                  <div class="s">11 次生成 · 昨天</div>
+                </div>
+                <div class="conv-item">
+                  <div class="t">参考：真实苔藓质感</div>
+                  <div class="s">3 次生成 · 3 天前</div>
+                </div>
+                <div class="conv-item">
+                  <div class="t">初次探索</div>
+                  <div class="s">8 次生成 · 上周</div>
+                </div>
+
+                <div class="section-label">其他</div>
+                <div class="proj-item">
+                  <div class="cover"><img src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="meta">
+                    <div class="name">老铁匠</div>
+                    <div class="sub">3 个会话 · 19 张</div>
+                  </div>
+                  <div class="dot"></div>
+                </div>
+                <div class="proj-item">
+                  <div class="cover"><img src="https://images.unsplash.com/photo-1487621167305-5d248087c724?w=200&auto=format&fit=crop&q=80" alt=""/></div>
+                  <div class="meta">
+                    <div class="name">70 年代酒店大堂</div>
+                    <div class="sub">5 个会话 · 33 张</div>
+                  </div>
+                  <div class="dot"></div>
+                </div>
+              </div>
+
+              <!-- CENTER: studio feed -->
+              <div class="d-center">
+                <div class="d-top">
+                  <div class="title">黎明余烬</div>
+                  <div class="chip">gpt-image-2</div>
+                  <div class="chip">1024×1024</div>
+                  <div class="chip">×2 张</div>
+                  <div class="btn-icon"><svg><use href="#i-plus"/></svg></div>
+                </div>
+
+                <div class="d-feed">
+                  <!-- Success turn (4-up) -->
+                  <div class="turn">
+                    <div class="prompt">苔藓覆盖的森林精灵，金色午后光线，画意感，柔焦，吉卜力风格</div>
+                    <div class="meta">
+                      <span>gpt-image-2</span><span class="sep">·</span>
+                      <span>1024×1024</span><span class="sep">·</span>
+                      <span>×4 张</span><span class="sep">·</span>
+                      <span>14:23</span><span class="sep">·</span>
+                      <span>seed 4421</span>
+                    </div>
+                    <div class="images">
+                      <div class="img"><img src="https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=400&auto=format&fit=crop&q=80" alt=""/></div>
+                      <div class="img"><img src="https://images.unsplash.com/photo-1448375240586-882707db888b?w=400&auto=format&fit=crop&q=80" alt=""/></div>
+                      <div class="img"><img src="https://images.unsplash.com/photo-1465146344425-f00d5f5c8f07?w=400&auto=format&fit=crop&q=80" alt=""/></div>
+                      <div class="img"><img src="https://images.unsplash.com/photo-1500964757637-c85e8a162699?w=400&auto=format&fit=crop&q=80" alt=""/></div>
+                    </div>
+                    <div class="actions">
+                      <button class="fav"><svg><use href="#i-heart"/></svg> 收藏</button>
+                      <button><svg><use href="#i-refresh"/></svg> 变体</button>
+                      <button><svg><use href="#i-edit"/></svg> 编辑</button>
+                      <button><svg><use href="#i-download"/></svg> 保存</button>
+                      <button><svg><use href="#i-share"/></svg> 分享</button>
+                    </div>
+                  </div>
+
+                  <!-- Running -->
+                  <div class="turn running">
+                    <div class="prompt">同样的场景，黎明时分，余烬色调透过薄雾</div>
+                    <div class="meta">
+                      <span>gpt-image-2</span><span class="sep">·</span>
+                      <span>1024×1024</span><span class="sep">·</span>
+                      <span>×4 张</span>
+                    </div>
+                    <div class="images">
+                      <div class="img"><div class="placeholder shimmer"></div></div>
+                      <div class="img"><div class="placeholder shimmer"></div></div>
+                      <div class="img"><div class="placeholder shimmer"></div></div>
+                      <div class="img"><div class="placeholder shimmer"></div></div>
+                    </div>
+                    <div class="status">
+                      <div class="pulse ember-pulse"></div>
+                      正在绘制 4 张 · 00:18
+                    </div>
+                  </div>
+                </div>
+
+                <div class="composer">
+                  <div class="row1">
+                    <div class="add"><svg><use href="#i-plus"/></svg></div>
+                    <div class="field"><span class="placeholder">描述下一个变体…</span></div>
+                    <div class="send"><svg><use href="#i-spark"/></svg></div>
+                  </div>
+                  <div class="row2">
+                    <div class="chip active">gpt-image-2</div>
+                    <div class="chip">1024×1024</div>
+                    <div class="chip">×2 张</div>
+                    <div class="chip">无风格</div>
+                    <div class="chip">+ 参考图</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RIGHT: inspector -->
+              <div class="d-inspector">
+                <div class="preview">
+                  <img src="https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=600&auto=format&fit=crop&q=85" alt=""/>
+                </div>
+                <div class="insp-body">
+                  <div>
+                    <div class="label">Prompt</div>
+                    <div style="font-family:var(--f-display);font-size:16px;line-height:1.5;color:var(--ink-100);font-weight:400">
+                      苔藓覆盖的森林精灵，金色午后光线，画意感，柔焦，吉卜力风格
+                    </div>
+                  </div>
+
+                  <div>
+                    <div class="insp-row"><div class="k">模型</div><div class="v">gpt-image-2</div></div>
+                    <div class="insp-row"><div class="k">尺寸</div><div class="v">1024 × 1024</div></div>
+                    <div class="insp-row"><div class="k">Seed</div><div class="v">4421</div></div>
+                    <div class="insp-row"><div class="k">生成时间</div><div class="v">今天 14:23</div></div>
+                    <div class="insp-row"><div class="k">所属项目</div><div class="v" style="color:var(--ember-400)">森林精灵研究 ↗</div></div>
+                  </div>
+
+                  <div class="insp-actions">
+                    <button class="btn btn-primary"><svg><use href="#i-refresh"/></svg> 生成变体</button>
+                    <button class="btn btn-secondary"><svg><use href="#i-edit"/></svg> 编辑 prompt</button>
+                    <button class="btn btn-ghost"><svg><use href="#i-heart-o"/></svg> 收藏</button>
+                    <button class="btn btn-ghost"><svg><use href="#i-download"/></svg> 保存到设备</button>
+                    <button class="btn btn-ghost"><svg><use href="#i-share"/></svg> 分享…</button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer note -->
+    <section style="margin-top:80px;padding:32px;border-top:var(--hairline);display:flex;justify-content:space-between;align-items:baseline">
+      <div style="font-family:var(--f-display);font-size:18px;font-style:italic;color:var(--ink-400)">"提示，迭代，留存。"</div>
+      <div style="font-family:var(--f-mono);font-size:10px;color:var(--ink-500);letter-spacing:.15em">KILN · 设计稿 · v1 · 2026.05.13</div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+// Sidebar active-link sync
+const navLinks = document.querySelectorAll('.nav a');
+const sections = document.querySelectorAll('main .section');
+const obs = new IntersectionObserver((entries)=>{
+  entries.forEach(e=>{
+    if(e.isIntersecting){
+      const id = e.target.id;
+      navLinks.forEach(a=>{
+        a.classList.toggle('active', a.getAttribute('href') === '#'+id);
+      });
+    }
+  });
+},{rootMargin:'-30% 0px -60% 0px'});
+sections.forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>
