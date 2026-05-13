@@ -167,6 +167,13 @@ class ImageTaskService:
                 missing_ids = []
             return {"items": items, "missing_ids": missing_ids}
 
+    def get_task(self, identity: dict[str, object], task_id: str) -> dict[str, Any] | None:
+        if not _clean(task_id):
+            return None
+        result = self.list_tasks(identity, [task_id])
+        items = result.get("items") if isinstance(result, dict) else []
+        return items[0] if items else None
+
     def _submit(
         self,
         identity: dict[str, object],
@@ -200,7 +207,11 @@ class ImageTaskService:
                 "updated_at": now,
             }
             self._tasks[key] = task
-            self._save_locked()
+            try:
+                self._save_locked()
+            except Exception:
+                self._tasks.pop(key, None)
+                raise
             should_start = True
 
         if should_start:

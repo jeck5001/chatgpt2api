@@ -1,0 +1,49 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:image_studio_app/studio/studio_image_saver.dart';
+import 'package:image_studio_app/studio/studio_result_viewer.dart';
+
+void main() {
+  testWidgets('viewer shows save and share actions for a result image', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudioResultViewer(
+          imageUrl: 'http://example.test/images/landscape.png',
+          imagePath: '2026/05/landscape.png',
+          imageSaver: StudioImageSaver(
+            outputDirectoryProvider: () async => throw UnimplementedError(),
+            bytesLoader: (_) async => throw UnimplementedError(),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Preview'), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
+  });
+
+  testWidgets('tapping save shows a saved message', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudioResultViewer(
+          imageUrl: 'http://example.test/images/landscape.png',
+          imagePath: '2026/05/landscape.png',
+          imageSaver: StudioImageSaver(
+            outputDirectoryProvider: () async => throw UnimplementedError(),
+            bytesLoader: (_) async => throw UnimplementedError(),
+          ),
+          onSaveImage: (imageSaver, imageUrl, fileName) async =>
+              '/tmp/landscape.png',
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+
+    expect(find.textContaining('Saved to'), findsOneWidget);
+  });
+}

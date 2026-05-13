@@ -1,0 +1,422 @@
+from __future__ import annotations
+
+import tempfile
+import unittest
+from pathlib import Path
+
+from services.storage.json_storage import JSONStorageBackend
+
+
+class StudioStorageTests(unittest.TestCase):
+    def test_json_storage_round_trips_studio_state(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            data_dir = Path(tmp_dir)
+            storage = JSONStorageBackend(data_dir / "accounts.json", data_dir / "auth_keys.json")
+            state = {
+                "projects": [{"id": "project-1", "owner_id": "owner-1", "name": "Spring"}],
+                "conversations": [{"id": "conversation-1", "project_id": "project-1"}],
+                "turns": [{"id": "turn-1", "conversation_id": "conversation-1"}],
+                "prompt_templates": [{"id": "template-1", "name": "Product"}],
+                "favorites": [{"id": "favorite-1", "image_path": "2026/05/image.png"}],
+            }
+
+            storage.save_studio_state(state)
+            reloaded = JSONStorageBackend(data_dir / "accounts.json", data_dir / "auth_keys.json")
+
+            self.assertEqual(reloaded.load_studio_state(), state)
+
+
+from services.studio_service import StudioService
+
+
+OWNER = {"id": "owner-1", "name": "Owner", "role": "user"}
+OTHER_OWNER = {"id": "owner-2", "name": "Other", "role": "user"}
+ADMIN = {"id": "admin-1", "name": "Admin", "role": "admin"}
+
+
+class StudioServiceTests(unittest.TestCase):
+    def make_service(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir)
+            storage = JSONStorageBackend(path / "accounts.json", path / "auth_keys.json", path / "studio.json")
+            return StudioService(storage), storage, path
+
+    def test_user_project_conversation_turn_lifecycle(self):
+        service, _storage, _path = self.make_service()
+
+        project = service.create_project(OWNER, "Spring Campaign")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero images", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="generate",
+            prompt="orange product photo",
+            model="gpt-image-2",
+            size="1024x1024",
+            reference_images=[],
+        )
+
+        self.assertEqual(service.list_projects(OWNER)[0]["name"], "Spring Campaign")
+        self.assertEqual(service.list_conversations(OWNER, project["id"])[0]["id"], conversation["id"])
+        self.assertEqual(service.list_turns(OWNER, conversation["id"])[0]["id"], turn["id"])
+
+    def test_user_cannot_access_other_users_project(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Private")
+
+        with self.assertRaises(ValueError) as ctx:
+            service.create_conversation(OTHER_OWNER, project["id"], "Nope", "generate")
+
+        self.assertIn("not found", str(ctx.exception).lower())
+
+    def test_admin_can_list_all_projects(self):
+        service, _storage, _path = self.make_service()
+        service.create_project(OWNER, "Owner Project")
+        service.create_project(OTHER_OWNER, "Other Project")
+
+        names = [item["name"] for item in service.list_projects(ADMIN)]
+
+        self.assertEqual(names, ["Other Project", "Owner Project"])
+
+    def test_favorite_is_idempotent_by_owner_and_path(self):
+        service, _storage, _path = self.make_service()
+
+        first = service.add_favorite(OWNER, "2026/05/image.png", source_turn_id="turn-1")
+        second = service.add_favorite(OWNER, "2026/05/image.png", source_turn_id="turn-1")
+
+        self.assertEqual(first["id"], second["id"])
+        self.assertEqual(len(service.list_favorites(OWNER)), 1)
+
+    def test_create_turn_copies_caller_reference_images(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero images", "generate")
+        reference_images = [{"path": "refs/original.png"}]
+
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            prompt="orange product photo",
+            reference_images=reference_images,
+        )
+        reference_images[0]["path"] = "refs/mutated.png"
+        reference_images.append({"path": "refs/extra.png"})
+
+        stored = service.list_turns(OWNER, conversation["id"])[0]
+
+        self.assertEqual(stored["reference_images"], [{"path": "refs/original.png"}])
+
+    def test_list_turns_returns_do_not_mutate_service_state(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero images", "generate")
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            prompt="orange product photo",
+            reference_images=[{"path": "refs/original.png"}],
+        )
+
+        listed = service.list_turns(OWNER, conversation["id"])
+        listed[0]["reference_images"][0]["path"] = "refs/mutated.png"
+        listed[0]["reference_images"].append({"path": "refs/extra.png"})
+
+        stored = service.list_turns(OWNER, conversation["id"])[0]
+
+        self.assertEqual(stored["reference_images"], [{"path": "refs/original.png"}])
+
+    def test_sync_turn_from_successful_task(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            model="gpt-image-2",
+            size="",
+            reference_images=[],
+        )
+
+        synced = service.sync_turn_from_task(
+            OWNER,
+            turn["id"],
+            {"id": "task-1", "status": "success", "data": [{"url": "http://testserver/images/2026/05/cat.png"}]},
+        )
+
+        self.assertEqual(synced["status"], "success")
+        self.assertEqual(synced["result_images"][0]["url"], "http://testserver/images/2026/05/cat.png")
+        self.assertEqual(synced["result_images"][0]["path"], "2026/05/cat.png")
+
+    def test_retry_failed_turn_clears_error_and_uses_new_task_id(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            model="gpt-image-2",
+            size="",
+            reference_images=[],
+            status="error",
+            error="failed",
+        )
+
+        retried = service.mark_turn_retrying(OWNER, turn["id"], "task-2")
+
+        self.assertEqual(retried["status"], "queued")
+        self.assertEqual(retried["client_task_id"], "task-2")
+        self.assertEqual(retried["task_id"], "task-2")
+        self.assertEqual(retried["error"], "")
+        self.assertEqual(retried["result_images"], [])
+
+    def test_create_queued_turn_reuses_client_task_id_in_conversation(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+
+        first = service.create_queued_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            model="gpt-image-2",
+            size="",
+            reference_images=[],
+        )
+        second = service.create_queued_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            mode="generate",
+            prompt="cat again",
+            model="gpt-image-2",
+            size="1024x1024",
+            reference_images=[],
+        )
+
+        self.assertEqual(second["id"], first["id"])
+        self.assertEqual(second["prompt"], "cat")
+        self.assertEqual(len(service.list_turns(OWNER, conversation["id"])), 1)
+
+    def test_create_queued_turn_rejects_blank_client_task_id(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+
+        with self.assertRaises(ValueError):
+            service.create_queued_turn(
+                OWNER,
+                conversation["id"],
+                client_task_id="   ",
+                mode="generate",
+                prompt="cat",
+                model="gpt-image-2",
+                size="",
+                reference_images=[],
+            )
+
+        self.assertEqual(service.list_turns(OWNER, conversation["id"]), [])
+
+    def test_create_queued_turn_rejects_client_task_id_used_in_other_conversation(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        first_conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        second_conversation = service.create_conversation(OWNER, project["id"], "Variant", "generate")
+        service.create_queued_turn(
+            OWNER,
+            first_conversation["id"],
+            client_task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            model="gpt-image-2",
+            size="",
+            reference_images=[],
+        )
+
+        with self.assertRaises(ValueError):
+            service.create_queued_turn(
+                OWNER,
+                second_conversation["id"],
+                client_task_id="task-1",
+                mode="generate",
+                prompt="dog",
+                model="gpt-image-2",
+                size="",
+                reference_images=[],
+            )
+
+        self.assertEqual(service.list_turns(OWNER, second_conversation["id"]), [])
+
+    def test_mark_turn_retrying_rejects_ineligible_turns(self):
+        for status in ("success", "queued", "running"):
+            with self.subTest(status=status):
+                service, _storage, _path = self.make_service()
+                project = service.create_project(OWNER, "Spring")
+                conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+                turn = service.create_turn(
+                    OWNER,
+                    conversation["id"],
+                    client_task_id="task-1",
+                    task_id="task-1",
+                    mode="generate",
+                    prompt="cat",
+                    status=status,
+                    error="",
+                )
+
+                with self.assertRaises(ValueError):
+                    service.mark_turn_retrying(OWNER, turn["id"], "task-2")
+
+                stored = service.get_turn(OWNER, turn["id"])
+                self.assertEqual(stored["status"], status)
+                self.assertEqual(stored["task_id"], "task-1")
+
+    def test_mark_turn_retrying_rejects_edit_turns(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "edit")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="edit",
+            prompt="cat",
+            status="error",
+            error="failed",
+        )
+
+        with self.assertRaises(ValueError):
+            service.mark_turn_retrying(OWNER, turn["id"], "task-2")
+
+        stored = service.get_turn(OWNER, turn["id"])
+        self.assertEqual(stored["status"], "error")
+        self.assertEqual(stored["task_id"], "task-1")
+        self.assertEqual(stored["error"], "failed")
+
+    def test_mark_turn_retrying_rejects_blank_client_task_id(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            status="error",
+            error="failed",
+        )
+
+        with self.assertRaises(ValueError):
+            service.mark_turn_retrying(OWNER, turn["id"], "   ")
+
+        stored = service.get_turn(OWNER, turn["id"])
+        self.assertEqual(stored["status"], "error")
+        self.assertEqual(stored["task_id"], "task-1")
+        self.assertEqual(stored["error"], "failed")
+
+    def test_mark_turn_retrying_rejects_client_task_id_used_by_another_turn(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            status="success",
+        )
+        failed = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-2",
+            task_id="task-2",
+            mode="generate",
+            prompt="dog",
+            status="error",
+            error="failed",
+        )
+
+        with self.assertRaises(ValueError):
+            service.mark_turn_retrying(OWNER, failed["id"], "task-1")
+
+        stored = service.get_turn(OWNER, failed["id"])
+        self.assertEqual(stored["status"], "error")
+        self.assertEqual(stored["client_task_id"], "task-2")
+        self.assertEqual(stored["task_id"], "task-2")
+        self.assertEqual(stored["error"], "failed")
+
+    def test_mark_turn_retrying_rejects_same_current_client_task_id(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            mode="generate",
+            prompt="cat",
+            status="error",
+            error="failed",
+        )
+
+        with self.assertRaises(ValueError):
+            service.mark_turn_retrying(OWNER, turn["id"], "task-1")
+
+        stored = service.get_turn(OWNER, turn["id"])
+        self.assertEqual(stored["status"], "error")
+        self.assertEqual(stored["client_task_id"], "task-1")
+        self.assertEqual(stored["task_id"], "task-1")
+        self.assertEqual(stored["error"], "failed")
+
+    def test_create_project_rolls_back_in_memory_state_on_save_failure(self):
+        class FailingSaveStorage(JSONStorageBackend):
+            def save_studio_state(self, state):
+                raise RuntimeError("save failed")
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir)
+            storage = FailingSaveStorage(path / "accounts.json", path / "auth_keys.json", path / "studio.json")
+            service = StudioService(storage)
+
+            with self.assertRaises(RuntimeError):
+                service.create_project(OWNER, "Unsaved")
+
+            self.assertEqual(service.list_projects(OWNER), [])
+
+    def test_invalid_template_update_does_not_partially_mutate_template(self):
+        service, _storage, _path = self.make_service()
+        template = service.create_prompt_template(OWNER, "Original", "Original Category", "original content")
+
+        with self.assertRaises(ValueError):
+            service.update_prompt_template(
+                OWNER,
+                template["id"],
+                {"name": "Mutated", "category": "Mutated Category", "content": "   "},
+            )
+
+        stored = [
+            item
+            for item in service.list_prompt_templates(OWNER)
+            if item["id"] == template["id"]
+        ][0]
+
+        self.assertEqual(stored["name"], "Original")
+        self.assertEqual(stored["category"], "Original Category")
+        self.assertEqual(stored["content"], "original content")

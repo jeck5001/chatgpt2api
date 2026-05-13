@@ -30,3 +30,9 @@ docker-compose-local.yml
 
 # Git cache
 git_cache/
+
+# Flutter local build artifacts
+apps/image_studio_app/.dart_tool/
+apps/image_studio_app/.flutter-plugins
+apps/image_studio_app/.flutter-plugins-dependencies
+apps/image_studio_app/build/
