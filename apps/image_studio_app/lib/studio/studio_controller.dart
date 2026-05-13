@@ -6,6 +6,8 @@ import 'studio_repository.dart';
 
 class StudioState {
   const StudioState({
+    this.projects = const [],
+    this.conversations = const [],
     this.activeProject,
     this.activeConversation,
     this.turns = const [],
@@ -14,6 +16,8 @@ class StudioState {
     this.errorMessage,
   });
 
+  final List<StudioProject> projects;
+  final List<StudioConversation> conversations;
   final StudioProject? activeProject;
   final StudioConversation? activeConversation;
   final List<StudioTurn> turns;
@@ -22,6 +26,8 @@ class StudioState {
   final String? errorMessage;
 
   StudioState copyWith({
+    List<StudioProject>? projects,
+    List<StudioConversation>? conversations,
     StudioProject? activeProject,
     StudioConversation? activeConversation,
     List<StudioTurn>? turns,
@@ -31,6 +37,8 @@ class StudioState {
     bool clearError = false,
   }) {
     return StudioState(
+      projects: projects ?? this.projects,
+      conversations: conversations ?? this.conversations,
       activeProject: activeProject ?? this.activeProject,
       activeConversation: activeConversation ?? this.activeConversation,
       turns: turns ?? this.turns,
@@ -75,7 +83,40 @@ class StudioController extends ChangeNotifier {
           );
     final turns = await _repository.fetchTurns(activeConversation.id);
     _state = _state.copyWith(
+      projects: projects,
+      conversations: conversations,
       activeProject: activeProject,
+      activeConversation: activeConversation,
+      turns: turns,
+    );
+    notifyListeners();
+  }
+
+  Future<void> selectConversation(String conversationId) async {
+    final conversation = _state.conversations
+        .where((item) => item.id == conversationId)
+        .firstOrNull;
+    if (conversation == null) {
+      return;
+    }
+    final turns = await _repository.fetchTurns(conversation.id);
+    _state = _state.copyWith(activeConversation: conversation, turns: turns);
+    notifyListeners();
+  }
+
+  Future<void> selectProject(String projectId) async {
+    final project = _state.projects.where((item) => item.id == projectId).firstOrNull;
+    if (project == null) {
+      return;
+    }
+    final conversations = await _repository.fetchConversations(project.id);
+    final activeConversation = conversations.isNotEmpty ? conversations.first : null;
+    final turns = activeConversation == null
+        ? const <StudioTurn>[]
+        : await _repository.fetchTurns(activeConversation.id);
+    _state = _state.copyWith(
+      activeProject: project,
+      conversations: conversations,
       activeConversation: activeConversation,
       turns: turns,
     );

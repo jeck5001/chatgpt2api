@@ -40,15 +40,176 @@ void main() {
     expect(controller.state.activeConversation?.title, 'New image session');
     expect(repository.createdProjectName, 'Untitled Project');
   });
+
+  test('load workspace keeps available project and conversation lists', () async {
+    final repository = FakeStudioRepository()
+      ..projects = [
+        StudioProject(
+          id: 'project-1',
+          name: 'Project One',
+          ownerId: 'admin',
+          archived: false,
+          createdAt: DateTime.utc(2026, 5, 12),
+          updatedAt: DateTime.utc(2026, 5, 12),
+        ),
+      ]
+      ..conversationsByProject = {
+        'project-1': [
+          StudioConversation(
+            id: 'conversation-1',
+            projectId: 'project-1',
+            title: 'Session One',
+            mode: StudioTurnMode.generate,
+            updatedAt: DateTime.utc(2026, 5, 12),
+          ),
+        ],
+      };
+    final controller = StudioController(repository);
+
+    await controller.loadWorkspace();
+
+    expect(controller.state.projects.single.name, 'Project One');
+    expect(controller.state.conversations.single.title, 'Session One');
+  });
+
+  test('selectConversation loads turns for the chosen conversation', () async {
+    final repository = FakeStudioRepository()
+      ..projects = [
+        StudioProject(
+          id: 'project-1',
+          name: 'Project One',
+          ownerId: 'admin',
+          archived: false,
+          createdAt: DateTime.utc(2026, 5, 12),
+          updatedAt: DateTime.utc(2026, 5, 12),
+        ),
+      ]
+      ..conversationsByProject = {
+        'project-1': [
+          StudioConversation(
+            id: 'conversation-1',
+            projectId: 'project-1',
+            title: 'Session One',
+            mode: StudioTurnMode.generate,
+            updatedAt: DateTime.utc(2026, 5, 12),
+          ),
+          StudioConversation(
+            id: 'conversation-2',
+            projectId: 'project-1',
+            title: 'Session Two',
+            mode: StudioTurnMode.generate,
+            updatedAt: DateTime.utc(2026, 5, 13),
+          ),
+        ],
+      }
+      ..turnsByConversation = {
+        'conversation-1': [fakeTurn(status: StudioTurnStatus.success)],
+        'conversation-2': [
+          StudioTurn(
+            id: 'turn-2',
+            conversationId: 'conversation-2',
+            clientTaskId: 'task-2',
+            taskId: 'task-2',
+            mode: StudioTurnMode.generate,
+            prompt: 'dog',
+            model: 'gpt-image-2',
+            size: '1024x1024',
+            resultImages: const [],
+            status: StudioTurnStatus.success,
+            error: '',
+            updatedAt: DateTime.utc(2026, 5, 13),
+          ),
+        ],
+      };
+    final controller = StudioController(repository);
+
+    await controller.loadWorkspace();
+    await controller.selectConversation('conversation-2');
+
+    expect(controller.state.activeConversation?.id, 'conversation-2');
+    expect(controller.state.turns.single.prompt, 'dog');
+  });
+
+  test('selectProject switches conversations and loads the first turn list', () async {
+    final repository = FakeStudioRepository()
+      ..projects = [
+        StudioProject(
+          id: 'project-1',
+          name: 'Project One',
+          ownerId: 'admin',
+          archived: false,
+          createdAt: DateTime.utc(2026, 5, 12),
+          updatedAt: DateTime.utc(2026, 5, 12),
+        ),
+        StudioProject(
+          id: 'project-2',
+          name: 'Project Two',
+          ownerId: 'admin',
+          archived: false,
+          createdAt: DateTime.utc(2026, 5, 13),
+          updatedAt: DateTime.utc(2026, 5, 13),
+        ),
+      ]
+      ..conversationsByProject = {
+        'project-1': [
+          StudioConversation(
+            id: 'conversation-1',
+            projectId: 'project-1',
+            title: 'Session One',
+            mode: StudioTurnMode.generate,
+            updatedAt: DateTime.utc(2026, 5, 12),
+          ),
+        ],
+        'project-2': [
+          StudioConversation(
+            id: 'conversation-2',
+            projectId: 'project-2',
+            title: 'Session Two',
+            mode: StudioTurnMode.generate,
+            updatedAt: DateTime.utc(2026, 5, 13),
+          ),
+        ],
+      }
+      ..turnsByConversation = {
+        'conversation-1': [fakeTurn(status: StudioTurnStatus.success)],
+        'conversation-2': [
+          StudioTurn(
+            id: 'turn-2',
+            conversationId: 'conversation-2',
+            clientTaskId: 'task-2',
+            taskId: 'task-2',
+            mode: StudioTurnMode.generate,
+            prompt: 'dog',
+            model: 'gpt-image-2',
+            size: '1024x1024',
+            resultImages: const [],
+            status: StudioTurnStatus.success,
+            error: '',
+            updatedAt: DateTime.utc(2026, 5, 13),
+          ),
+        ],
+      };
+    final controller = StudioController(repository);
+
+    await controller.loadWorkspace();
+    await controller.selectProject('project-2');
+
+    expect(controller.state.activeProject?.id, 'project-2');
+    expect(controller.state.activeConversation?.id, 'conversation-2');
+    expect(controller.state.turns.single.prompt, 'dog');
+  });
 }
 
 class FakeStudioRepository implements StudioRepositoryContract {
   bool failSubmit = false;
   String? createdProjectName;
+  List<StudioProject> projects = [];
+  Map<String, List<StudioConversation>> conversationsByProject = {};
+  Map<String, List<StudioTurn>> turnsByConversation = {};
 
   @override
   Future<List<StudioProject>> fetchProjects() async {
-    return [];
+    return projects;
   }
 
   @override
@@ -66,7 +227,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
 
   @override
   Future<List<StudioConversation>> fetchConversations(String projectId) async {
-    return [];
+    return conversationsByProject[projectId] ?? [];
   }
 
   @override
@@ -86,7 +247,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
 
   @override
   Future<List<StudioTurn>> fetchTurns(String conversationId) async {
-    return [];
+    return turnsByConversation[conversationId] ?? [];
   }
 
   @override

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../library/library_screen.dart';
+import '../settings/settings_screen.dart';
+import '../shared/adaptive_shell.dart';
 import 'create_screen.dart';
 import 'studio_controller.dart';
+import 'projects_screen.dart';
 
 class StudioSessionScreen extends StatefulWidget {
   const StudioSessionScreen({super.key, required this.controller});
@@ -14,6 +18,7 @@ class StudioSessionScreen extends StatefulWidget {
 
 class _StudioSessionScreenState extends State<StudioSessionScreen> {
   late final Future<void> _loadFuture;
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -57,7 +62,30 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
             ),
           );
         }
-        return CreateScreen(controller: widget.controller);
+        return AdaptiveShell(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: (index) {
+            setState(() {
+              _selectedIndex = index;
+            });
+          },
+          create: CreateScreen(controller: widget.controller),
+          library: const LibraryScreen(),
+          projects: ProjectsScreen(
+            projects: widget.controller.state.projects,
+            conversations: widget.controller.state.conversations,
+            activeProjectId: widget.controller.state.activeProject?.id,
+            activeConversationId:
+                widget.controller.state.activeConversation?.id,
+            onProjectSelected: (projectId) async {
+              await widget.controller.selectProject(projectId);
+            },
+            onConversationSelected: (conversationId) async {
+              await widget.controller.selectConversation(conversationId);
+            },
+          ),
+          settings: const SettingsScreen(),
+        );
       },
     );
   }
