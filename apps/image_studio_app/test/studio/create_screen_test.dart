@@ -85,6 +85,42 @@ void main() {
     expect(find.byType(Image), findsOneWidget);
     expect(find.text('beautiful landscape'), findsOneWidget);
   });
+
+  testWidgets('tapping a result image opens the preview viewer', (
+    tester,
+  ) async {
+    final controller = StudioController(FakeStudioRepository());
+    controller.replaceTurns([
+      StudioTurn(
+        id: 'turn-success',
+        conversationId: 'conversation-1',
+        clientTaskId: 'task-success',
+        taskId: 'task-success',
+        mode: StudioTurnMode.generate,
+        prompt: 'beautiful landscape',
+        model: 'gpt-image-2',
+        size: '1024x1024',
+        resultImages: [
+          StudioResultImage(
+            url: Uri.parse('http://example.test/images/landscape.png'),
+            path: '2026/05/landscape.png',
+          ),
+        ],
+        status: StudioTurnStatus.success,
+        error: '',
+        updatedAt: DateTime.utc(2026, 5, 13),
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: CreateScreen(controller: controller)),
+    );
+
+    await tester.tap(find.byType(Image));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Preview'), findsOneWidget);
+  });
 }
 
 class FakeStudioRepository implements StudioRepositoryContract {

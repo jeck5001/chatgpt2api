@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../shared/empty_state.dart';
 import 'studio_controller.dart';
 import 'studio_models.dart';
+import 'studio_result_viewer.dart';
 
 class CreateScreen extends StatefulWidget {
   const CreateScreen({super.key, this.controller, this.activeConversationId});
@@ -118,34 +119,45 @@ class _CreateScreenState extends State<CreateScreen> {
                                           borderRadius: BorderRadius.circular(
                                             20,
                                           ),
-                                          child: AspectRatio(
-                                            aspectRatio: 1,
-                                            child: Image.network(
-                                              image.url.toString(),
-                                              fit: BoxFit.cover,
-                                              errorBuilder:
-                                                  (
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                              onTap: () =>
+                                                  showStudioResultViewer(
                                                     context,
-                                                    error,
-                                                    stackTrace,
-                                                  ) => Container(
-                                                    color: Theme.of(context)
-                                                        .colorScheme
-                                                        .surfaceContainerHighest,
-                                                    alignment: Alignment.center,
-                                                    padding:
-                                                        const EdgeInsets.all(
-                                                          16,
-                                                        ),
-                                                    child: Text(
-                                                      image.path.isNotEmpty
-                                                          ? image.path
-                                                          : image.url
-                                                                .toString(),
-                                                      textAlign:
-                                                          TextAlign.center,
-                                                    ),
+                                                    image,
                                                   ),
+                                              child: AspectRatio(
+                                                aspectRatio: 1,
+                                                child: Image.network(
+                                                  image.url.toString(),
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder:
+                                                      (
+                                                        context,
+                                                        error,
+                                                        stackTrace,
+                                                      ) => Container(
+                                                        color: Theme.of(context)
+                                                            .colorScheme
+                                                            .surfaceContainerHighest,
+                                                        alignment:
+                                                            Alignment.center,
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              16,
+                                                            ),
+                                                        child: Text(
+                                                          image.path.isNotEmpty
+                                                              ? image.path
+                                                              : image.url
+                                                                    .toString(),
+                                                          textAlign:
+                                                              TextAlign.center,
+                                                        ),
+                                                      ),
+                                                ),
+                                              ),
                                             ),
                                           ),
                                         );
