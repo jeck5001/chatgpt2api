@@ -79,9 +79,82 @@ class _CreateScreenState extends State<CreateScreen> {
                         },
                         itemBuilder: (context, index) {
                           final turn = turns[index];
-                          return ListTile(
-                            title: Text(turn.prompt),
-                            subtitle: Text(turn.status.name),
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  turn.prompt,
+                                  style: Theme.of(context).textTheme.titleLarge,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(turn.status.name),
+                                if (turn.error.isNotEmpty) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    turn.error,
+                                    style: TextStyle(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.error,
+                                    ),
+                                  ),
+                                ],
+                                if (turn.resultImages.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  SizedBox(
+                                    height: 180,
+                                    child: ListView.separated(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: turn.resultImages.length,
+                                      separatorBuilder: (context, imageIndex) {
+                                        return const SizedBox(width: 12);
+                                      },
+                                      itemBuilder: (context, imageIndex) {
+                                        final image =
+                                            turn.resultImages[imageIndex];
+                                        return ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          child: AspectRatio(
+                                            aspectRatio: 1,
+                                            child: Image.network(
+                                              image.url.toString(),
+                                              fit: BoxFit.cover,
+                                              errorBuilder:
+                                                  (
+                                                    context,
+                                                    error,
+                                                    stackTrace,
+                                                  ) => Container(
+                                                    color: Theme.of(context)
+                                                        .colorScheme
+                                                        .surfaceContainerHighest,
+                                                    alignment: Alignment.center,
+                                                    padding:
+                                                        const EdgeInsets.all(
+                                                          16,
+                                                        ),
+                                                    child: Text(
+                                                      image.path.isNotEmpty
+                                                          ? image.path
+                                                          : image.url
+                                                                .toString(),
+                                                      textAlign:
+                                                          TextAlign.center,
+                                                    ),
+                                                  ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
                           );
                         },
                       ),

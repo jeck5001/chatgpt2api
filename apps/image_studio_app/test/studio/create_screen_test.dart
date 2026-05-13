@@ -51,6 +51,40 @@ void main() {
     );
     expect(button.onPressed, isNull);
   });
+
+  testWidgets('renders result image previews for successful turns', (
+    tester,
+  ) async {
+    final controller = StudioController(FakeStudioRepository());
+    controller.replaceTurns([
+      StudioTurn(
+        id: 'turn-success',
+        conversationId: 'conversation-1',
+        clientTaskId: 'task-success',
+        taskId: 'task-success',
+        mode: StudioTurnMode.generate,
+        prompt: 'beautiful landscape',
+        model: 'gpt-image-2',
+        size: '1024x1024',
+        resultImages: [
+          StudioResultImage(
+            url: Uri.parse('http://example.test/images/landscape.png'),
+            path: '2026/05/landscape.png',
+          ),
+        ],
+        status: StudioTurnStatus.success,
+        error: '',
+        updatedAt: DateTime.utc(2026, 5, 13),
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: CreateScreen(controller: controller)),
+    );
+
+    expect(find.byType(Image), findsOneWidget);
+    expect(find.text('beautiful landscape'), findsOneWidget);
+  });
 }
 
 class FakeStudioRepository implements StudioRepositoryContract {
