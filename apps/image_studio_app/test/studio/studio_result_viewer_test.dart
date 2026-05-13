@@ -16,5 +16,7 @@ void main() {
     );
 
     expect(find.text('Preview'), findsOneWidget);
+    expect(find.text('Save'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
   });
 }
