@@ -10,6 +10,13 @@ typedef SaveImageAction =
       String fileName,
     );
 
+typedef ShareImageAction =
+    Future<String> Function(
+      StudioImageSaver imageSaver,
+      Uri imageUrl,
+      String fileName,
+    );
+
 class StudioResultViewer extends StatelessWidget {
   StudioResultViewer({
     super.key,
@@ -17,13 +24,16 @@ class StudioResultViewer extends StatelessWidget {
     required this.imagePath,
     StudioImageSaver? imageSaver,
     SaveImageAction? onSaveImage,
+    ShareImageAction? onShareImage,
   }) : imageSaver = imageSaver ?? StudioImageSaver(),
-       onSaveImage = onSaveImage ?? _defaultSaveImage;
+       onSaveImage = onSaveImage ?? _defaultSaveImage,
+       onShareImage = onShareImage ?? _defaultShareImage;
 
   final String imageUrl;
   final String imagePath;
   final StudioImageSaver imageSaver;
   final SaveImageAction onSaveImage;
+  final ShareImageAction onShareImage;
 
   static Future<String> _defaultSaveImage(
     StudioImageSaver imageSaver,
@@ -37,10 +47,16 @@ class StudioResultViewer extends StatelessWidget {
     return file.path;
   }
 
-  void _showPlaceholder(BuildContext context, String label) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('$label is coming next')));
+  static Future<String> _defaultShareImage(
+    StudioImageSaver imageSaver,
+    Uri imageUrl,
+    String fileName,
+  ) async {
+    final file = await imageSaver.saveImage(
+      imageUrl: imageUrl,
+      fileName: fileName,
+    );
+    return file.path;
   }
 
   Future<void> _save(BuildContext context) async {
@@ -56,6 +72,21 @@ class StudioResultViewer extends StatelessWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('Saved to $savedPath')));
+  }
+
+  Future<void> _share(BuildContext context) async {
+    final uri = Uri.parse(imageUrl);
+    final sharedPath = await onShareImage(
+      imageSaver,
+      uri,
+      uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'image.png',
+    );
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Shared $sharedPath')));
   }
 
   @override
@@ -106,7 +137,7 @@ class StudioResultViewer extends StatelessWidget {
                 const SizedBox(width: 12),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => _showPlaceholder(context, 'Share'),
+                    onPressed: () => _share(context),
                     icon: const Icon(Icons.share_outlined),
                     label: const Text('Share'),
                   ),

@@ -16,6 +16,8 @@ void main() {
             outputDirectoryProvider: () async => throw UnimplementedError(),
             bytesLoader: (_) async => throw UnimplementedError(),
           ),
+          onShareImage: (imageSaver, imageUrl, fileName) async =>
+              '/tmp/landscape.png',
         ),
       ),
     );
@@ -37,6 +39,8 @@ void main() {
           ),
           onSaveImage: (imageSaver, imageUrl, fileName) async =>
               '/tmp/landscape.png',
+          onShareImage: (imageSaver, imageUrl, fileName) async =>
+              '/tmp/landscape.png',
         ),
       ),
     );
@@ -45,5 +49,27 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('Saved to'), findsOneWidget);
+  });
+
+  testWidgets('tapping share shows a shared message', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudioResultViewer(
+          imageUrl: 'http://example.test/images/landscape.png',
+          imagePath: '2026/05/landscape.png',
+          imageSaver: StudioImageSaver(
+            outputDirectoryProvider: () async => throw UnimplementedError(),
+            bytesLoader: (_) async => throw UnimplementedError(),
+          ),
+          onShareImage: (imageSaver, imageUrl, fileName) async =>
+              '/tmp/landscape.png',
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Share'));
+    await tester.pump();
+
+    expect(find.textContaining('Shared'), findsOneWidget);
   });
 }
