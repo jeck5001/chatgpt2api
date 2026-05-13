@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../app/defaults.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
     super.key,
@@ -26,7 +28,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController();
+    _controller = TextEditingController(text: defaultBearerKey);
     _errorMessage = widget.errorMessage;
   }
 

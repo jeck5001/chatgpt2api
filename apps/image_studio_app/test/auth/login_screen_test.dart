@@ -3,6 +3,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_studio_app/auth/login_screen.dart';
 
 void main() {
+  testWidgets('prefills the default bearer key', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginScreen(
+          baseUrl: Uri.parse('http://192.168.5.35:3030'),
+          onLogin: (_) async {},
+        ),
+      ),
+    );
+
+    expect(find.text('chatgpt2api-11234'), findsOneWidget);
+  });
+
   testWidgets('shows login errors without leaving the form', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

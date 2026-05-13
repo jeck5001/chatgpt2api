@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../app/defaults.dart';
+
 class OnboardingScreen extends StatelessWidget {
   const OnboardingScreen({super.key, required this.onContinue});
 
@@ -7,7 +9,7 @@ class OnboardingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = TextEditingController(text: 'http://localhost:8000');
+    final controller = TextEditingController(text: defaultBackendUrl);
     return Scaffold(
       body: Center(
         child: ConstrainedBox(

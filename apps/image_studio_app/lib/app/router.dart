@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'defaults.dart';
+import '../auth/auth_repository.dart';
 import '../auth/login_screen.dart';
 import '../auth/onboarding_screen.dart';
-import '../auth/auth_repository.dart';
 import '../core/api/api_client.dart';
 import '../core/storage/secure_token_store.dart';
 import '../core/storage/server_profile_store.dart';
@@ -30,10 +31,9 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/login',
         builder: (context, state) => LoginScreen(
-          baseUrl: pendingBaseUrl ?? Uri.parse('http://localhost:8000'),
+          baseUrl: pendingBaseUrl ?? Uri.parse(defaultBackendUrl),
           onLogin: (bearerKey) async {
-            final baseUrl =
-                pendingBaseUrl ?? Uri.parse('http://localhost:8000');
+            final baseUrl = pendingBaseUrl ?? Uri.parse(defaultBackendUrl);
             final router = GoRouter.of(context);
             final tokenStore = SecureTokenStore();
             final profileStore = ServerProfileStore(

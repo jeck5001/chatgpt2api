@@ -8,5 +8,6 @@ void main() {
 
     expect(find.text('Connect Image Studio'), findsOneWidget);
     expect(find.text('Backend URL'), findsOneWidget);
+    expect(find.text('http://192.168.5.35:3030'), findsOneWidget);
   });
 }
