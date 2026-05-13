@@ -5,21 +5,25 @@ import 'package:image_studio_app/studio/studio_controller.dart';
 import 'package:image_studio_app/studio/studio_models.dart';
 import 'package:image_studio_app/studio/studio_repository.dart';
 
-void main() {
-  testWidgets('generate button is disabled when prompt is empty', (
-    tester,
-  ) async {
-    await tester.pumpWidget(const MaterialApp(home: CreateScreen()));
+const _submitKey = ValueKey('composer-submit');
 
-    final button = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Generate'),
-    );
-    expect(button.onPressed, isNull);
+bool _submitDisabled(WidgetTester tester) {
+  final widget = tester.widget<InkWell>(
+    find.descendant(
+      of: find.byKey(_submitKey),
+      matching: find.byType(InkWell),
+    ),
+  );
+  return widget.onTap == null;
+}
+
+void main() {
+  testWidgets('submit button is disabled when prompt is empty', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: CreateScreen()));
+    expect(_submitDisabled(tester), isTrue);
   });
 
-  testWidgets('generate button is enabled when prompt has text', (
-    tester,
-  ) async {
+  testWidgets('submit button is enabled when prompt has text', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: CreateScreen(
@@ -32,13 +36,10 @@ void main() {
     await tester.enterText(find.byType(TextField), 'paint a glass fox');
     await tester.pump();
 
-    final button = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Generate'),
-    );
-    expect(button.onPressed, isNotNull);
+    expect(_submitDisabled(tester), isFalse);
   });
 
-  testWidgets('generate button stays disabled without an active session', (
+  testWidgets('submit button stays disabled without an active session', (
     tester,
   ) async {
     await tester.pumpWidget(const MaterialApp(home: CreateScreen()));
@@ -46,10 +47,7 @@ void main() {
     await tester.enterText(find.byType(TextField), 'paint a glass fox');
     await tester.pump();
 
-    final button = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Generate'),
-    );
-    expect(button.onPressed, isNull);
+    expect(_submitDisabled(tester), isTrue);
   });
 
   testWidgets('renders result image previews for successful turns', (
@@ -119,7 +117,64 @@ void main() {
     await tester.tap(find.byType(Image));
     await tester.pumpAndSettle();
 
-    expect(find.text('Preview'), findsOneWidget);
+    // Viewer route is pushed — confirm we left the studio composer behind.
+    expect(find.byKey(_submitKey), findsNothing);
+  });
+
+  testWidgets('renders shimmer placeholders for running turns', (tester) async {
+    final controller = StudioController(FakeStudioRepository());
+    controller.replaceTurns([
+      StudioTurn(
+        id: 'turn-running',
+        conversationId: 'conversation-1',
+        clientTaskId: 'task-running',
+        taskId: 'task-running',
+        mode: StudioTurnMode.generate,
+        prompt: 'a running prompt',
+        model: 'gpt-image-2',
+        size: '1024x1024',
+        resultImages: const [],
+        status: StudioTurnStatus.running,
+        error: '',
+        updatedAt: DateTime.utc(2026, 5, 13),
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: CreateScreen(controller: controller)),
+    );
+
+    expect(find.textContaining('正在绘制'), findsOneWidget);
+  });
+
+  testWidgets('failed turns show the backend error and retry button', (
+    tester,
+  ) async {
+    final controller = StudioController(FakeStudioRepository());
+    controller.replaceTurns([
+      StudioTurn(
+        id: 'turn-error',
+        conversationId: 'conversation-1',
+        clientTaskId: 'task-error',
+        taskId: 'task-error',
+        mode: StudioTurnMode.generate,
+        prompt: 'broken image',
+        model: 'gpt-image-2',
+        size: '1024x1024',
+        resultImages: const [],
+        status: StudioTurnStatus.error,
+        error: 'upstream request failed',
+        updatedAt: DateTime.utc(2026, 5, 13),
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: CreateScreen(controller: controller)),
+    );
+
+    expect(find.text('upstream request failed'), findsOneWidget);
+    expect(find.text('重试'), findsOneWidget);
+    expect(find.text('编辑 prompt'), findsOneWidget);
   });
 }
 

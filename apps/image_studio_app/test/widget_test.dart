@@ -6,8 +6,8 @@ void main() {
     await tester.pumpWidget(const ImageStudioApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('Connect Image Studio'), findsOneWidget);
-    expect(find.text('Backend URL'), findsOneWidget);
+    expect(find.text('连接你的工作室'), findsOneWidget);
+    expect(find.text('服务器地址'), findsOneWidget);
     expect(find.text('http://192.168.5.35:3030'), findsOneWidget);
   });
 }

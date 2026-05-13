@@ -27,11 +27,11 @@ void main() {
     );
 
     await tester.enterText(find.byType(TextField), 'sk-test');
-    await tester.tap(find.text('Sign in'));
+    await tester.tap(find.text('进入工作室'));
     await tester.pump();
     await tester.pump();
 
     expect(find.textContaining('Cannot reach backend'), findsOneWidget);
-    expect(find.text('Sign in'), findsOneWidget);
+    expect(find.text('进入工作室'), findsOneWidget);
   });
 }

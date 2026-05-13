@@ -12,6 +12,7 @@ void main() {
         home: StudioResultViewer(
           imageUrl: 'http://example.test/images/landscape.png',
           imagePath: '2026/05/landscape.png',
+          promptText: 'beautiful landscape',
           imageSaver: StudioImageSaver(
             outputDirectoryProvider: () async => throw UnimplementedError(),
             bytesLoader: (_) async => throw UnimplementedError(),
@@ -22,9 +23,9 @@ void main() {
       ),
     );
 
-    expect(find.text('Preview'), findsOneWidget);
-    expect(find.text('Save'), findsOneWidget);
-    expect(find.text('Share'), findsOneWidget);
+    expect(find.text('beautiful landscape'), findsWidgets);
+    expect(find.text('保存'), findsOneWidget);
+    expect(find.text('分享'), findsOneWidget);
   });
 
   testWidgets('tapping save shows a saved message', (tester) async {
@@ -45,7 +46,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.text('保存'));
     await tester.pump();
 
     expect(find.textContaining('Saved to'), findsOneWidget);
@@ -67,7 +68,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Share'));
+    await tester.tap(find.text('分享'));
     await tester.pump();
 
     expect(find.textContaining('Shared'), findsOneWidget);
