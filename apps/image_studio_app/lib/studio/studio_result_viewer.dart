@@ -1,21 +1,61 @@
 import 'package:flutter/material.dart';
 
+import 'studio_image_saver.dart';
 import 'studio_models.dart';
 
+typedef SaveImageAction =
+    Future<String> Function(
+      StudioImageSaver imageSaver,
+      Uri imageUrl,
+      String fileName,
+    );
+
 class StudioResultViewer extends StatelessWidget {
-  const StudioResultViewer({
+  StudioResultViewer({
     super.key,
     required this.imageUrl,
     required this.imagePath,
-  });
+    StudioImageSaver? imageSaver,
+    SaveImageAction? onSaveImage,
+  }) : imageSaver = imageSaver ?? StudioImageSaver(),
+       onSaveImage = onSaveImage ?? _defaultSaveImage;
 
   final String imageUrl;
   final String imagePath;
+  final StudioImageSaver imageSaver;
+  final SaveImageAction onSaveImage;
+
+  static Future<String> _defaultSaveImage(
+    StudioImageSaver imageSaver,
+    Uri imageUrl,
+    String fileName,
+  ) async {
+    final file = await imageSaver.saveImage(
+      imageUrl: imageUrl,
+      fileName: fileName,
+    );
+    return file.path;
+  }
 
   void _showPlaceholder(BuildContext context, String label) {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('$label is coming next')));
+  }
+
+  Future<void> _save(BuildContext context) async {
+    final uri = Uri.parse(imageUrl);
+    final savedPath = await onSaveImage(
+      imageSaver,
+      uri,
+      uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'image.png',
+    );
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Saved to $savedPath')));
   }
 
   @override
@@ -58,7 +98,7 @@ class StudioResultViewer extends StatelessWidget {
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _showPlaceholder(context, 'Save'),
+                    onPressed: () => _save(context),
                     icon: const Icon(Icons.download_outlined),
                     label: const Text('Save'),
                   ),
