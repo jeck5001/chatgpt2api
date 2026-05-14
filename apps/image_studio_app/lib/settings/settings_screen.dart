@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import '../app/tokens.dart';
 import '../app/typography.dart';
 import '../shared/components/section_header.dart';
+import '../studio/studio_preferences.dart';
 
 const List<String> _kDefaultModels = ['gpt-image-2', 'gpt-image-1'];
 const List<String> _kDefaultSizes = ['1024x1024', '1024x1792', '1792x1024'];
@@ -23,6 +24,8 @@ class SettingsScreen extends StatefulWidget {
     this.cachedBytes = 342 * 1024 * 1024,
     this.cacheBudgetBytes = 1024 * 1024 * 1024,
     this.appVersion = '1.0.0 (24)',
+    this.preferences = const StudioPreferences(),
+    this.onPreferencesChanged,
   });
 
   final Future<void> Function()? onSignOut;
@@ -32,18 +35,22 @@ class SettingsScreen extends StatefulWidget {
   final int cachedBytes;
   final int cacheBudgetBytes;
   final String appVersion;
+  final StudioPreferences preferences;
+  final ValueChanged<StudioPreferences>? onPreferencesChanged;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool _autoFavorite = false;
   String _accent = 'ember';
-  String _defaultModel = _kDefaultModels.first;
-  String _defaultSize = _kDefaultSizes.first;
-  int _defaultCount = 2;
   bool _clearing = false;
+
+  StudioPreferences get _prefs => widget.preferences;
+
+  void _emit(StudioPreferences next) {
+    widget.onPreferencesChanged?.call(next);
+  }
 
   Future<String?> _pickFromList({
     required String title,
@@ -103,10 +110,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final picked = await _pickFromList(
       title: '默认模型',
       options: _kDefaultModels,
-      current: _defaultModel,
+      current: _prefs.defaultModel,
     );
-    if (picked != null && picked != _defaultModel) {
-      setState(() => _defaultModel = picked);
+    if (picked != null && picked != _prefs.defaultModel) {
+      _emit(_prefs.copyWith(defaultModel: picked));
     }
   }
 
@@ -114,10 +121,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final picked = await _pickFromList(
       title: '默认尺寸',
       options: _kDefaultSizes,
-      current: _defaultSize,
+      current: _prefs.defaultSize,
     );
-    if (picked != null && picked != _defaultSize) {
-      setState(() => _defaultSize = picked);
+    if (picked != null && picked != _prefs.defaultSize) {
+      _emit(_prefs.copyWith(defaultSize: picked));
     }
   }
 
@@ -125,11 +132,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final picked = await _pickFromList(
       title: '每次生成张数',
       options: _kDefaultCounts.map((c) => c.toString()).toList(),
-      current: _defaultCount.toString(),
+      current: _prefs.defaultCount.toString(),
     );
     final parsed = int.tryParse(picked ?? '');
-    if (parsed != null && parsed != _defaultCount) {
-      setState(() => _defaultCount = parsed);
+    if (parsed != null && parsed != _prefs.defaultCount) {
+      _emit(_prefs.copyWith(defaultCount: parsed));
     }
   }
 
@@ -214,12 +221,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: KilnSpacing.sm + 2),
                   _DefaultsCard(
-                    autoFavorite: _autoFavorite,
+                    autoFavorite: _prefs.autoFavorite,
                     onToggleAutoFavorite: (v) =>
-                        setState(() => _autoFavorite = v),
-                    defaultModel: _defaultModel,
-                    defaultSize: _defaultSize,
-                    defaultCount: _defaultCount,
+                        _emit(_prefs.copyWith(autoFavorite: v)),
+                    defaultModel: _prefs.defaultModel,
+                    defaultSize: _prefs.defaultSize,
+                    defaultCount: _prefs.defaultCount,
                     onPickModel: _pickDefaultModel,
                     onPickSize: _pickDefaultSize,
                     onPickCount: _pickDefaultCount,

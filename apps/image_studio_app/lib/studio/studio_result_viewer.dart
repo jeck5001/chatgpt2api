@@ -36,6 +36,7 @@ class StudioResultViewer extends StatefulWidget {
     this.size,
     this.imageIndex,
     this.totalImages,
+    this.initialFavorited = false,
     StudioImageSaver? imageSaver,
     SaveImageAction? onSaveImage,
     ShareImageAction? onShareImage,
@@ -53,6 +54,7 @@ class StudioResultViewer extends StatefulWidget {
   final String? size;
   final int? imageIndex;
   final int? totalImages;
+  final bool initialFavorited;
   final StudioImageSaver imageSaver;
   final SaveImageAction onSaveImage;
   final ShareImageAction onShareImage;
@@ -90,7 +92,7 @@ class StudioResultViewer extends StatefulWidget {
 
 class _StudioResultViewerState extends State<StudioResultViewer> {
   bool _drawerOpen = true;
-  bool _favorited = false;
+  late bool _favorited = widget.initialFavorited;
 
   Future<void> _save() async {
     final uri = Uri.parse(widget.imageUrl);
@@ -566,6 +568,7 @@ Future<void> showStudioResultViewer(
   String? size,
   int? imageIndex,
   int? totalImages,
+  bool initialFavorited = false,
   StudioImageSaver? imageSaver,
   VoidCallback? onFavorite,
   VoidCallback? onVariation,
@@ -581,6 +584,7 @@ Future<void> showStudioResultViewer(
         size: size,
         imageIndex: imageIndex,
         totalImages: totalImages,
+        initialFavorited: initialFavorited,
         imageSaver: imageSaver,
         onFavorite: onFavorite,
         onVariation: onVariation,

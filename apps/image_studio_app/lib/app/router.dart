@@ -11,6 +11,7 @@ import '../core/api/api_client.dart';
 import '../core/storage/secure_token_store.dart';
 import '../core/storage/server_profile_store.dart';
 import '../studio/studio_controller.dart';
+import '../studio/studio_preferences.dart';
 import '../studio/studio_repository.dart';
 import '../studio/studio_session_screen.dart';
 
@@ -35,10 +36,9 @@ GoRouter buildRouter() {
           onLogin: (bearerKey) async {
             final baseUrl = pendingBaseUrl ?? Uri.parse(defaultBackendUrl);
             final router = GoRouter.of(context);
+            final sharedPrefs = await SharedPreferences.getInstance();
             final tokenStore = SecureTokenStore();
-            final profileStore = ServerProfileStore(
-              await SharedPreferences.getInstance(),
-            );
+            final profileStore = ServerProfileStore(sharedPrefs);
             final authRepository = AuthRepository(
               tokenStore: tokenStore,
               profileStore: profileStore,
@@ -56,6 +56,9 @@ GoRouter buildRouter() {
             final controller = StudioController(
               repository,
               imageBaseUrl: baseUrl,
+              preferencesStore: SharedPreferencesStudioPreferencesStore(
+                sharedPrefs,
+              ),
             );
             router.go('/studio', extra: controller);
           },

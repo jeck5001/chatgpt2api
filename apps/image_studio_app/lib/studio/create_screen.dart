@@ -41,14 +41,31 @@ class _CreateScreenState extends State<CreateScreen> {
   final _promptController = TextEditingController();
   late final StudioImageSaver _imageSaver;
 
-  String _selectedModel = _kSupportedModels.first;
-  String _selectedSize = _kSupportedSizes.first;
+  late String _selectedModel;
+  late String _selectedSize;
 
   @override
   void initState() {
     super.initState();
     _imageSaver = widget.imageSaver ?? StudioImageSaver();
+    final prefs = widget.controller?.state.preferences;
+    _selectedModel = _resolveModel(prefs?.defaultModel);
+    _selectedSize = _resolveSize(prefs?.defaultSize);
     _promptController.addListener(_onPromptChanged);
+  }
+
+  String _resolveModel(String? candidate) {
+    if (candidate != null && _kSupportedModels.contains(candidate)) {
+      return candidate;
+    }
+    return _kSupportedModels.first;
+  }
+
+  String _resolveSize(String? candidate) {
+    if (candidate != null && _kSupportedSizes.contains(candidate)) {
+      return candidate;
+    }
+    return _kSupportedSizes.first;
   }
 
   @override
@@ -204,6 +221,7 @@ class _CreateScreenState extends State<CreateScreen> {
       size: turn.size,
       totalImages: turn.resultImages.length,
       imageIndex: turn.resultImages.indexOf(image),
+      initialFavorited: widget.controller?.isFavoriteImage(image) ?? false,
       onFavorite: () => _toggleFavorite(turn),
       onVariation: () => _variation(turn),
       imageSaver: _imageSaver,

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import 'studio_models.dart';
+import 'studio_preferences.dart';
 import 'studio_repository.dart';
 
 class StudioState {
@@ -14,6 +15,7 @@ class StudioState {
     this.activeConversation,
     this.turns = const [],
     this.favorites = const [],
+    this.preferences = const StudioPreferences(),
     this.promptDraft = '',
     this.submitting = false,
     this.errorMessage,
@@ -25,6 +27,7 @@ class StudioState {
   final StudioConversation? activeConversation;
   final List<StudioTurn> turns;
   final List<StudioFavorite> favorites;
+  final StudioPreferences preferences;
   final String promptDraft;
   final bool submitting;
   final String? errorMessage;
@@ -36,6 +39,7 @@ class StudioState {
     StudioConversation? activeConversation,
     List<StudioTurn>? turns,
     List<StudioFavorite>? favorites,
+    StudioPreferences? preferences,
     String? promptDraft,
     bool? submitting,
     String? errorMessage,
@@ -48,6 +52,7 @@ class StudioState {
       activeConversation: activeConversation ?? this.activeConversation,
       turns: turns ?? this.turns,
       favorites: favorites ?? this.favorites,
+      preferences: preferences ?? this.preferences,
       promptDraft: promptDraft ?? this.promptDraft,
       submitting: submitting ?? this.submitting,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
@@ -60,11 +65,14 @@ class StudioController extends ChangeNotifier {
     this._repository, {
     Duration? pollInterval,
     this.imageBaseUrl,
-  }) : _pollInterval = pollInterval ?? const Duration(seconds: 2);
+    StudioPreferencesStore? preferencesStore,
+  }) : _pollInterval = pollInterval ?? const Duration(seconds: 2),
+       _preferencesStore = preferencesStore;
 
   final StudioRepositoryContract _repository;
   final Duration _pollInterval;
   final Uri? imageBaseUrl;
+  final StudioPreferencesStore? _preferencesStore;
   final Uuid _uuid = const Uuid();
 
   StudioState _state = const StudioState();
@@ -90,6 +98,14 @@ class StudioController extends ChangeNotifier {
   }
 
   Future<void> loadWorkspace() async {
+    StudioPreferences? loadedPreferences;
+    if (_preferencesStore != null) {
+      try {
+        loadedPreferences = await _preferencesStore.read();
+      } catch (_) {
+        loadedPreferences = null;
+      }
+    }
     final projects = await _repository.fetchProjects();
     final activeProject = projects.isNotEmpty
         ? projects.first
@@ -117,9 +133,22 @@ class StudioController extends ChangeNotifier {
       activeConversation: activeConversation,
       turns: turns,
       favorites: favorites,
+      preferences: loadedPreferences,
     );
     notifyListeners();
     _ensurePolling();
+  }
+
+  Future<void> updatePreferences(StudioPreferences preferences) async {
+    _state = _state.copyWith(preferences: preferences);
+    notifyListeners();
+    final store = _preferencesStore;
+    if (store == null) return;
+    try {
+      await store.write(preferences);
+    } catch (_) {
+      // Best-effort persistence; in-memory state is already updated.
+    }
   }
 
   Future<void> selectConversation(String conversationId) async {

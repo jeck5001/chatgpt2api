@@ -171,7 +171,10 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
             },
             onCreateProject: _createProject,
           ),
-          settings: const SettingsScreen(),
+          settings: SettingsScreen(
+            preferences: state.preferences,
+            onPreferencesChanged: widget.controller.updatePreferences,
+          ),
         );
       },
     );
