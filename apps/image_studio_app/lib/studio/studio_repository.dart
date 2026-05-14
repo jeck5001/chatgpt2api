@@ -49,6 +49,11 @@ abstract interface class StudioRepositoryContract {
     required List<StudioEditImage> images,
   });
 
+  Future<StudioTurn> retryTurn({
+    required String turnId,
+    required String clientTaskId,
+  });
+
   Future<StudioTurn> syncTurn(String turnId);
 
   Future<List<StudioFavorite>> fetchFavorites();
@@ -172,6 +177,18 @@ class StudioRepository implements StudioRepositoryContract {
   @override
   Future<StudioTurn> syncTurn(String turnId) async {
     final payload = await _client.postJson('/api/image-turns/$turnId/sync');
+    return StudioTurn.fromJson(payload['item']! as Map<String, Object?>);
+  }
+
+  @override
+  Future<StudioTurn> retryTurn({
+    required String turnId,
+    required String clientTaskId,
+  }) async {
+    final payload = await _client.postJson(
+      '/api/image-turns/$turnId/retry',
+      body: <String, Object?>{'client_task_id': clientTaskId},
+    );
     return StudioTurn.fromJson(payload['item']! as Map<String, Object?>);
   }
 

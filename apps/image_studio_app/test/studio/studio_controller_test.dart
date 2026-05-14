@@ -390,6 +390,17 @@ class FakeStudioRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<StudioTurn> retryTurn({
+    required String turnId,
+    required String clientTaskId,
+  }) async {
+    if (failSubmit) {
+      throw Exception('network down');
+    }
+    return fakeTurn(id: turnId, status: StudioTurnStatus.running);
+  }
+
+  @override
   Future<List<StudioFavorite>> fetchFavorites() async {
     return [];
   }

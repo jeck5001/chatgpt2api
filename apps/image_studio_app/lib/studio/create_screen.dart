@@ -175,17 +175,16 @@ class _CreateScreenState extends State<CreateScreen> {
 
   void _retry(StudioTurn turn) {
     final controller = widget.controller;
-    final conversationId = _activeConversationId;
-    if (controller == null || conversationId == null) return;
+    if (controller == null) return;
+    if (turn.mode == StudioTurnMode.edit) {
+      _showSnack('图生图任务暂不支持重试，请重新发起。');
+      return;
+    }
     unawaited(
-      controller
-          .submitGeneration(
-            conversationId: conversationId,
-            prompt: turn.prompt,
-            model: turn.model,
-            size: turn.size,
-          )
-          .catchError((_) {}),
+      controller.retryTurn(turn).catchError((error) {
+        if (!mounted) return;
+        _showSnack('重试失败：$error');
+      }),
     );
   }
 
@@ -264,6 +263,17 @@ class _CreateScreenState extends State<CreateScreen> {
       if (parts.isNotEmpty && parts.last.isNotEmpty) return parts.last;
     }
     return 'image.png';
+  }
+
+  String _formatElapsed(DateTime startedAt) {
+    final delta = DateTime.now().difference(startedAt);
+    if (delta.isNegative) return '0s';
+    final seconds = delta.inSeconds;
+    if (seconds < 60) return '${seconds}s';
+    final minutes = seconds ~/ 60;
+    final remaining = seconds % 60;
+    if (remaining == 0) return '${minutes}m';
+    return '${minutes}m${remaining}s';
   }
 
   void _showSnack(String message) {
@@ -538,6 +548,9 @@ class _CreateScreenState extends State<CreateScreen> {
                               ? null
                               : () => _shareImage(turn.resultImages.first),
                           isFavoriteImage: widget.controller?.isFavoriteImage,
+                          runningElapsed: turn.isRunning
+                              ? _formatElapsed(turn.updatedAt)
+                              : null,
                         );
                       },
                     ),

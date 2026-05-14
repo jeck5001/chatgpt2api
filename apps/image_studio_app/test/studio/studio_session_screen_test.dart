@@ -192,6 +192,14 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<StudioTurn> retryTurn({
+    required String turnId,
+    required String clientTaskId,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<List<StudioFavorite>> fetchFavorites() async => [];
 
   @override

@@ -81,6 +81,29 @@ class StudioController extends ChangeNotifier {
   Timer? _pollTimer;
   bool _polling = false;
 
+  Future<void> retryTurn(StudioTurn turn) async {
+    if (turn.mode == StudioTurnMode.edit) {
+      throw StateError('edit turns cannot be retried');
+    }
+    _state = _state.copyWith(clearError: true);
+    try {
+      final retried = await _repository.retryTurn(
+        turnId: turn.id,
+        clientTaskId: _uuid.v4(),
+      );
+      final replaced = _state.turns
+          .map((t) => t.id == retried.id ? retried : t)
+          .toList(growable: false);
+      _state = _state.copyWith(turns: replaced);
+      notifyListeners();
+      _ensurePolling();
+    } catch (error) {
+      _state = _state.copyWith(errorMessage: error.toString());
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   bool get hasRunningTurns {
     return _state.turns.any((turn) => turn.isRunning);
   }
