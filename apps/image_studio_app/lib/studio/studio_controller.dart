@@ -259,6 +259,41 @@ class StudioController extends ChangeNotifier {
     return project;
   }
 
+  Future<StudioProject> renameProject({
+    required String projectId,
+    required String name,
+  }) async {
+    final updated = await _repository.updateProject(
+      projectId: projectId,
+      name: name,
+    );
+    _replaceProject(updated);
+    return updated;
+  }
+
+  Future<StudioProject> archiveProject({
+    required String projectId,
+    required bool archived,
+  }) async {
+    final updated = await _repository.updateProject(
+      projectId: projectId,
+      archived: archived,
+    );
+    _replaceProject(updated);
+    return updated;
+  }
+
+  void _replaceProject(StudioProject updated) {
+    final projects = _state.projects
+        .map((p) => p.id == updated.id ? updated : p)
+        .toList(growable: false);
+    final activeProject = _state.activeProject?.id == updated.id
+        ? updated
+        : _state.activeProject;
+    _state = _state.copyWith(projects: projects, activeProject: activeProject);
+    notifyListeners();
+  }
+
   Future<void> removeFavorite(StudioFavorite favorite) async {
     await _repository.deleteFavorite(favorite.id);
     _state = _state.copyWith(

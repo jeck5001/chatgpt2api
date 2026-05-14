@@ -22,6 +22,8 @@ class ProjectsScreen extends StatelessWidget {
     this.onProjectSelected,
     this.onConversationSelected,
     this.onCreateProject,
+    this.onRenameProject,
+    this.onArchiveProject,
   });
 
   final List<StudioProject> projects;
@@ -31,6 +33,8 @@ class ProjectsScreen extends StatelessWidget {
   final ValueChanged<String>? onProjectSelected;
   final ValueChanged<String>? onConversationSelected;
   final VoidCallback? onCreateProject;
+  final void Function(StudioProject project)? onRenameProject;
+  final void Function(StudioProject project)? onArchiveProject;
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +81,10 @@ class ProjectsScreen extends StatelessWidget {
                       conversations,
                     ),
                     onTap: () => onProjectSelected?.call(project.id),
+                    onLongPress:
+                        (onRenameProject != null || onArchiveProject != null)
+                        ? () => _showProjectMenu(context, project)
+                        : null,
                   );
                 }, childCount: projects.length),
               ),
@@ -128,6 +136,75 @@ class ProjectsScreen extends StatelessWidget {
     List<StudioConversation> conversations,
   ) {
     return conversations.where((c) => c.projectId == projectId).length;
+  }
+
+  void _showProjectMenu(BuildContext context, StudioProject project) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KilnColors.ink900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  KilnSpacing.lg,
+                  KilnSpacing.md,
+                  KilnSpacing.lg,
+                  KilnSpacing.sm,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    project.name,
+                    style: KilnTypography.display(
+                      size: 16,
+                      weight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+              if (onRenameProject != null)
+                ListTile(
+                  leading: const Icon(
+                    Icons.edit_outlined,
+                    size: 18,
+                    color: KilnColors.ink400,
+                  ),
+                  title: Text('重命名', style: KilnTypography.ui(size: 14)),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    onRenameProject!(project);
+                  },
+                ),
+              if (onArchiveProject != null)
+                ListTile(
+                  leading: Icon(
+                    project.archived
+                        ? Icons.unarchive_outlined
+                        : Icons.archive_outlined,
+                    size: 18,
+                    color: KilnColors.ink400,
+                  ),
+                  title: Text(
+                    project.archived ? '取消归档' : '归档',
+                    style: KilnTypography.ui(size: 14),
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetContext).pop();
+                    onArchiveProject!(project);
+                  },
+                ),
+              const SizedBox(height: KilnSpacing.sm),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -195,12 +272,14 @@ class _CoverCard extends StatelessWidget {
     required this.isActive,
     required this.conversationsCount,
     this.onTap,
+    this.onLongPress,
   });
 
   final StudioProject project;
   final bool isActive;
   final int conversationsCount;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -210,6 +289,7 @@ class _CoverCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         child: Stack(
           fit: StackFit.expand,
           children: [

@@ -296,6 +296,48 @@ void main() {
       expect(controller.state.turns.single.prompt, 'dog');
     },
   );
+
+  test('renameProject updates the project in state', () async {
+    final repository = FakeStudioRepository()
+      ..projects = [
+        StudioProject(
+          id: 'project-1',
+          name: 'Old Name',
+          ownerId: 'admin',
+          archived: false,
+          createdAt: DateTime.utc(2026, 5, 12),
+          updatedAt: DateTime.utc(2026, 5, 12),
+        ),
+      ];
+    final controller = StudioController(repository);
+    await controller.loadWorkspace();
+
+    await controller.renameProject(projectId: 'project-1', name: 'New Name');
+
+    expect(controller.state.activeProject?.name, 'New Name');
+    expect(controller.state.projects.single.name, 'New Name');
+  });
+
+  test('archiveProject updates the archived flag in state', () async {
+    final repository = FakeStudioRepository()
+      ..projects = [
+        StudioProject(
+          id: 'project-1',
+          name: 'Project One',
+          ownerId: 'admin',
+          archived: false,
+          createdAt: DateTime.utc(2026, 5, 12),
+          updatedAt: DateTime.utc(2026, 5, 12),
+        ),
+      ];
+    final controller = StudioController(repository);
+    await controller.loadWorkspace();
+
+    await controller.archiveProject(projectId: 'project-1', archived: true);
+
+    expect(controller.state.activeProject?.archived, isTrue);
+    expect(controller.state.projects.single.archived, isTrue);
+  });
 }
 
 class FakeStudioRepository implements StudioRepositoryContract {
@@ -322,6 +364,33 @@ class FakeStudioRepository implements StudioRepositoryContract {
       archived: false,
       createdAt: DateTime.utc(2026, 5, 12),
       updatedAt: DateTime.utc(2026, 5, 12),
+    );
+  }
+
+  @override
+  Future<StudioProject> updateProject({
+    required String projectId,
+    String? name,
+    bool? archived,
+  }) async {
+    final existing = projects.firstWhere(
+      (p) => p.id == projectId,
+      orElse: () => StudioProject(
+        id: projectId,
+        name: name ?? 'Project',
+        ownerId: 'admin',
+        archived: archived ?? false,
+        createdAt: DateTime.utc(2026, 5, 12),
+        updatedAt: DateTime.utc(2026, 5, 12),
+      ),
+    );
+    return StudioProject(
+      id: existing.id,
+      name: name ?? existing.name,
+      ownerId: existing.ownerId,
+      archived: archived ?? existing.archived,
+      createdAt: existing.createdAt,
+      updatedAt: DateTime.utc(2026, 5, 14),
     );
   }
 

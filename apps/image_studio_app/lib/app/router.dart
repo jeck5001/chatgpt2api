@@ -17,6 +17,7 @@ import '../studio/studio_session_screen.dart';
 
 GoRouter buildRouter() {
   Uri? pendingBaseUrl;
+  AuthRepository? activeAuthRepository;
   return GoRouter(
     initialLocation: '/',
     routes: [
@@ -47,6 +48,7 @@ GoRouter buildRouter() {
               baseUrl: baseUrl,
               bearerKey: bearerKey,
             );
+            activeAuthRepository = authRepository;
             final repository = StudioRepository(
               ApiClient(
                 dio: Dio(BaseOptions(baseUrl: baseUrl.toString())),
@@ -73,7 +75,15 @@ GoRouter buildRouter() {
               body: Center(child: Text('Missing studio session')),
             );
           }
-          return StudioSessionScreen(controller: controller);
+          return StudioSessionScreen(
+            controller: controller,
+            onSignOut: () async {
+              final router = GoRouter.of(context);
+              await activeAuthRepository?.signOut();
+              activeAuthRepository = null;
+              router.go('/');
+            },
+          );
         },
       ),
     ],

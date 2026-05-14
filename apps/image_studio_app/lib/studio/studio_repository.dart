@@ -22,6 +22,12 @@ abstract interface class StudioRepositoryContract {
 
   Future<StudioProject> createProject(String name);
 
+  Future<StudioProject> updateProject({
+    required String projectId,
+    String? name,
+    bool? archived,
+  });
+
   Future<List<StudioConversation>> fetchConversations(String projectId);
 
   Future<StudioConversation> createConversation({
@@ -92,6 +98,23 @@ class StudioRepository implements StudioRepositoryContract {
     final payload = await _client.postJson(
       '/api/projects',
       body: <String, Object?>{'name': name},
+    );
+    return StudioProject.fromJson(payload['item']! as Map<String, Object?>);
+  }
+
+  @override
+  Future<StudioProject> updateProject({
+    required String projectId,
+    String? name,
+    bool? archived,
+  }) async {
+    final body = <String, Object?>{
+      if (name != null) 'name': name,
+      if (archived != null) 'archived': archived,
+    };
+    final payload = await _client.patchJson(
+      '/api/projects/$projectId',
+      body: body,
     );
     return StudioProject.fromJson(payload['item']! as Map<String, Object?>);
   }

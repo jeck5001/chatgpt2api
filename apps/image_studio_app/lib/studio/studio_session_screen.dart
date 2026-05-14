@@ -10,9 +10,14 @@ import 'studio_models.dart';
 import 'studio_result_viewer.dart';
 
 class StudioSessionScreen extends StatefulWidget {
-  const StudioSessionScreen({super.key, required this.controller});
+  const StudioSessionScreen({
+    super.key,
+    required this.controller,
+    this.onSignOut,
+  });
 
   final StudioController controller;
+  final Future<void> Function()? onSignOut;
 
   @override
   State<StudioSessionScreen> createState() => _StudioSessionScreenState();
@@ -82,6 +87,34 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
       await widget.controller.createNewProject(name);
     } catch (error) {
       _toast('创建项目失败：$error');
+    }
+  }
+
+  Future<void> _renameProject(StudioProject project) async {
+    final name = await _promptForName(
+      title: '重命名项目',
+      hint: project.name,
+      confirmLabel: '保存',
+    );
+    if (name == null || name.isEmpty || name == project.name) return;
+    try {
+      await widget.controller.renameProject(projectId: project.id, name: name);
+      _toast('已重命名为 $name');
+    } catch (error) {
+      _toast('重命名失败：$error');
+    }
+  }
+
+  Future<void> _archiveProject(StudioProject project) async {
+    final next = !project.archived;
+    try {
+      await widget.controller.archiveProject(
+        projectId: project.id,
+        archived: next,
+      );
+      _toast(next ? '已归档' : '已取消归档');
+    } catch (error) {
+      _toast('操作失败：$error');
     }
   }
 
@@ -170,10 +203,13 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
               await widget.controller.selectConversation(conversationId);
             },
             onCreateProject: _createProject,
+            onRenameProject: _renameProject,
+            onArchiveProject: _archiveProject,
           ),
           settings: SettingsScreen(
             preferences: state.preferences,
             onPreferencesChanged: widget.controller.updatePreferences,
+            onSignOut: widget.onSignOut,
           ),
         );
       },

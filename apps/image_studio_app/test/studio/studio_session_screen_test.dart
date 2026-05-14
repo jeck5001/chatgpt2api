@@ -86,6 +86,15 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<StudioProject> updateProject({
+    required String projectId,
+    String? name,
+    bool? archived,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<List<StudioConversation>> fetchConversations(String projectId) async {
     if (projectId == 'project-2') {
       return [
