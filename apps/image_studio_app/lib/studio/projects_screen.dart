@@ -49,7 +49,8 @@ class ProjectsScreen extends StatelessWidget {
               child: SectionHeader.large(
                 kicker: '06 · 集合',
                 title: '项目',
-                subtitle: '${projects.length} 个项目 · ${conversations.length} 个会话',
+                subtitle:
+                    '${projects.length} 个项目 · ${conversations.length} 个会话',
                 trailing: _AddButton(onTap: () {}),
               ),
             ),
@@ -63,19 +64,19 @@ class ProjectsScreen extends StatelessWidget {
                   crossAxisSpacing: 12,
                   childAspectRatio: 0.78,
                 ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final project = projects[index];
-                    return _CoverCard(
-                      project: project,
-                      isActive: project.id == activeProjectId,
-                      conversationsCount:
-                          _conversationsFor(project.id, projects, conversations),
-                      onTap: () => onProjectSelected?.call(project.id),
-                    );
-                  },
-                  childCount: projects.length,
-                ),
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final project = projects[index];
+                  return _CoverCard(
+                    project: project,
+                    isActive: project.id == activeProjectId,
+                    conversationsCount: _conversationsFor(
+                      project.id,
+                      projects,
+                      conversations,
+                    ),
+                    onTap: () => onProjectSelected?.call(project.id),
+                  );
+                }, childCount: projects.length),
               ),
             ),
             SliverToBoxAdapter(
@@ -158,11 +159,7 @@ class _AddButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(KilnRadii.button),
           boxShadow: KilnShadows.cta,
         ),
-        child: const Icon(
-          Icons.add,
-          size: 18,
-          color: Color(0xFF1A0E04),
-        ),
+        child: const Icon(Icons.add, size: 18, color: Color(0xFF1A0E04)),
       ),
     );
   }
@@ -210,9 +207,7 @@ class _CoverCard extends StatelessWidget {
             ),
             const Positioned.fill(
               child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: KilnGradients.coverOverlay,
-                ),
+                decoration: BoxDecoration(gradient: KilnGradients.coverOverlay),
               ),
             ),
             if (isActive)
@@ -304,9 +299,7 @@ class _ConversationRow extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isActive
-                  ? const Color(0x33E8A84A)
-                  : KilnColors.hairline,
+              color: isActive ? const Color(0x33E8A84A) : KilnColors.hairline,
               width: 1,
             ),
           ),
@@ -327,9 +320,7 @@ class _ConversationRow extends StatelessWidget {
                       ? Icons.brush_outlined
                       : Icons.auto_awesome_outlined,
                   size: 16,
-                  color: isActive
-                      ? KilnColors.ember400
-                      : KilnColors.ink400,
+                  color: isActive ? KilnColors.ember400 : KilnColors.ink400,
                 ),
               ),
               const SizedBox(width: KilnSpacing.sm + 2),

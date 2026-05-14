@@ -8,11 +8,7 @@ import 'package:flutter/material.dart';
 /// Opacity defaults to 4% which is invisible on bright displays but adds
 /// just enough texture on OLED screens.
 class NoiseOverlay extends StatelessWidget {
-  const NoiseOverlay({
-    super.key,
-    this.opacity = 0.04,
-    this.tileSize = 220,
-  });
+  const NoiseOverlay({super.key, this.opacity = 0.04, this.tileSize = 220});
 
   final double opacity;
   final double tileSize;

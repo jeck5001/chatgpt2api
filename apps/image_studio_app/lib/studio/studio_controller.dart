@@ -105,12 +105,16 @@ class StudioController extends ChangeNotifier {
   }
 
   Future<void> selectProject(String projectId) async {
-    final project = _state.projects.where((item) => item.id == projectId).firstOrNull;
+    final project = _state.projects
+        .where((item) => item.id == projectId)
+        .firstOrNull;
     if (project == null) {
       return;
     }
     final conversations = await _repository.fetchConversations(project.id);
-    final activeConversation = conversations.isNotEmpty ? conversations.first : null;
+    final activeConversation = conversations.isNotEmpty
+        ? conversations.first
+        : null;
     final turns = activeConversation == null
         ? const <StudioTurn>[]
         : await _repository.fetchTurns(activeConversation.id);

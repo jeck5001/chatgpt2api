@@ -78,17 +78,10 @@ class KilnTypography {
   static TextStyle get displayS =>
       display(size: 24, height: 1.25, letterSpacing: -0.4);
 
-  static TextStyle get titleL => ui(
-        size: 20,
-        weight: FontWeight.w600,
-        height: 1.3,
-        letterSpacing: -0.2,
-      );
-  static TextStyle get titleM => ui(
-        size: 16,
-        weight: FontWeight.w600,
-        height: 1.4,
-      );
+  static TextStyle get titleL =>
+      ui(size: 20, weight: FontWeight.w600, height: 1.3, letterSpacing: -0.2);
+  static TextStyle get titleM =>
+      ui(size: 16, weight: FontWeight.w600, height: 1.4);
 
   static TextStyle get bodyL => ui(size: 16, height: 1.5);
   static TextStyle get bodyM => ui(size: 14, height: 1.55);
@@ -97,44 +90,38 @@ class KilnTypography {
 
   /// Uppercased mono label — used for section headers, meta categories.
   static TextStyle get label => mono(
-        size: 10,
-        weight: FontWeight.w500,
-        color: KilnColors.ink400,
-        letterSpacing: 1.8,
-      );
+    size: 10,
+    weight: FontWeight.w500,
+    color: KilnColors.ink400,
+    letterSpacing: 1.8,
+  );
 
   /// Standard mono for inline meta (model, size, time).
-  static TextStyle get metaMono => mono(
-        size: 11,
-        color: KilnColors.ink400,
-        letterSpacing: 0.4,
-      );
+  static TextStyle get metaMono =>
+      mono(size: 11, color: KilnColors.ink400, letterSpacing: 0.4);
 
   /// Mono used inside chips and tags.
-  static TextStyle get chipMono => mono(
-        size: 11,
-        color: KilnColors.ink200,
-        letterSpacing: 0.4,
-      );
+  static TextStyle get chipMono =>
+      mono(size: 11, color: KilnColors.ink200, letterSpacing: 0.4);
 
   /// The "prompt" text that appears at the top of every turn — display-serif,
   /// slightly off-black, the visual anchor of each conversation entry.
   static TextStyle get prompt => display(
-        size: 17,
-        weight: FontWeight.w400,
-        height: 1.45,
-        letterSpacing: -0.1,
-      );
+    size: 17,
+    weight: FontWeight.w400,
+    height: 1.45,
+    letterSpacing: -0.1,
+  );
 
   /// Italicized display for taglines, accents, "what do you want to make?" hero.
   static TextStyle get displayItalic => GoogleFonts.fraunces(
-        fontSize: 24,
-        fontWeight: FontWeight.w300,
-        fontStyle: FontStyle.italic,
-        color: KilnColors.ember400,
-        height: 1.3,
-        letterSpacing: -0.3,
-      );
+    fontSize: 24,
+    fontWeight: FontWeight.w300,
+    fontStyle: FontStyle.italic,
+    color: KilnColors.ember400,
+    height: 1.3,
+    letterSpacing: -0.3,
+  );
 
   // --- Material 3 TextTheme ---------------------------------------------
 
@@ -142,20 +129,20 @@ class KilnTypography {
   /// (AppBar, ListTile, etc.) pick up Fraunces for "display/headline" slots
   /// and Inter for everything else.
   static TextTheme get textTheme => TextTheme(
-        displayLarge: displayL,
-        displayMedium: displayM,
-        displaySmall: displayS,
-        headlineLarge: display(size: 28, height: 1.15, letterSpacing: -0.5),
-        headlineMedium: display(size: 22, height: 1.2, letterSpacing: -0.3),
-        headlineSmall: display(size: 18, height: 1.3, letterSpacing: -0.2),
-        titleLarge: titleL,
-        titleMedium: titleM,
-        titleSmall: ui(size: 13, weight: FontWeight.w600),
-        bodyLarge: bodyL,
-        bodyMedium: bodyM,
-        bodySmall: bodyS,
-        labelLarge: ui(size: 14, weight: FontWeight.w600, letterSpacing: 0.1),
-        labelMedium: ui(size: 12, weight: FontWeight.w500, letterSpacing: 0.2),
-        labelSmall: label,
-      );
+    displayLarge: displayL,
+    displayMedium: displayM,
+    displaySmall: displayS,
+    headlineLarge: display(size: 28, height: 1.15, letterSpacing: -0.5),
+    headlineMedium: display(size: 22, height: 1.2, letterSpacing: -0.3),
+    headlineSmall: display(size: 18, height: 1.3, letterSpacing: -0.2),
+    titleLarge: titleL,
+    titleMedium: titleM,
+    titleSmall: ui(size: 13, weight: FontWeight.w600),
+    bodyLarge: bodyL,
+    bodyMedium: bodyM,
+    bodySmall: bodyS,
+    labelLarge: ui(size: 14, weight: FontWeight.w600, letterSpacing: 0.1),
+    labelMedium: ui(size: 12, weight: FontWeight.w500, letterSpacing: 0.2),
+    labelSmall: label,
+  );
 }

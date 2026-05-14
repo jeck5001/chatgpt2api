@@ -100,9 +100,9 @@ class _StudioResultViewerState extends State<StudioResultViewer> {
       uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'image.png',
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Saved to $savedPath')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Saved to $savedPath')));
   }
 
   Future<void> _share() async {
@@ -113,9 +113,9 @@ class _StudioResultViewerState extends State<StudioResultViewer> {
       uri.pathSegments.isNotEmpty ? uri.pathSegments.last : 'image.png',
     );
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Shared $sharedPath')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Shared $sharedPath')));
   }
 
   @override
@@ -426,9 +426,7 @@ class _ViewerDrawer extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _DrawerAction(
-                      icon: favorited
-                          ? Icons.favorite
-                          : Icons.favorite_outline,
+                      icon: favorited ? Icons.favorite : Icons.favorite_outline,
                       // Visible label is Chinese; an Offstage "Favorite"
                       // duplicate is kept around just to keep legacy tests
                       // looking for English copy happy.
@@ -520,9 +518,7 @@ class _DrawerAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final fg = color ?? KilnColors.ink200;
     final bg = filled ? const Color(0x1FE8A84A) : KilnColors.overlayWeak;
-    final border = filled
-        ? const Color(0x33E8A84A)
-        : KilnColors.hairline;
+    final border = filled ? const Color(0x33E8A84A) : KilnColors.hairline;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 3),
       child: InkWell(
@@ -551,10 +547,7 @@ class _DrawerAction extends StatelessWidget {
                       color: fg,
                     ),
                   ),
-                  if (legacyLabel != null)
-                    Offstage(
-                      child: Text(legacyLabel!),
-                    ),
+                  if (legacyLabel != null) Offstage(child: Text(legacyLabel!)),
                 ],
               ),
             ],

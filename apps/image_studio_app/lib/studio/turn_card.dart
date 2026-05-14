@@ -51,12 +51,8 @@ class TurnCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return KilnCard(
       emberGlow: !_isError,
-      borderColor: _isError
-          ? const Color(0x4DE07A6B)
-          : KilnColors.hairline,
-      background: _isError
-          ? const Color(0x0FE07A6B)
-          : KilnColors.ink900,
+      borderColor: _isError ? const Color(0x4DE07A6B) : KilnColors.hairline,
+      background: _isError ? const Color(0x0FE07A6B) : KilnColors.ink900,
       padding: const EdgeInsets.all(KilnSpacing.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -93,7 +89,9 @@ class TurnCard extends StatelessWidget {
       case StudioTurnStatus.running:
         return [
           const SizedBox(height: KilnSpacing.md),
-          _RunningGrid(count: turn.resultImages.isEmpty ? 2 : turn.resultImages.length),
+          _RunningGrid(
+            count: turn.resultImages.isEmpty ? 2 : turn.resultImages.length,
+          ),
           const SizedBox(height: KilnSpacing.sm),
           _RunningStatusLine(elapsed: runningElapsed),
           if (onCancel != null) ...[
@@ -106,10 +104,7 @@ class TurnCard extends StatelessWidget {
           const SizedBox(height: KilnSpacing.md),
           _ErrorBlock(error: turn.error),
           const SizedBox(height: KilnSpacing.md),
-          _ErrorActions(
-            onEditPrompt: onEditPrompt,
-            onRetry: onRetry,
-          ),
+          _ErrorActions(onEditPrompt: onEditPrompt, onRetry: onRetry),
         ];
     }
   }
@@ -156,7 +151,12 @@ class _MetaRow extends StatelessWidget {
         children: [
           for (var i = 0; i < parts.length; i++) ...[
             if (i > 0)
-              Text('·', style: KilnTypography.metaMono.copyWith(color: KilnColors.ink600)),
+              Text(
+                '·',
+                style: KilnTypography.metaMono.copyWith(
+                  color: KilnColors.ink600,
+                ),
+              ),
             Text(parts[i]),
           ],
         ],
@@ -184,8 +184,8 @@ class _ImageGrid extends StatelessWidget {
         final crossAxisCount = width > 520
             ? 4
             : width > 320
-                ? 2
-                : 1;
+            ? 2
+            : 1;
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -200,7 +200,9 @@ class _ImageGrid extends StatelessWidget {
             final image = turn.resultImages[index];
             return _ImageTile(
               image: image,
-              onTap: onImageTap == null ? null : () => onImageTap!(image, index),
+              onTap: onImageTap == null
+                  ? null
+                  : () => onImageTap!(image, index),
             );
           },
         );
@@ -255,8 +257,8 @@ class _RunningGrid extends StatelessWidget {
         final crossAxisCount = width > 520
             ? 4
             : width > 320
-                ? 2
-                : 1;
+            ? 2
+            : 1;
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -465,10 +467,7 @@ class _ErrorBlock extends StatelessWidget {
               children: [
                 Text(
                   '上游请求失败',
-                  style: KilnTypography.ui(
-                    size: 13,
-                    weight: FontWeight.w600,
-                  ),
+                  style: KilnTypography.ui(size: 13, weight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
                 Text(

@@ -51,8 +51,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             SectionHeader.large(
               kicker: '05 · 图库',
               title: '图库',
-              subtitle:
-                  '${all.length} 张作品 · ${_favoriteCount(all)} 个收藏',
+              subtitle: '${all.length} 张作品 · ${_favoriteCount(all)} 个收藏',
             ),
             const SizedBox(height: KilnSpacing.sm),
             KilnChipBar(
@@ -118,8 +117,8 @@ class _Masonry extends StatelessWidget {
         final crossAxisCount = width > 1100
             ? 4
             : width > 720
-                ? 3
-                : 2;
+            ? 3
+            : 2;
         return MasonryGridView.count(
           padding: const EdgeInsets.fromLTRB(
             KilnSpacing.sm + 2,
@@ -141,8 +140,9 @@ class _Masonry extends StatelessWidget {
               aspectRatio: ratio,
               imageUri: _resolveUri(fav.imagePath),
               onTap: onTap == null ? null : () => onTap!(fav),
-              onFavoriteToggle:
-                  onFavorite == null ? null : () => onFavorite!(fav),
+              onFavoriteToggle: onFavorite == null
+                  ? null
+                  : () => onFavorite!(fav),
             );
           },
         );
@@ -237,11 +237,7 @@ class _FavoriteBadge extends StatelessWidget {
           shape: BoxShape.circle,
         ),
         alignment: Alignment.center,
-        child: const Icon(
-          Icons.favorite,
-          size: 14,
-          color: KilnColors.ember400,
-        ),
+        child: const Icon(Icons.favorite, size: 14, color: KilnColors.ember400),
       ),
     );
   }

@@ -107,28 +107,16 @@ class KilnShadows {
   KilnShadows._();
 
   static const card = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x80000000),
-      offset: Offset(0, 8),
-      blurRadius: 24,
-    ),
+    BoxShadow(color: Color(0x80000000), offset: Offset(0, 8), blurRadius: 24),
   ];
 
   static const float = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x99000000),
-      offset: Offset(0, 16),
-      blurRadius: 48,
-    ),
+    BoxShadow(color: Color(0x99000000), offset: Offset(0, 16), blurRadius: 48),
   ];
 
   /// Glow under the primary CTA — feels like a warm coal under glass.
   static const cta = <BoxShadow>[
-    BoxShadow(
-      color: Color(0x59C8743A),
-      offset: Offset(0, 8),
-      blurRadius: 24,
-    ),
+    BoxShadow(color: Color(0x59C8743A), offset: Offset(0, 8), blurRadius: 24),
   ];
 }
 

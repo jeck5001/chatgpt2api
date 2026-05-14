@@ -42,10 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(
-              child: SectionHeader.large(
-                kicker: '07 · 账号',
-                title: '我的',
-              ),
+              child: SectionHeader.large(kicker: '07 · 账号', title: '我的'),
             ),
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(
@@ -55,34 +52,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 KilnSpacing.xxxl,
               ),
               sliver: SliverList(
-                delegate: SliverChildListDelegate(
-                  [
-                    _AccountCard(
-                      name: widget.userName,
-                      serverUrl: widget.serverUrl,
-                      keyActive: widget.keyActive,
-                      onSignOut: widget.onSignOut,
-                    ),
-                    const SizedBox(height: KilnSpacing.sm + 2),
-                    _DefaultsCard(
-                      autoFavorite: _autoFavorite,
-                      onToggleAutoFavorite: (v) =>
-                          setState(() => _autoFavorite = v),
-                    ),
-                    const SizedBox(height: KilnSpacing.sm + 2),
-                    _AppearanceCard(
-                      accent: _accent,
-                      onAccentChanged: (v) => setState(() => _accent = v),
-                    ),
-                    const SizedBox(height: KilnSpacing.sm + 2),
-                    _StorageCard(
-                      usedBytes: widget.cachedBytes,
-                      budgetBytes: widget.cacheBudgetBytes,
-                    ),
-                    const SizedBox(height: KilnSpacing.sm + 2),
-                    _AboutCard(version: widget.appVersion),
-                  ],
-                ),
+                delegate: SliverChildListDelegate([
+                  _AccountCard(
+                    name: widget.userName,
+                    serverUrl: widget.serverUrl,
+                    keyActive: widget.keyActive,
+                    onSignOut: widget.onSignOut,
+                  ),
+                  const SizedBox(height: KilnSpacing.sm + 2),
+                  _DefaultsCard(
+                    autoFavorite: _autoFavorite,
+                    onToggleAutoFavorite: (v) =>
+                        setState(() => _autoFavorite = v),
+                  ),
+                  const SizedBox(height: KilnSpacing.sm + 2),
+                  _AppearanceCard(
+                    accent: _accent,
+                    onAccentChanged: (v) => setState(() => _accent = v),
+                  ),
+                  const SizedBox(height: KilnSpacing.sm + 2),
+                  _StorageCard(
+                    usedBytes: widget.cachedBytes,
+                    budgetBytes: widget.cacheBudgetBytes,
+                  ),
+                  const SizedBox(height: KilnSpacing.sm + 2),
+                  _AboutCard(version: widget.appVersion),
+                ]),
               ),
             ),
           ],
@@ -266,14 +261,17 @@ class _AccountCard extends StatelessWidget {
                           width: 6,
                           height: 6,
                           decoration: BoxDecoration(
-                            color: keyActive ? KilnColors.success : KilnColors.danger,
+                            color: keyActive
+                                ? KilnColors.success
+                                : KilnColors.danger,
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: (keyActive
-                                        ? KilnColors.success
-                                        : KilnColors.danger)
-                                    .withValues(alpha: 0.6),
+                                color:
+                                    (keyActive
+                                            ? KilnColors.success
+                                            : KilnColors.danger)
+                                        .withValues(alpha: 0.6),
                                 blurRadius: 8,
                               ),
                             ],
@@ -341,11 +339,7 @@ class _DefaultsCard extends StatelessWidget {
             onTap: () {},
           ),
           const Divider(color: KilnColors.hairline, height: 1),
-          _RowToggle(
-            label: '每次生成张数',
-            value: '2',
-            onTap: () {},
-          ),
+          _RowToggle(label: '每次生成张数', value: '2', onTap: () {}),
           const Divider(color: KilnColors.hairline, height: 1),
           _RowToggle(
             label: '成功后自动收藏',
@@ -360,10 +354,7 @@ class _DefaultsCard extends StatelessWidget {
 }
 
 class _AppearanceCard extends StatelessWidget {
-  const _AppearanceCard({
-    required this.accent,
-    required this.onAccentChanged,
-  });
+  const _AppearanceCard({required this.accent, required this.onAccentChanged});
   final String accent;
   final ValueChanged<String> onAccentChanged;
 
@@ -374,11 +365,7 @@ class _AppearanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _RowToggle(
-            label: '主题',
-            sub: '浅色主题敬请期待',
-            value: '深色',
-          ),
+          _RowToggle(label: '主题', sub: '浅色主题敬请期待', value: '深色'),
           const Divider(color: KilnColors.hairline, height: 1),
           const SizedBox(height: KilnSpacing.sm + 2),
           Text('强调色', style: KilnTypography.label),

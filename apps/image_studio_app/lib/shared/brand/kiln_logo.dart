@@ -31,10 +31,7 @@ class KilnLogo extends StatelessWidget {
                   offset: Offset(0, size * 0.15),
                 ),
               ],
-              border: Border.all(
-                color: const Color(0x40FFE0B0),
-                width: 1,
-              ),
+              border: Border.all(color: const Color(0x40FFE0B0), width: 1),
             ),
           ),
           // inner glow disc

@@ -60,9 +60,7 @@ class KilnChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = data.active
-        ? const Color(0x1FE8A84A)
-        : KilnColors.ink800;
+    final bg = data.active ? const Color(0x1FE8A84A) : KilnColors.ink800;
     final fg = data.active ? KilnColors.ember400 : KilnColors.ink200;
     final border = data.active
         ? const Color(0x4DE8A84A)

@@ -157,8 +157,9 @@ ThemeData buildImageStudioTheme() {
       backgroundColor: KilnColors.ink800,
       selectedColor: const Color(0x1FE8A84A),
       labelStyle: KilnTypography.chipMono,
-      secondaryLabelStyle:
-          KilnTypography.chipMono.copyWith(color: KilnColors.ember400),
+      secondaryLabelStyle: KilnTypography.chipMono.copyWith(
+        color: KilnColors.ember400,
+      ),
       side: const BorderSide(color: KilnColors.hairlineStrong),
       shape: const StadiumBorder(),
       padding: const EdgeInsets.symmetric(horizontal: KilnSpacing.sm),
@@ -187,14 +188,23 @@ ThemeData buildImageStudioTheme() {
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: KilnColors.ink900,
       indicatorColor: const Color(0x1FE8A84A),
-      selectedIconTheme:
-          const IconThemeData(color: KilnColors.ember400, size: 24),
-      unselectedIconTheme:
-          const IconThemeData(color: KilnColors.ink400, size: 22),
-      selectedLabelTextStyle:
-          KilnTypography.ui(size: 12, weight: FontWeight.w600, color: KilnColors.ember400),
-      unselectedLabelTextStyle:
-          KilnTypography.ui(size: 12, color: KilnColors.ink400),
+      selectedIconTheme: const IconThemeData(
+        color: KilnColors.ember400,
+        size: 24,
+      ),
+      unselectedIconTheme: const IconThemeData(
+        color: KilnColors.ink400,
+        size: 22,
+      ),
+      selectedLabelTextStyle: KilnTypography.ui(
+        size: 12,
+        weight: FontWeight.w600,
+        color: KilnColors.ember400,
+      ),
+      unselectedLabelTextStyle: KilnTypography.ui(
+        size: 12,
+        color: KilnColors.ink400,
+      ),
     ),
     snackBarTheme: SnackBarThemeData(
       backgroundColor: KilnColors.ink800,
@@ -245,17 +255,14 @@ ThemeData buildImageStudioTheme() {
         borderRadius: BorderRadius.circular(KilnRadii.card),
         side: const BorderSide(color: KilnColors.hairline),
       ),
-      titleTextStyle:
-          KilnTypography.display(size: 20, weight: FontWeight.w500),
+      titleTextStyle: KilnTypography.display(size: 20, weight: FontWeight.w500),
       contentTextStyle: KilnTypography.bodyM,
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: KilnColors.ink900,
       surfaceTintColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(KilnRadii.xl),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(KilnRadii.xl)),
       ),
       modalBarrierColor: const Color(0xB3000000),
     ),

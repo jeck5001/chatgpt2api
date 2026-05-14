@@ -9,10 +9,7 @@ const _submitKey = ValueKey('composer-submit');
 
 bool _submitDisabled(WidgetTester tester) {
   final widget = tester.widget<InkWell>(
-    find.descendant(
-      of: find.byKey(_submitKey),
-      matching: find.byType(InkWell),
-    ),
+    find.descendant(of: find.byKey(_submitKey), matching: find.byType(InkWell)),
   );
   return widget.onTap == null;
 }

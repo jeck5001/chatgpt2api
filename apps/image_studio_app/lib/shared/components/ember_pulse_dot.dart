@@ -33,10 +33,12 @@ class _EmberPulseDotState extends State<EmberPulseDot>
       duration: KilnMotion.emberPulse,
       vsync: this,
     )..repeat(reverse: true);
-    _scale = Tween<double>(begin: 1.0, end: 1.15)
-        .animate(CurvedAnimation(parent: _controller, curve: KilnMotion.easeInOut));
-    _opacity = Tween<double>(begin: 0.45, end: 0.95)
-        .animate(CurvedAnimation(parent: _controller, curve: KilnMotion.easeInOut));
+    _scale = Tween<double>(begin: 1.0, end: 1.15).animate(
+      CurvedAnimation(parent: _controller, curve: KilnMotion.easeInOut),
+    );
+    _opacity = Tween<double>(begin: 0.45, end: 0.95).animate(
+      CurvedAnimation(parent: _controller, curve: KilnMotion.easeInOut),
+    );
   }
 
   @override

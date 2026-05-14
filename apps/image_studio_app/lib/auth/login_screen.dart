@@ -144,7 +144,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                       style: KilnTypography.bodyS,
                                     ),
                                     const SizedBox(height: KilnSpacing.lg),
-                                    Text('Bearer 密钥', style: KilnTypography.label),
+                                    Text(
+                                      'Bearer 密钥',
+                                      style: KilnTypography.label,
+                                    ),
                                     const SizedBox(height: KilnSpacing.xs),
                                     TextField(
                                       controller: _controller,
@@ -216,10 +219,7 @@ class _AmberBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        const ColoredBox(
-          color: KilnColors.ink950,
-          child: SizedBox.expand(),
-        ),
+        const ColoredBox(color: KilnColors.ink950, child: SizedBox.expand()),
         Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -270,10 +270,7 @@ class _GlassCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: KilnColors.ink900.withValues(alpha: 0.6),
             borderRadius: BorderRadius.circular(KilnRadii.xl),
-            border: Border.all(
-              color: KilnColors.hairlineStrong,
-              width: 1,
-            ),
+            border: Border.all(color: KilnColors.hairlineStrong, width: 1),
             boxShadow: KilnShadows.float,
           ),
           padding: const EdgeInsets.all(KilnSpacing.xl),

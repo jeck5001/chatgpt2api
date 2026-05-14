@@ -186,7 +186,9 @@ class _StudioTopBar extends StatelessWidget {
         KilnSpacing.sm + 2,
       ),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: KilnColors.hairline, width: 1)),
+        border: Border(
+          bottom: BorderSide(color: KilnColors.hairline, width: 1),
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -222,8 +224,9 @@ class _StudioTopBar extends StatelessWidget {
                 const SizedBox(width: KilnSpacing.xs),
                 Container(
                   height: 28,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: KilnSpacing.sm),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: KilnSpacing.sm,
+                  ),
                   decoration: BoxDecoration(
                     color: KilnColors.ink800,
                     borderRadius: BorderRadius.circular(KilnRadii.chip),
