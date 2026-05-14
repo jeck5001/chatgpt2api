@@ -180,6 +180,18 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<StudioTurn> createEditTurn({
+    required String conversationId,
+    required String clientTaskId,
+    required String prompt,
+    required String model,
+    String? size,
+    required List<StudioEditImage> images,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<List<StudioFavorite>> fetchFavorites() async => [];
 
   @override

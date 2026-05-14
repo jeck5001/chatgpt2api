@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../app/tokens.dart';
@@ -10,6 +12,7 @@ import 'composer_bar.dart';
 import 'studio_controller.dart';
 import 'studio_image_saver.dart';
 import 'studio_models.dart';
+import 'studio_repository.dart';
 import 'studio_result_viewer.dart';
 import 'turn_card.dart';
 
@@ -40,6 +43,8 @@ class CreateScreen extends StatefulWidget {
 class _CreateScreenState extends State<CreateScreen> {
   final _promptController = TextEditingController();
   late final StudioImageSaver _imageSaver;
+  final ImagePicker _imagePicker = ImagePicker();
+  final List<XFile> _references = <XFile>[];
 
   late String _selectedModel;
   late String _selectedSize;
@@ -98,17 +103,74 @@ class _CreateScreenState extends State<CreateScreen> {
     final prompt = _promptController.text.trim();
     if (prompt.isEmpty) return;
     try {
-      await controller.submitGeneration(
-        conversationId: conversationId,
-        prompt: prompt,
-        model: _selectedModel,
-        size: _selectedSize,
-      );
+      if (_references.isEmpty) {
+        await controller.submitGeneration(
+          conversationId: conversationId,
+          prompt: prompt,
+          model: _selectedModel,
+          size: _selectedSize,
+        );
+      } else {
+        final payload = await _loadReferenceImages();
+        await controller.submitEdit(
+          conversationId: conversationId,
+          prompt: prompt,
+          images: payload,
+          model: _selectedModel,
+          size: _selectedSize,
+        );
+        if (mounted) setState(_references.clear);
+      }
       _promptController.clear();
     } catch (error) {
       if (!mounted) return;
       _showSnack('生成失败：$error');
     }
+  }
+
+  Future<List<StudioEditImage>> _loadReferenceImages() async {
+    final out = <StudioEditImage>[];
+    for (final file in _references) {
+      final bytes = await file.readAsBytes();
+      final filename = file.name.isNotEmpty ? file.name : 'reference.png';
+      out.add(
+        StudioEditImage(
+          bytes: bytes,
+          filename: filename,
+          contentType: file.mimeType,
+        ),
+      );
+    }
+    return out;
+  }
+
+  Future<void> _pickReferenceImage() async {
+    try {
+      final picked = await _imagePicker.pickMultiImage(
+        imageQuality: 90,
+        limit: 4,
+      );
+      if (picked.isEmpty) return;
+      setState(() {
+        final remaining = 4 - _references.length;
+        if (remaining <= 0) {
+          _showSnack('最多 4 张参考图');
+          return;
+        }
+        _references.addAll(picked.take(remaining));
+      });
+    } catch (error) {
+      if (!mounted) return;
+      _showSnack('选图失败：$error');
+    }
+  }
+
+  void _removeReference(int index) {
+    setState(() {
+      if (index >= 0 && index < _references.length) {
+        _references.removeAt(index);
+      }
+    });
   }
 
   void _retry(StudioTurn turn) {
@@ -480,6 +542,19 @@ class _CreateScreenState extends State<CreateScreen> {
                       },
                     ),
             ),
+            if (_references.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  KilnSpacing.md,
+                  0,
+                  KilnSpacing.md,
+                  KilnSpacing.xs,
+                ),
+                child: _ReferenceStrip(
+                  files: _references,
+                  onRemove: _removeReference,
+                ),
+              ),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 KilnSpacing.md,
@@ -494,6 +569,7 @@ class _CreateScreenState extends State<CreateScreen> {
                   canSubmit: canSubmit,
                   submitting: widget.controller?.state.submitting ?? false,
                   onSubmit: _submit,
+                  hint: _references.isEmpty ? '描述你想要的画面…' : '描述要在参考图基础上做什么…',
                   params: [
                     ComposerChipData(
                       label: _selectedModel,
@@ -504,14 +580,113 @@ class _CreateScreenState extends State<CreateScreen> {
                       label: _selectedSize.replaceAll('x', '×'),
                       onTap: _pickSize,
                     ),
+                    if (_references.isNotEmpty)
+                      ComposerChipData(
+                        label: '参考 ×${_references.length}',
+                        active: true,
+                        onTap: () => _showSnack('再点 + 可继续追加，长按缩略图可移除'),
+                      ),
                   ],
-                  onAddReference: () => _showSnack('参考图功能即将上线'),
+                  onAddReference: _pickReferenceImage,
                 ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ReferenceStrip extends StatelessWidget {
+  const _ReferenceStrip({required this.files, required this.onRemove});
+
+  final List<XFile> files;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 80,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: files.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final file = files[index];
+          return _ReferenceThumb(file: file, onRemove: () => onRemove(index));
+        },
+      ),
+    );
+  }
+}
+
+class _ReferenceThumb extends StatelessWidget {
+  const _ReferenceThumb({required this.file, required this.onRemove});
+
+  final XFile file;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: 80,
+            height: 80,
+            child: FutureBuilder<Uint8List>(
+              future: file.readAsBytes(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState != ConnectionState.done ||
+                    snapshot.data == null) {
+                  return Container(
+                    color: KilnColors.ink800,
+                    alignment: Alignment.center,
+                    child: const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  );
+                }
+                return Image.memory(
+                  snapshot.data!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => Container(
+                    color: KilnColors.ink800,
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.broken_image_outlined,
+                      color: KilnColors.ink500,
+                      size: 18,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        Positioned(
+          top: 2,
+          right: 2,
+          child: InkWell(
+            onTap: onRemove,
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.6),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: const Icon(Icons.close, size: 12, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

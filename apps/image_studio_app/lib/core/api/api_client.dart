@@ -56,6 +56,21 @@ class ApiClient {
     return _decodeMap(response, path);
   }
 
+  Future<Map<String, Object?>> postMultipart(
+    String path, {
+    required FormData formData,
+  }) async {
+    final response = await _dio.post<Object?>(
+      path,
+      data: formData,
+      options: Options(
+        responseType: ResponseType.json,
+        contentType: 'multipart/form-data',
+      ),
+    );
+    return _decodeMap(response, path);
+  }
+
   Future<Map<String, Object?>> patchJson(String path, {Object? body}) async {
     final response = await _dio.patch<Object?>(
       path,

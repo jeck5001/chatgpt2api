@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_studio_app/studio/studio_controller.dart';
 import 'package:image_studio_app/studio/studio_models.dart';
@@ -58,6 +60,52 @@ void main() {
     expect(controller.state.turns.single.status, StudioTurnStatus.success);
     expect(controller.hasRunningTurns, isFalse);
   });
+
+  test('submitEdit adds the running turn and polls until success', () async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(
+      repository,
+      pollInterval: const Duration(milliseconds: 20),
+    );
+
+    await controller.submitEdit(
+      conversationId: 'conversation-1',
+      prompt: 'paint this castle in the snow',
+      images: [
+        StudioEditImage(
+          bytes: Uint8List.fromList(const [1, 2, 3, 4]),
+          filename: 'castle.png',
+          contentType: 'image/png',
+        ),
+      ],
+    );
+    expect(controller.state.turns.single.status, StudioTurnStatus.running);
+
+    for (var i = 0; i < 20 && controller.hasRunningTurns; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+    }
+
+    expect(controller.state.turns.single.status, StudioTurnStatus.success);
+    expect(repository.lastEditImages, 1);
+  });
+
+  test(
+    'submitEdit rejects an empty image list before hitting the API',
+    () async {
+      final repository = FakeStudioRepository();
+      final controller = StudioController(repository);
+
+      await expectLater(
+        controller.submitEdit(
+          conversationId: 'conversation-1',
+          prompt: 'paint without references',
+          images: const [],
+        ),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(repository.lastEditImages, isNull);
+    },
+  );
 
   test('draft is preserved when submit fails', () async {
     final repository = FakeStudioRepository()..failSubmit = true;
@@ -253,6 +301,7 @@ void main() {
 class FakeStudioRepository implements StudioRepositoryContract {
   bool failSubmit = false;
   String? createdProjectName;
+  int? lastEditImages;
   List<StudioProject> projects = [];
   Map<String, List<StudioConversation>> conversationsByProject = {};
   Map<String, List<StudioTurn>> turnsByConversation = {};
@@ -312,6 +361,22 @@ class FakeStudioRepository implements StudioRepositoryContract {
     if (failSubmit) {
       throw Exception('network down');
     }
+    return fakeTurn(status: StudioTurnStatus.running);
+  }
+
+  @override
+  Future<StudioTurn> createEditTurn({
+    required String conversationId,
+    required String clientTaskId,
+    required String prompt,
+    required String model,
+    String? size,
+    required List<StudioEditImage> images,
+  }) async {
+    if (failSubmit) {
+      throw Exception('network down');
+    }
+    lastEditImages = images.length;
     return fakeTurn(status: StudioTurnStatus.running);
   }
 

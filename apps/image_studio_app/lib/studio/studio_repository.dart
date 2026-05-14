@@ -1,5 +1,21 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
+
 import '../core/api/api_client.dart';
 import 'studio_models.dart';
+
+class StudioEditImage {
+  const StudioEditImage({
+    required this.bytes,
+    required this.filename,
+    this.contentType,
+  });
+
+  final Uint8List bytes;
+  final String filename;
+  final String? contentType;
+}
 
 abstract interface class StudioRepositoryContract {
   Future<List<StudioProject>> fetchProjects();
@@ -22,6 +38,15 @@ abstract interface class StudioRepositoryContract {
     required String prompt,
     required String model,
     String? size,
+  });
+
+  Future<StudioTurn> createEditTurn({
+    required String conversationId,
+    required String clientTaskId,
+    required String prompt,
+    required String model,
+    String? size,
+    required List<StudioEditImage> images,
   });
 
   Future<StudioTurn> syncTurn(String turnId);
@@ -110,6 +135,36 @@ class StudioRepository implements StudioRepositoryContract {
         'model': model,
         'size': ?size,
       },
+    );
+    return StudioTurn.fromJson(payload['item']! as Map<String, Object?>);
+  }
+
+  @override
+  Future<StudioTurn> createEditTurn({
+    required String conversationId,
+    required String clientTaskId,
+    required String prompt,
+    required String model,
+    String? size,
+    required List<StudioEditImage> images,
+  }) async {
+    if (images.isEmpty) {
+      throw ArgumentError('createEditTurn requires at least one image');
+    }
+    final formMap = <String, Object?>{
+      'conversation_id': conversationId,
+      'client_task_id': clientTaskId,
+      'prompt': prompt,
+      'model': model,
+      if (size != null && size.isNotEmpty) 'size': size,
+      'image': [
+        for (final image in images)
+          MultipartFile.fromBytes(image.bytes, filename: image.filename),
+      ],
+    };
+    final payload = await _client.postMultipart(
+      '/api/image-turns/edits',
+      formData: FormData.fromMap(formMap, ListFormat.multiCompatible),
     );
     return StudioTurn.fromJson(payload['item']! as Map<String, Object?>);
   }

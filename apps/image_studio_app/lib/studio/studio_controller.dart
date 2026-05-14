@@ -272,6 +272,48 @@ class StudioController extends ChangeNotifier {
     }
   }
 
+  Future<void> submitEdit({
+    required String conversationId,
+    required String prompt,
+    required List<StudioEditImage> images,
+    String model = 'gpt-image-2',
+    String? size,
+  }) async {
+    if (images.isEmpty) {
+      throw ArgumentError('submitEdit requires at least one reference image');
+    }
+    _state = _state.copyWith(
+      promptDraft: prompt,
+      submitting: true,
+      clearError: true,
+    );
+    notifyListeners();
+    try {
+      final turn = await _repository.createEditTurn(
+        conversationId: conversationId,
+        clientTaskId: _uuid.v4(),
+        prompt: prompt,
+        model: model,
+        size: size,
+        images: images,
+      );
+      _state = _state.copyWith(
+        turns: [turn, ..._state.turns],
+        promptDraft: '',
+        submitting: false,
+      );
+      notifyListeners();
+      _ensurePolling();
+    } catch (error) {
+      _state = _state.copyWith(
+        submitting: false,
+        errorMessage: error.toString(),
+      );
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   Future<void> pollRunningTurnsOnce() async {
     if (_polling) return;
     _polling = true;
