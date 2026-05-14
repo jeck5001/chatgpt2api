@@ -157,3 +157,37 @@ class StudioFavorite {
     );
   }
 }
+
+class StudioPromptTemplate {
+  const StudioPromptTemplate({
+    required this.id,
+    required this.name,
+    required this.category,
+    required this.content,
+    required this.builtin,
+    required this.ownerId,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String name;
+  final String category;
+  final String content;
+  final bool builtin;
+  final String ownerId;
+  final DateTime updatedAt;
+
+  factory StudioPromptTemplate.fromJson(Map<String, Object?> json) {
+    return StudioPromptTemplate(
+      id: json['id'].toString(),
+      name: (json['name'] ?? '').toString(),
+      category: (json['category'] ?? '').toString(),
+      content: (json['content'] ?? '').toString(),
+      builtin: json['builtin'] == true,
+      ownerId: (json['owner_id'] ?? '').toString(),
+      updatedAt:
+          DateTime.tryParse((json['updated_at'] ?? '').toString()) ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+    );
+  }
+}

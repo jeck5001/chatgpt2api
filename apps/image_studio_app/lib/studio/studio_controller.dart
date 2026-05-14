@@ -15,6 +15,7 @@ class StudioState {
     this.activeConversation,
     this.turns = const [],
     this.favorites = const [],
+    this.templates = const [],
     this.preferences = const StudioPreferences(),
     this.promptDraft = '',
     this.submitting = false,
@@ -27,6 +28,7 @@ class StudioState {
   final StudioConversation? activeConversation;
   final List<StudioTurn> turns;
   final List<StudioFavorite> favorites;
+  final List<StudioPromptTemplate> templates;
   final StudioPreferences preferences;
   final String promptDraft;
   final bool submitting;
@@ -39,6 +41,7 @@ class StudioState {
     StudioConversation? activeConversation,
     List<StudioTurn>? turns,
     List<StudioFavorite>? favorites,
+    List<StudioPromptTemplate>? templates,
     StudioPreferences? preferences,
     String? promptDraft,
     bool? submitting,
@@ -52,6 +55,7 @@ class StudioState {
       activeConversation: activeConversation ?? this.activeConversation,
       turns: turns ?? this.turns,
       favorites: favorites ?? this.favorites,
+      templates: templates ?? this.templates,
       preferences: preferences ?? this.preferences,
       promptDraft: promptDraft ?? this.promptDraft,
       submitting: submitting ?? this.submitting,
@@ -149,6 +153,12 @@ class StudioController extends ChangeNotifier {
     } catch (_) {
       favorites = const [];
     }
+    List<StudioPromptTemplate> templates;
+    try {
+      templates = await _repository.fetchPromptTemplates();
+    } catch (_) {
+      templates = const [];
+    }
     _state = _state.copyWith(
       projects: projects,
       conversations: conversations,
@@ -156,6 +166,7 @@ class StudioController extends ChangeNotifier {
       activeConversation: activeConversation,
       turns: turns,
       favorites: favorites,
+      templates: templates,
       preferences: loadedPreferences,
     );
     notifyListeners();
@@ -253,6 +264,33 @@ class StudioController extends ChangeNotifier {
     _state = _state.copyWith(
       favorites: _state.favorites
           .where((fav) => fav.id != favorite.id)
+          .toList(growable: false),
+    );
+    notifyListeners();
+  }
+
+  Future<StudioPromptTemplate> savePromptTemplate({
+    required String name,
+    required String content,
+    String category = '',
+  }) async {
+    final created = await _repository.createPromptTemplate(
+      name: name,
+      category: category,
+      content: content,
+    );
+    _state = _state.copyWith(
+      templates: <StudioPromptTemplate>[..._state.templates, created],
+    );
+    notifyListeners();
+    return created;
+  }
+
+  Future<void> deletePromptTemplate(String templateId) async {
+    await _repository.deletePromptTemplate(templateId);
+    _state = _state.copyWith(
+      templates: _state.templates
+          .where((t) => t.id != templateId)
           .toList(growable: false),
     );
     notifyListeners();

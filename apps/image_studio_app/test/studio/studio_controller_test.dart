@@ -420,6 +420,29 @@ class FakeStudioRepository implements StudioRepositoryContract {
 
   @override
   Future<void> deleteFavorite(String favoriteId) async {}
+
+  @override
+  Future<List<StudioPromptTemplate>> fetchPromptTemplates() async => const [];
+
+  @override
+  Future<StudioPromptTemplate> createPromptTemplate({
+    required String name,
+    required String category,
+    required String content,
+  }) async {
+    return StudioPromptTemplate(
+      id: 'template-1',
+      name: name,
+      category: category,
+      content: content,
+      builtin: false,
+      ownerId: 'me',
+      updatedAt: DateTime.utc(2026, 5, 12),
+    );
+  }
+
+  @override
+  Future<void> deletePromptTemplate(String templateId) async {}
 }
 
 StudioTurn fakeTurn({String id = 'turn-1', required StudioTurnStatus status}) {

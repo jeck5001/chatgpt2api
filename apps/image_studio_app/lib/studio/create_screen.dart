@@ -265,6 +265,112 @@ class _CreateScreenState extends State<CreateScreen> {
     return 'image.png';
   }
 
+  Future<void> _openTemplates() async {
+    final controller = widget.controller;
+    if (controller == null) return;
+    final templates = controller.state.templates;
+    final action = await showModalBottomSheet<_TemplateSheetAction>(
+      context: context,
+      backgroundColor: KilnColors.ink900,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return _TemplateSheet(
+          templates: templates,
+          currentPrompt: _promptController.text,
+          onDelete: (template) async {
+            try {
+              await controller.deletePromptTemplate(template.id);
+            } catch (error) {
+              if (mounted) _showSnack('删除失败：$error');
+            }
+          },
+        );
+      },
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _TemplateSheetApply(:final template):
+        _promptController.text = template.content;
+        _promptController.selection = TextSelection.fromPosition(
+          TextPosition(offset: template.content.length),
+        );
+      case _TemplateSheetSaveCurrent():
+        await _saveCurrentPromptAsTemplate();
+    }
+  }
+
+  Future<void> _saveCurrentPromptAsTemplate() async {
+    final controller = widget.controller;
+    final content = _promptController.text.trim();
+    if (controller == null) return;
+    if (content.isEmpty) {
+      _showSnack('请先在输入框写好 prompt');
+      return;
+    }
+    final form = await _promptForTemplateMeta();
+    if (form == null) return;
+    try {
+      await controller.savePromptTemplate(
+        name: form.name,
+        category: form.category,
+        content: content,
+      );
+      if (mounted)
+        _showSnack('已保存模板「${form.name.isEmpty ? '未命名' : form.name}」');
+    } catch (error) {
+      if (mounted) _showSnack('保存失败：$error');
+    }
+  }
+
+  Future<_TemplateMeta?> _promptForTemplateMeta() async {
+    final nameController = TextEditingController();
+    final categoryController = TextEditingController();
+    final result = await showDialog<_TemplateMeta>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('保存为模板'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: '名称（可留空）'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: categoryController,
+                decoration: const InputDecoration(hintText: '分类（可留空）'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(
+                _TemplateMeta(
+                  name: nameController.text.trim(),
+                  category: categoryController.text.trim(),
+                ),
+              ),
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
+    );
+    nameController.dispose();
+    categoryController.dispose();
+    return result;
+  }
+
   String _formatElapsed(DateTime startedAt) {
     final delta = DateTime.now().difference(startedAt);
     if (delta.isNegative) return '0s';
@@ -585,6 +691,10 @@ class _CreateScreenState extends State<CreateScreen> {
                   hint: _references.isEmpty ? '描述你想要的画面…' : '描述要在参考图基础上做什么…',
                   params: [
                     ComposerChipData(
+                      label: '模板',
+                      onTap: widget.controller == null ? null : _openTemplates,
+                    ),
+                    ComposerChipData(
                       label: _selectedModel,
                       active: true,
                       onTap: _pickModel,
@@ -813,6 +923,188 @@ class _EmptyStudio extends StatelessWidget {
         accent: '画点什么？',
         message: '从一句 prompt 开始。每张图都会留在这段对话里。',
       ),
+    );
+  }
+}
+
+class _TemplateMeta {
+  const _TemplateMeta({required this.name, required this.category});
+  final String name;
+  final String category;
+}
+
+sealed class _TemplateSheetAction {
+  const _TemplateSheetAction();
+}
+
+class _TemplateSheetApply extends _TemplateSheetAction {
+  const _TemplateSheetApply(this.template);
+  final StudioPromptTemplate template;
+}
+
+class _TemplateSheetSaveCurrent extends _TemplateSheetAction {
+  const _TemplateSheetSaveCurrent();
+}
+
+class _TemplateSheet extends StatelessWidget {
+  const _TemplateSheet({
+    required this.templates,
+    required this.currentPrompt,
+    required this.onDelete,
+  });
+
+  final List<StudioPromptTemplate> templates;
+  final String currentPrompt;
+  final Future<void> Function(StudioPromptTemplate) onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final grouped = <String, List<StudioPromptTemplate>>{};
+    for (final t in templates) {
+      final key = t.category.isEmpty ? '其他' : t.category;
+      grouped.putIfAbsent(key, () => []).add(t);
+    }
+    final categories = grouped.keys.toList()..sort();
+    final hasCurrent = currentPrompt.trim().isNotEmpty;
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                KilnSpacing.lg,
+                KilnSpacing.md,
+                KilnSpacing.lg,
+                KilnSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Prompt 模板',
+                      style: KilnTypography.display(
+                        size: 16,
+                        weight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: hasCurrent
+                        ? () => Navigator.of(
+                            context,
+                          ).pop(const _TemplateSheetSaveCurrent())
+                        : null,
+                    icon: const Icon(Icons.bookmark_add_outlined, size: 16),
+                    label: const Text('保存当前'),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: KilnColors.hairline, height: 1),
+            if (templates.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(KilnSpacing.xl),
+                child: Text(
+                  '还没有模板。把常用的 prompt 保存下来下次直接复用。',
+                  textAlign: TextAlign.center,
+                  style: KilnTypography.mono(
+                    size: 12,
+                    color: KilnColors.ink500,
+                  ),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.only(bottom: KilnSpacing.sm),
+                  children: [
+                    for (final category in categories) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          KilnSpacing.lg,
+                          KilnSpacing.sm + 2,
+                          KilnSpacing.lg,
+                          KilnSpacing.xs,
+                        ),
+                        child: Text(
+                          category,
+                          style: KilnTypography.mono(
+                            size: 10,
+                            color: KilnColors.ink500,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                      ),
+                      for (final t in grouped[category]!)
+                        _TemplateRow(
+                          template: t,
+                          onTap: () =>
+                              Navigator.of(context).pop(_TemplateSheetApply(t)),
+                          onDelete: t.builtin ? null : () => onDelete(t),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TemplateRow extends StatelessWidget {
+  const _TemplateRow({
+    required this.template,
+    required this.onTap,
+    this.onDelete,
+  });
+
+  final StudioPromptTemplate template;
+  final VoidCallback onTap;
+  final Future<void> Function()? onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      onTap: onTap,
+      title: Text(
+        template.name.isEmpty ? '未命名模板' : template.name,
+        style: KilnTypography.ui(size: 14, weight: FontWeight.w500),
+      ),
+      subtitle: Text(
+        template.content,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: KilnTypography.mono(size: 11, color: KilnColors.ink400),
+      ),
+      trailing: template.builtin
+          ? Text(
+              '内置',
+              style: KilnTypography.mono(
+                size: 10,
+                color: KilnColors.ink500,
+                letterSpacing: 1.2,
+              ),
+            )
+          : onDelete == null
+          ? null
+          : IconButton(
+              tooltip: '删除',
+              icon: const Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: KilnColors.ink500,
+              ),
+              onPressed: () async {
+                await onDelete!();
+              },
+            ),
     );
   }
 }

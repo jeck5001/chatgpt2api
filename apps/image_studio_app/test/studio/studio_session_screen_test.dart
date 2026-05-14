@@ -212,4 +212,19 @@ class _FakeSessionRepository implements StudioRepositoryContract {
 
   @override
   Future<void> deleteFavorite(String favoriteId) async {}
+
+  @override
+  Future<List<StudioPromptTemplate>> fetchPromptTemplates() async => const [];
+
+  @override
+  Future<StudioPromptTemplate> createPromptTemplate({
+    required String name,
+    required String category,
+    required String content,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deletePromptTemplate(String templateId) async {}
 }

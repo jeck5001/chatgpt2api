@@ -64,6 +64,16 @@ abstract interface class StudioRepositoryContract {
   });
 
   Future<void> deleteFavorite(String favoriteId);
+
+  Future<List<StudioPromptTemplate>> fetchPromptTemplates();
+
+  Future<StudioPromptTemplate> createPromptTemplate({
+    required String name,
+    required String category,
+    required String content,
+  });
+
+  Future<void> deletePromptTemplate(String templateId);
 }
 
 class StudioRepository implements StudioRepositoryContract {
@@ -216,6 +226,36 @@ class StudioRepository implements StudioRepositoryContract {
   @override
   Future<void> deleteFavorite(String favoriteId) async {
     await _client.deleteJson('/api/image-favorites/$favoriteId');
+  }
+
+  @override
+  Future<List<StudioPromptTemplate>> fetchPromptTemplates() async {
+    final payload = await _client.getJson('/api/prompt-templates');
+    return _items(payload).map(StudioPromptTemplate.fromJson).toList();
+  }
+
+  @override
+  Future<StudioPromptTemplate> createPromptTemplate({
+    required String name,
+    required String category,
+    required String content,
+  }) async {
+    final payload = await _client.postJson(
+      '/api/prompt-templates',
+      body: <String, Object?>{
+        'name': name,
+        'category': category,
+        'content': content,
+      },
+    );
+    return StudioPromptTemplate.fromJson(
+      payload['item']! as Map<String, Object?>,
+    );
+  }
+
+  @override
+  Future<void> deletePromptTemplate(String templateId) async {
+    await _client.deleteJson('/api/prompt-templates/$templateId');
   }
 
   List<Map<String, Object?>> _items(Map<String, Object?> payload) {
