@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_studio_app/studio/studio_controller.dart';
 import 'package:image_studio_app/studio/studio_models.dart';
+import 'package:image_studio_app/studio/studio_preferences.dart';
 import 'package:image_studio_app/studio/studio_repository.dart';
 
 void main() {
@@ -338,6 +339,44 @@ void main() {
     expect(controller.state.activeProject?.archived, isTrue);
     expect(controller.state.projects.single.archived, isTrue);
   });
+
+  test(
+    'autoFavorite preference favorites successful turn images during polling',
+    () async {
+      final repository = FakeStudioRepository()
+        ..syncOverrides = {
+          'turn-1': (_) async => StudioTurn(
+            id: 'turn-1',
+            conversationId: 'conversation-1',
+            clientTaskId: 'task-1',
+            taskId: 'task-1',
+            mode: StudioTurnMode.generate,
+            prompt: 'cat',
+            model: 'gpt-image-2',
+            size: '1024x1024',
+            resultImages: [
+              StudioResultImage(
+                url: Uri.parse('http://example.test/cat.png'),
+                path: '2026/05/cat.png',
+              ),
+            ],
+            status: StudioTurnStatus.success,
+            error: '',
+            updatedAt: DateTime.utc(2026, 5, 14),
+          ),
+        };
+      final controller = StudioController(repository);
+      await controller.updatePreferences(
+        const StudioPreferences(autoFavorite: true),
+      );
+
+      controller.replaceTurns([fakeTurn(status: StudioTurnStatus.running)]);
+      await controller.pollRunningTurnsOnce();
+
+      expect(controller.state.turns.single.status, StudioTurnStatus.success);
+      expect(controller.state.favorites.single.imagePath, '2026/05/cat.png');
+    },
+  );
 }
 
 class FakeStudioRepository implements StudioRepositoryContract {

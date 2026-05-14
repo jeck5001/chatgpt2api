@@ -357,6 +357,9 @@ class StudioController extends ChangeNotifier {
         submitting: false,
       );
       notifyListeners();
+      if (turn.status == StudioTurnStatus.success) {
+        await _maybeAutoFavorite(turn);
+      }
       _ensurePolling();
     } catch (error) {
       _state = _state.copyWith(
@@ -399,6 +402,9 @@ class StudioController extends ChangeNotifier {
         submitting: false,
       );
       notifyListeners();
+      if (turn.status == StudioTurnStatus.success) {
+        await _maybeAutoFavorite(turn);
+      }
       _ensurePolling();
     } catch (error) {
       _state = _state.copyWith(
@@ -416,6 +422,7 @@ class StudioController extends ChangeNotifier {
     try {
       final source = _state.turns;
       final updated = <StudioTurn>[];
+      final settled = <StudioTurn>[];
       var changed = false;
       for (final turn in source) {
         if (!turn.isRunning) {
@@ -430,6 +437,11 @@ class StudioController extends ChangeNotifier {
               synced.error != turn.error) {
             changed = true;
           }
+          if (turn.isRunning &&
+              synced.status == StudioTurnStatus.success &&
+              synced.resultImages.isNotEmpty) {
+            settled.add(synced);
+          }
         } catch (_) {
           // Per-turn error: keep the previous snapshot so the rest of
           // the list still gets polled. The next tick will retry.
@@ -440,8 +452,33 @@ class StudioController extends ChangeNotifier {
         _state = _state.copyWith(turns: updated);
         notifyListeners();
       }
+      for (final turn in settled) {
+        await _maybeAutoFavorite(turn);
+      }
     } finally {
       _polling = false;
+    }
+  }
+
+  Future<void> _maybeAutoFavorite(StudioTurn turn) async {
+    if (!_state.preferences.autoFavorite) return;
+    for (final image in turn.resultImages) {
+      if (image.path.isEmpty) continue;
+      if (_state.favorites.any((fav) => fav.imagePath == image.path)) {
+        continue;
+      }
+      try {
+        final fav = await _repository.favoriteImage(
+          imagePath: image.path,
+          sourceTurnId: turn.id,
+        );
+        _state = _state.copyWith(
+          favorites: <StudioFavorite>[..._state.favorites, fav],
+        );
+        notifyListeners();
+      } catch (_) {
+        // Best-effort — auto-favorite must never block other work.
+      }
     }
   }
 
