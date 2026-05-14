@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../library/library_screen.dart';
 import '../settings/settings_screen.dart';
@@ -6,6 +8,7 @@ import '../shared/adaptive_shell.dart';
 import 'create_screen.dart';
 import 'projects_screen.dart';
 import 'studio_controller.dart';
+import 'studio_image_saver.dart';
 import 'studio_models.dart';
 import 'studio_result_viewer.dart';
 
@@ -14,10 +17,20 @@ class StudioSessionScreen extends StatefulWidget {
     super.key,
     required this.controller,
     this.onSignOut,
+    this.imageSaver,
+    this.urlLauncher,
+    this.fileSharer,
+    this.githubUrl = 'https://github.com/jeck5001/chatgpt2api',
+    this.feedbackUrl = 'https://github.com/jeck5001/chatgpt2api/issues/new',
   });
 
   final StudioController controller;
   final Future<void> Function()? onSignOut;
+  final StudioImageSaver? imageSaver;
+  final Future<bool> Function(Uri uri)? urlLauncher;
+  final Future<void> Function(List<XFile> files)? fileSharer;
+  final String githubUrl;
+  final String feedbackUrl;
 
   @override
   State<StudioSessionScreen> createState() => _StudioSessionScreenState();
@@ -25,12 +38,14 @@ class StudioSessionScreen extends StatefulWidget {
 
 class _StudioSessionScreenState extends State<StudioSessionScreen> {
   late final Future<void> _loadFuture;
+  late final StudioImageSaver _imageSaver;
   int _selectedIndex = 0;
 
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_onControllerChanged);
+    _imageSaver = widget.imageSaver ?? StudioImageSaver();
     _loadFuture = widget.controller.loadWorkspace();
   }
 
@@ -145,6 +160,72 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
     return base.resolve(favorite.imagePath);
   }
 
+  Future<void> _exportFavorites() async {
+    final favorites = widget.controller.state.favorites;
+    if (favorites.isEmpty) {
+      _toast('收藏夹是空的');
+      return;
+    }
+    final saved = <XFile>[];
+    var failed = 0;
+    for (final favorite in favorites) {
+      try {
+        final uri = _resolveFavoriteUri(favorite);
+        final file = await _imageSaver.saveImage(
+          imageUrl: uri,
+          fileName: _favoriteFileName(favorite),
+        );
+        saved.add(XFile(file.path));
+      } catch (_) {
+        failed += 1;
+      }
+    }
+    if (saved.isEmpty) {
+      _toast('导出失败');
+      return;
+    }
+    final sharer = widget.fileSharer ?? _shareFiles;
+    try {
+      await sharer(saved);
+    } catch (_) {
+      // Best-effort sharing; the files are already on disk.
+    }
+    final suffix = failed > 0 ? '，$failed 张失败' : '';
+    _toast('已导出 ${saved.length} 张$suffix');
+  }
+
+  String _favoriteFileName(StudioFavorite favorite) {
+    final segment = favorite.imagePath.split('/').last;
+    if (segment.isNotEmpty && segment.contains('.')) {
+      return segment;
+    }
+    return 'favorite-${favorite.id}.png';
+  }
+
+  Future<void> _shareFiles(List<XFile> files) async {
+    await Share.shareXFiles(files);
+  }
+
+  Future<void> _openGithub() async {
+    await _launch(Uri.parse(widget.githubUrl));
+  }
+
+  Future<void> _openFeedback() async {
+    await _launch(Uri.parse(widget.feedbackUrl));
+  }
+
+  Future<void> _launch(Uri uri) async {
+    final launcher = widget.urlLauncher ?? _defaultLaunch;
+    final ok = await launcher(uri);
+    if (!ok) {
+      _toast('无法打开链接');
+    }
+  }
+
+  Future<bool> _defaultLaunch(Uri uri) {
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   void _toast(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
@@ -210,6 +291,9 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
             preferences: state.preferences,
             onPreferencesChanged: widget.controller.updatePreferences,
             onSignOut: widget.onSignOut,
+            onExportFavorites: _exportFavorites,
+            onTapGithub: _openGithub,
+            onTapFeedback: _openFeedback,
           ),
         );
       },

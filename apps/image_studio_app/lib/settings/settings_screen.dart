@@ -18,6 +18,9 @@ class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
     this.onSignOut,
+    this.onExportFavorites,
+    this.onTapGithub,
+    this.onTapFeedback,
     this.userName = '王剑锋',
     this.serverUrl = '192.168.5.35:3030',
     this.keyActive = true,
@@ -29,6 +32,9 @@ class SettingsScreen extends StatefulWidget {
   });
 
   final Future<void> Function()? onSignOut;
+  final Future<void> Function()? onExportFavorites;
+  final Future<void> Function()? onTapGithub;
+  final Future<void> Function()? onTapFeedback;
   final String userName;
   final String serverUrl;
   final bool keyActive;
@@ -194,6 +200,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  Future<void> _exportFavorites() async {
+    final callback = widget.onExportFavorites;
+    if (callback == null) {
+      _toast('暂无可导出的收藏');
+      return;
+    }
+    try {
+      await callback();
+    } catch (error) {
+      _toast('导出失败：$error');
+    }
+  }
+
+  Future<void> _openGithub() async {
+    final callback = widget.onTapGithub;
+    if (callback == null) {
+      _toast('GitHub 链接尚未配置');
+      return;
+    }
+    try {
+      await callback();
+    } catch (error) {
+      _toast('打开失败：$error');
+    }
+  }
+
+  Future<void> _openFeedback() async {
+    final callback = widget.onTapFeedback;
+    if (callback == null) {
+      _toast('反馈通道尚未配置');
+      return;
+    }
+    try {
+      await callback();
+    } catch (error) {
+      _toast('打开失败：$error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -242,13 +287,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     budgetBytes: widget.cacheBudgetBytes,
                     clearing: _clearing,
                     onClearCache: _clearCache,
-                    onExportFavorites: () => _toast('收藏导出即将上线'),
+                    onExportFavorites: _exportFavorites,
                   ),
                   const SizedBox(height: KilnSpacing.sm + 2),
                   _AboutCard(
                     version: widget.appVersion,
-                    onTapGithub: () => _toast('GitHub 跳转即将上线'),
-                    onTapFeedback: () => _toast('反馈意见即将上线'),
+                    onTapGithub: _openGithub,
+                    onTapFeedback: _openFeedback,
                   ),
                 ]),
               ),
