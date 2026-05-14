@@ -318,8 +318,9 @@ class _CreateScreenState extends State<CreateScreen> {
         category: form.category,
         content: content,
       );
-      if (mounted)
+      if (mounted) {
         _showSnack('已保存模板「${form.name.isEmpty ? '未命名' : form.name}」');
+      }
     } catch (error) {
       if (mounted) _showSnack('保存失败：$error');
     }

@@ -108,10 +108,7 @@ class StudioRepository implements StudioRepositoryContract {
     String? name,
     bool? archived,
   }) async {
-    final body = <String, Object?>{
-      if (name != null) 'name': name,
-      if (archived != null) 'archived': archived,
-    };
+    final body = <String, Object?>{'name': ?name, 'archived': ?archived};
     final payload = await _client.patchJson(
       '/api/projects/$projectId',
       body: body,
