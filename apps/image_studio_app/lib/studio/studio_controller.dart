@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
@@ -11,6 +13,7 @@ class StudioState {
     this.activeProject,
     this.activeConversation,
     this.turns = const [],
+    this.favorites = const [],
     this.promptDraft = '',
     this.submitting = false,
     this.errorMessage,
@@ -21,6 +24,7 @@ class StudioState {
   final StudioProject? activeProject;
   final StudioConversation? activeConversation;
   final List<StudioTurn> turns;
+  final List<StudioFavorite> favorites;
   final String promptDraft;
   final bool submitting;
   final String? errorMessage;
@@ -31,6 +35,7 @@ class StudioState {
     StudioProject? activeProject,
     StudioConversation? activeConversation,
     List<StudioTurn>? turns,
+    List<StudioFavorite>? favorites,
     String? promptDraft,
     bool? submitting,
     String? errorMessage,
@@ -42,6 +47,7 @@ class StudioState {
       activeProject: activeProject ?? this.activeProject,
       activeConversation: activeConversation ?? this.activeConversation,
       turns: turns ?? this.turns,
+      favorites: favorites ?? this.favorites,
       promptDraft: promptDraft ?? this.promptDraft,
       submitting: submitting ?? this.submitting,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
@@ -50,16 +56,27 @@ class StudioState {
 }
 
 class StudioController extends ChangeNotifier {
-  StudioController(this._repository);
+  StudioController(this._repository, {Duration? pollInterval})
+    : _pollInterval = pollInterval ?? const Duration(seconds: 2);
 
   final StudioRepositoryContract _repository;
+  final Duration _pollInterval;
   final Uuid _uuid = const Uuid();
 
   StudioState _state = const StudioState();
   StudioState get state => _state;
 
+  Timer? _pollTimer;
+
   bool get hasRunningTurns {
     return _state.turns.any((turn) => turn.isRunning);
+  }
+
+  @override
+  void dispose() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    super.dispose();
   }
 
   void replaceTurns(List<StudioTurn> turns) {
@@ -82,14 +99,22 @@ class StudioController extends ChangeNotifier {
             title: 'New image session',
           );
     final turns = await _repository.fetchTurns(activeConversation.id);
+    List<StudioFavorite> favorites;
+    try {
+      favorites = await _repository.fetchFavorites();
+    } catch (_) {
+      favorites = const [];
+    }
     _state = _state.copyWith(
       projects: projects,
       conversations: conversations,
       activeProject: activeProject,
       activeConversation: activeConversation,
       turns: turns,
+      favorites: favorites,
     );
     notifyListeners();
+    _ensurePolling();
   }
 
   Future<void> selectConversation(String conversationId) async {
@@ -102,6 +127,7 @@ class StudioController extends ChangeNotifier {
     final turns = await _repository.fetchTurns(conversation.id);
     _state = _state.copyWith(activeConversation: conversation, turns: turns);
     notifyListeners();
+    _ensurePolling();
   }
 
   Future<void> selectProject(String projectId) async {
@@ -125,6 +151,29 @@ class StudioController extends ChangeNotifier {
       turns: turns,
     );
     notifyListeners();
+    _ensurePolling();
+  }
+
+  Future<StudioConversation> createNewConversation({
+    required String title,
+    StudioTurnMode mode = StudioTurnMode.generate,
+  }) async {
+    final project = _state.activeProject;
+    if (project == null) {
+      throw StateError('No active project to create a conversation under');
+    }
+    final conversation = await _repository.createConversation(
+      projectId: project.id,
+      title: title.isEmpty ? '新会话' : title,
+      mode: mode == StudioTurnMode.edit ? 'edit' : 'generate',
+    );
+    _state = _state.copyWith(
+      conversations: [conversation, ..._state.conversations],
+      activeConversation: conversation,
+      turns: const <StudioTurn>[],
+    );
+    notifyListeners();
+    return conversation;
   }
 
   Future<void> submitGeneration({
@@ -153,6 +202,7 @@ class StudioController extends ChangeNotifier {
         submitting: false,
       );
       notifyListeners();
+      _ensurePolling();
     } catch (error) {
       _state = _state.copyWith(
         submitting: false,
@@ -174,5 +224,53 @@ class StudioController extends ChangeNotifier {
     }
     _state = _state.copyWith(turns: updated);
     notifyListeners();
+  }
+
+  bool isFavoriteImage(StudioResultImage image) {
+    if (image.path.isEmpty) return false;
+    return _state.favorites.any((fav) => fav.imagePath == image.path);
+  }
+
+  Future<void> toggleFavoriteImage({
+    required StudioResultImage image,
+    String sourceTurnId = '',
+  }) async {
+    if (image.path.isEmpty) return;
+    final existing = _state.favorites
+        .where((fav) => fav.imagePath == image.path)
+        .firstOrNull;
+    if (existing != null) {
+      await _repository.deleteFavorite(existing.id);
+      _state = _state.copyWith(
+        favorites: _state.favorites
+            .where((fav) => fav.id != existing.id)
+            .toList(growable: false),
+      );
+    } else {
+      final fav = await _repository.favoriteImage(
+        imagePath: image.path,
+        sourceTurnId: sourceTurnId,
+      );
+      _state = _state.copyWith(
+        favorites: <StudioFavorite>[..._state.favorites, fav],
+      );
+    }
+    notifyListeners();
+  }
+
+  void _ensurePolling() {
+    if (_pollTimer != null) return;
+    if (!hasRunningTurns) return;
+    _pollTimer = Timer.periodic(_pollInterval, (_) async {
+      try {
+        await pollRunningTurnsOnce();
+      } catch (_) {
+        // Swallow transient poll errors — next tick will retry.
+      }
+      if (!hasRunningTurns) {
+        _pollTimer?.cancel();
+        _pollTimer = null;
+      }
+    });
   }
 }

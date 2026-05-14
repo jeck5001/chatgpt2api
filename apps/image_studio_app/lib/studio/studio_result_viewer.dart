@@ -566,6 +566,10 @@ Future<void> showStudioResultViewer(
   String? size,
   int? imageIndex,
   int? totalImages,
+  StudioImageSaver? imageSaver,
+  VoidCallback? onFavorite,
+  VoidCallback? onVariation,
+  VoidCallback? onOpenSource,
 }) {
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
@@ -577,6 +581,10 @@ Future<void> showStudioResultViewer(
         size: size,
         imageIndex: imageIndex,
         totalImages: totalImages,
+        imageSaver: imageSaver,
+        onFavorite: onFavorite,
+        onVariation: onVariation,
+        onOpenSource: onOpenSource,
       ),
       fullscreenDialog: true,
     ),
