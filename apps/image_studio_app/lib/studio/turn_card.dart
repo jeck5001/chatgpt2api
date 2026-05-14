@@ -28,6 +28,7 @@ class TurnCard extends StatelessWidget {
     this.onCancel,
     this.onRetry,
     this.onEditPrompt,
+    this.onLongPress,
     this.isFavoriteImage,
     this.runningElapsed,
   });
@@ -42,6 +43,7 @@ class TurnCard extends StatelessWidget {
   final VoidCallback? onCancel;
   final VoidCallback? onRetry;
   final VoidCallback? onEditPrompt;
+  final VoidCallback? onLongPress;
   final bool Function(StudioResultImage image)? isFavoriteImage;
   final String? runningElapsed;
 
@@ -54,6 +56,7 @@ class TurnCard extends StatelessWidget {
       borderColor: _isError ? const Color(0x4DE07A6B) : KilnColors.hairline,
       background: _isError ? const Color(0x0FE07A6B) : KilnColors.ink900,
       padding: const EdgeInsets.all(KilnSpacing.lg),
+      onLongPress: onLongPress,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

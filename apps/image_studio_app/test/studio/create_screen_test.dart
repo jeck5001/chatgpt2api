@@ -240,6 +240,16 @@ class FakeStudioRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<void> deleteConversation(String conversationId) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteTurn(String turnId) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<StudioTurn> createEditTurn({
     required String conversationId,
     required String clientTaskId,

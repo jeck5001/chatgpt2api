@@ -247,6 +247,25 @@ class StudioService:
             ]
             return sorted(items, key=lambda item: str(item.get("updated_at") or ""), reverse=True)
 
+    def delete_conversation(self, identity: dict[str, object], conversation_id: str) -> bool:
+        with self._lock:
+            conversation = self._find_visible(identity, "conversations", conversation_id)
+            if conversation is None:
+                return False
+            before = deepcopy(self._state)
+            self._state["conversations"] = [
+                item
+                for item in self._state["conversations"]
+                if item.get("id") != conversation_id
+            ]
+            self._state["turns"] = [
+                item
+                for item in self._state["turns"]
+                if item.get("conversation_id") != conversation_id
+            ]
+            self._rollback_save_locked(before)
+            return True
+
     def create_turn(self, identity: dict[str, object], conversation_id: str, **values: Any) -> dict[str, Any]:
         with self._lock:
             conversation = self._find_visible(identity, "conversations", conversation_id)
@@ -336,6 +355,20 @@ class StudioService:
         with self._lock:
             item = self._find_visible(identity, "turns", turn_id)
             return _public(item) if item is not None else None
+
+    def delete_turn(self, identity: dict[str, object], turn_id: str) -> bool:
+        with self._lock:
+            item = self._find_visible(identity, "turns", turn_id)
+            if item is None:
+                return False
+            before = deepcopy(self._state)
+            self._state["turns"] = [
+                turn
+                for turn in self._state["turns"]
+                if turn.get("id") != turn_id
+            ]
+            self._rollback_save_locked(before)
+            return True
 
     def sync_turn_from_task(
         self,

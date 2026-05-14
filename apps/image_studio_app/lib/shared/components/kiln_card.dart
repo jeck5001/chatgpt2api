@@ -16,6 +16,7 @@ class KilnCard extends StatelessWidget {
     this.borderColor,
     this.background,
     this.onTap,
+    this.onLongPress,
     this.radius = KilnRadii.card,
   });
 
@@ -25,6 +26,7 @@ class KilnCard extends StatelessWidget {
   final Color? borderColor;
   final Color? background;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final double radius;
 
   @override
@@ -37,6 +39,7 @@ class KilnCard extends StatelessWidget {
       type: MaterialType.transparency,
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         customBorder: shape,
         child: Ink(
           decoration: ShapeDecoration(

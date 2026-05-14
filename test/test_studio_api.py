@@ -35,6 +35,10 @@ class FakeStudioService:
         self.synced = []
         self.retried = []
         self.marked_errors = []
+        self.deleted_conversations = []
+        self.deleted_turns = []
+        self.delete_conversation_result = True
+        self.delete_turn_result = True
 
     def list_projects(self, identity):
         return self.projects
@@ -65,6 +69,14 @@ class FakeStudioService:
 
     def list_turns(self, identity, conversation_id):
         return [item for item in self.turns if item.get("conversation_id") == conversation_id]
+
+    def delete_conversation(self, identity, conversation_id):
+        self.deleted_conversations.append((identity, conversation_id))
+        return self.delete_conversation_result
+
+    def delete_turn(self, identity, turn_id):
+        self.deleted_turns.append((identity, turn_id))
+        return self.delete_turn_result
 
     def create_turn(self, identity, conversation_id, **values):
         if conversation_id not in {"conversation-1", "conversation-2"}:
@@ -263,6 +275,36 @@ class StudioApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["item"]["image_path"], "2026/05/image.png")
+
+    def test_delete_conversation_returns_ok(self):
+        response = self.client.delete(
+            "/api/image-conversations/conversation-1", headers=AUTH_HEADERS
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), {"ok": True})
+        self.assertEqual(self.fake_service.deleted_conversations[0][1], "conversation-1")
+
+    def test_delete_conversation_returns_404_when_missing(self):
+        self.fake_service.delete_conversation_result = False
+        response = self.client.delete(
+            "/api/image-conversations/conversation-missing", headers=AUTH_HEADERS
+        )
+
+        self.assertEqual(response.status_code, 404, response.text)
+
+    def test_delete_image_turn_returns_ok(self):
+        response = self.client.delete("/api/image-turns/turn-1", headers=AUTH_HEADERS)
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), {"ok": True})
+        self.assertEqual(self.fake_service.deleted_turns[0][1], "turn-1")
+
+    def test_delete_image_turn_returns_404_when_missing(self):
+        self.fake_service.delete_turn_result = False
+        response = self.client.delete("/api/image-turns/turn-missing", headers=AUTH_HEADERS)
+
+        self.assertEqual(response.status_code, 404, response.text)
 
     def test_create_generation_turn_submits_task_and_syncs(self):
         response = self.client.post(

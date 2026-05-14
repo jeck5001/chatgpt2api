@@ -420,3 +420,51 @@ class StudioServiceTests(unittest.TestCase):
         self.assertEqual(stored["name"], "Original")
         self.assertEqual(stored["category"], "Original Category")
         self.assertEqual(stored["content"], "original content")
+
+    def test_delete_conversation_cascades_to_turns(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        kept_conversation = service.create_conversation(OWNER, project["id"], "Other", "generate")
+        service.create_turn(OWNER, conversation["id"], prompt="cat", reference_images=[])
+        service.create_turn(OWNER, conversation["id"], prompt="dog", reference_images=[])
+        service.create_turn(OWNER, kept_conversation["id"], prompt="bird", reference_images=[])
+
+        deleted = service.delete_conversation(OWNER, conversation["id"])
+
+        self.assertTrue(deleted)
+        self.assertEqual(
+            [c["id"] for c in service.list_conversations(OWNER, project["id"])],
+            [kept_conversation["id"]],
+        )
+        self.assertEqual(service.list_turns(OWNER, conversation["id"]), [])
+        kept_prompts = [t["prompt"] for t in service.list_turns(OWNER, kept_conversation["id"])]
+        self.assertEqual(kept_prompts, ["bird"])
+
+    def test_delete_conversation_returns_false_for_other_user(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+
+        self.assertFalse(service.delete_conversation(OTHER_OWNER, conversation["id"]))
+        self.assertEqual(len(service.list_conversations(OWNER, project["id"])), 1)
+
+    def test_delete_turn_removes_only_target(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        target = service.create_turn(OWNER, conversation["id"], prompt="cat", reference_images=[])
+        kept = service.create_turn(OWNER, conversation["id"], prompt="dog", reference_images=[])
+
+        self.assertTrue(service.delete_turn(OWNER, target["id"]))
+        remaining = [t["id"] for t in service.list_turns(OWNER, conversation["id"])]
+        self.assertEqual(remaining, [kept["id"]])
+
+    def test_delete_turn_returns_false_for_other_user(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(OWNER, conversation["id"], prompt="cat", reference_images=[])
+
+        self.assertFalse(service.delete_turn(OTHER_OWNER, turn["id"]))
+        self.assertEqual(len(service.list_turns(OWNER, conversation["id"])), 1)

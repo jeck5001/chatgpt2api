@@ -36,6 +36,8 @@ abstract interface class StudioRepositoryContract {
     String mode = 'generate',
   });
 
+  Future<void> deleteConversation(String conversationId);
+
   Future<List<StudioTurn>> fetchTurns(String conversationId);
 
   Future<StudioTurn> createGenerationTurn({
@@ -61,6 +63,8 @@ abstract interface class StudioRepositoryContract {
   });
 
   Future<StudioTurn> syncTurn(String turnId);
+
+  Future<void> deleteTurn(String turnId);
 
   Future<List<StudioFavorite>> fetchFavorites();
 
@@ -145,6 +149,11 @@ class StudioRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<void> deleteConversation(String conversationId) async {
+    await _client.deleteJson('/api/image-conversations/$conversationId');
+  }
+
+  @override
   Future<List<StudioTurn>> fetchTurns(String conversationId) async {
     final payload = await _client.getJson(
       '/api/image-turns',
@@ -208,6 +217,11 @@ class StudioRepository implements StudioRepositoryContract {
   Future<StudioTurn> syncTurn(String turnId) async {
     final payload = await _client.postJson('/api/image-turns/$turnId/sync');
     return StudioTurn.fromJson(payload['item']! as Map<String, Object?>);
+  }
+
+  @override
+  Future<void> deleteTurn(String turnId) async {
+    await _client.deleteJson('/api/image-turns/$turnId');
   }
 
   @override

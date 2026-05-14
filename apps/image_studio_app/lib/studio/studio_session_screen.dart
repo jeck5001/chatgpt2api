@@ -133,6 +133,52 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
     }
   }
 
+  Future<void> _deleteConversation(StudioConversation conversation) async {
+    final confirmed = await _confirm(
+      title: '删除会话',
+      message: '将永久删除会话「${conversation.title}」及其全部生成记录。',
+      confirmLabel: '删除',
+      destructive: true,
+    );
+    if (confirmed != true) return;
+    try {
+      await widget.controller.deleteConversation(conversation.id);
+      _toast('已删除');
+    } catch (error) {
+      _toast('删除失败：$error');
+    }
+  }
+
+  Future<bool?> _confirm({
+    required String title,
+    required String message,
+    String confirmLabel = '确定',
+    bool destructive = false,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              style: destructive
+                  ? FilledButton.styleFrom(backgroundColor: Colors.redAccent)
+                  : null,
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(confirmLabel),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _toggleFavorite(StudioFavorite favorite) async {
     try {
       await widget.controller.removeFavorite(favorite);
@@ -286,6 +332,7 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
             onCreateProject: _createProject,
             onRenameProject: _renameProject,
             onArchiveProject: _archiveProject,
+            onDeleteConversation: _deleteConversation,
           ),
           settings: SettingsScreen(
             preferences: state.preferences,

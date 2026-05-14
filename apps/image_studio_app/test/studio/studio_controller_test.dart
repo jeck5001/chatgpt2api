@@ -395,6 +395,108 @@ void main() {
       expect(controller.state.favorites.single.imagePath, '2026/05/cat.png');
     },
   );
+
+  test(
+    'deleteConversation removes the row and clears active when it was selected',
+    () async {
+      final repository = FakeStudioRepository()
+        ..projects = [
+          StudioProject(
+            id: 'project-1',
+            name: 'Project One',
+            ownerId: 'admin',
+            archived: false,
+            createdAt: DateTime.utc(2026, 5, 12),
+            updatedAt: DateTime.utc(2026, 5, 12),
+          ),
+        ]
+        ..conversationsByProject = {
+          'project-1': [
+            StudioConversation(
+              id: 'conversation-1',
+              projectId: 'project-1',
+              title: 'Hero',
+              mode: StudioTurnMode.generate,
+              updatedAt: DateTime.utc(2026, 5, 12),
+            ),
+            StudioConversation(
+              id: 'conversation-2',
+              projectId: 'project-1',
+              title: 'Other',
+              mode: StudioTurnMode.generate,
+              updatedAt: DateTime.utc(2026, 5, 13),
+            ),
+          ],
+        }
+        ..turnsByConversation = {
+          'conversation-2': [
+            fakeTurn(id: 'turn-other', status: StudioTurnStatus.success),
+          ],
+        };
+      final controller = StudioController(repository);
+      await controller.loadWorkspace();
+
+      await controller.deleteConversation('conversation-1');
+
+      expect(repository.deletedConversations, ['conversation-1']);
+      expect(
+        controller.state.conversations.map((c) => c.id).toList(),
+        ['conversation-2'],
+      );
+      expect(controller.state.activeConversation?.id, 'conversation-2');
+      expect(controller.state.turns.single.id, 'turn-other');
+    },
+  );
+
+  test(
+    'deleteConversation leaves active null when the last conversation goes',
+    () async {
+      final repository = FakeStudioRepository()
+        ..projects = [
+          StudioProject(
+            id: 'project-1',
+            name: 'Project One',
+            ownerId: 'admin',
+            archived: false,
+            createdAt: DateTime.utc(2026, 5, 12),
+            updatedAt: DateTime.utc(2026, 5, 12),
+          ),
+        ]
+        ..conversationsByProject = {
+          'project-1': [
+            StudioConversation(
+              id: 'conversation-1',
+              projectId: 'project-1',
+              title: 'Only',
+              mode: StudioTurnMode.generate,
+              updatedAt: DateTime.utc(2026, 5, 12),
+            ),
+          ],
+        };
+      final controller = StudioController(repository);
+      await controller.loadWorkspace();
+
+      await controller.deleteConversation('conversation-1');
+
+      expect(controller.state.conversations, isEmpty);
+      expect(controller.state.activeConversation, isNull);
+      expect(controller.state.turns, isEmpty);
+    },
+  );
+
+  test('deleteTurn removes the matching turn from state', () async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(repository);
+    controller.replaceTurns([
+      fakeTurn(id: 'turn-keep', status: StudioTurnStatus.success),
+      fakeTurn(id: 'turn-drop', status: StudioTurnStatus.success),
+    ]);
+
+    await controller.deleteTurn('turn-drop');
+
+    expect(repository.deletedTurns, ['turn-drop']);
+    expect(controller.state.turns.single.id, 'turn-keep');
+  });
 }
 
 class FakeStudioRepository implements StudioRepositoryContract {
@@ -406,6 +508,8 @@ class FakeStudioRepository implements StudioRepositoryContract {
   Map<String, List<StudioConversation>> conversationsByProject = {};
   Map<String, List<StudioTurn>> turnsByConversation = {};
   Map<String, Future<StudioTurn> Function(String)> syncOverrides = const {};
+  final List<String> deletedConversations = [];
+  final List<String> deletedTurns = [];
 
   @override
   Future<List<StudioProject>> fetchProjects() async {
@@ -518,6 +622,16 @@ class FakeStudioRepository implements StudioRepositoryContract {
       return override(turnId);
     }
     return fakeTurn(id: turnId, status: StudioTurnStatus.success);
+  }
+
+  @override
+  Future<void> deleteConversation(String conversationId) async {
+    deletedConversations.add(conversationId);
+  }
+
+  @override
+  Future<void> deleteTurn(String turnId) async {
+    deletedTurns.add(turnId);
   }
 
   @override

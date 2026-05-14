@@ -254,6 +254,40 @@ class _CreateScreenState extends State<CreateScreen> {
     }
   }
 
+  Future<void> _confirmDeleteTurn(StudioTurn turn) async {
+    final controller = widget.controller;
+    if (controller == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('删除这条生成'),
+          content: const Text('将永久删除该条记录及其生成的图片。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('删除'),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true) return;
+    try {
+      await controller.deleteTurn(turn.id);
+      if (!mounted) return;
+      _showSnack('已删除');
+    } catch (error) {
+      if (!mounted) return;
+      _showSnack('删除失败：$error');
+    }
+  }
+
   String _fileNameFor(StudioResultImage image) {
     if (image.url.pathSegments.isNotEmpty) {
       final last = image.url.pathSegments.last;
@@ -649,6 +683,7 @@ class _CreateScreenState extends State<CreateScreen> {
                           onFavorite: () => _toggleFavorite(turn),
                           onVariation: () => _variation(turn),
                           onEdit: () => _editPrompt(turn),
+                          onLongPress: () => _confirmDeleteTurn(turn),
                           onSave: turn.resultImages.isEmpty
                               ? null
                               : () => _saveImage(turn.resultImages.first),

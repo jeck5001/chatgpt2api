@@ -304,6 +304,48 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> deleteConversation(String conversationId) async {
+    await _repository.deleteConversation(conversationId);
+    final remaining = _state.conversations
+        .where((c) => c.id != conversationId)
+        .toList(growable: false);
+    final wasActive = _state.activeConversation?.id == conversationId;
+    if (!wasActive) {
+      _state = _state.copyWith(conversations: remaining);
+      notifyListeners();
+      return;
+    }
+    final nextActive = remaining.isNotEmpty ? remaining.first : null;
+    final nextTurns = nextActive == null
+        ? const <StudioTurn>[]
+        : await _repository.fetchTurns(nextActive.id);
+    _state = StudioState(
+      projects: _state.projects,
+      conversations: remaining,
+      activeProject: _state.activeProject,
+      activeConversation: nextActive,
+      turns: nextTurns,
+      favorites: _state.favorites,
+      templates: _state.templates,
+      preferences: _state.preferences,
+      promptDraft: _state.promptDraft,
+      submitting: _state.submitting,
+      errorMessage: _state.errorMessage,
+    );
+    notifyListeners();
+    _ensurePolling();
+  }
+
+  Future<void> deleteTurn(String turnId) async {
+    await _repository.deleteTurn(turnId);
+    _state = _state.copyWith(
+      turns: _state.turns
+          .where((turn) => turn.id != turnId)
+          .toList(growable: false),
+    );
+    notifyListeners();
+  }
+
   Future<StudioPromptTemplate> savePromptTemplate({
     required String name,
     required String content,

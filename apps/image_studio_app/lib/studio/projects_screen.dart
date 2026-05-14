@@ -24,6 +24,7 @@ class ProjectsScreen extends StatelessWidget {
     this.onCreateProject,
     this.onRenameProject,
     this.onArchiveProject,
+    this.onDeleteConversation,
   });
 
   final List<StudioProject> projects;
@@ -35,6 +36,7 @@ class ProjectsScreen extends StatelessWidget {
   final VoidCallback? onCreateProject;
   final void Function(StudioProject project)? onRenameProject;
   final void Function(StudioProject project)? onArchiveProject;
+  final void Function(StudioConversation conversation)? onDeleteConversation;
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +121,9 @@ class ProjectsScreen extends StatelessWidget {
                       conversation: conv,
                       isActive: conv.id == activeConversationId,
                       onTap: () => onConversationSelected?.call(conv.id),
+                      onLongPress: onDeleteConversation == null
+                          ? null
+                          : () => _showConversationMenu(context, conv),
                     ),
                   );
                 },
@@ -199,6 +204,65 @@ class ProjectsScreen extends StatelessWidget {
                     onArchiveProject!(project);
                   },
                 ),
+              const SizedBox(height: KilnSpacing.sm),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showConversationMenu(
+    BuildContext context,
+    StudioConversation conversation,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: KilnColors.ink900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  KilnSpacing.lg,
+                  KilnSpacing.md,
+                  KilnSpacing.lg,
+                  KilnSpacing.sm,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    conversation.title,
+                    style: KilnTypography.display(
+                      size: 16,
+                      weight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                  color: KilnColors.danger,
+                ),
+                title: Text(
+                  '删除会话',
+                  style: KilnTypography.ui(
+                    size: 14,
+                    color: KilnColors.danger,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  onDeleteConversation!(conversation);
+                },
+              ),
               const SizedBox(height: KilnSpacing.sm),
             ],
           ),
@@ -381,11 +445,13 @@ class _ConversationRow extends StatelessWidget {
     required this.conversation,
     required this.isActive,
     this.onTap,
+    this.onLongPress,
   });
 
   final StudioConversation conversation;
   final bool isActive;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -394,6 +460,7 @@ class _ConversationRow extends StatelessWidget {
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.symmetric(

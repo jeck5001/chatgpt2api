@@ -112,10 +112,24 @@ def create_router() -> APIRouter:
             raise _not_found(str(exc)) from exc
         return {"item": item}
 
+    @router.delete("/api/image-conversations/{conversation_id}")
+    async def delete_image_conversation(conversation_id: str, authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        if not studio_service.delete_conversation(identity, conversation_id):
+            raise _not_found("conversation not found")
+        return {"ok": True}
+
     @router.get("/api/image-turns")
     async def list_image_turns(conversation_id: str = "", authorization: str | None = Header(default=None)):
         identity = _identity(authorization)
         return {"items": studio_service.list_turns(identity, conversation_id)}
+
+    @router.delete("/api/image-turns/{turn_id}")
+    async def delete_image_turn(turn_id: str, authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        if not studio_service.delete_turn(identity, turn_id):
+            raise _not_found("turn not found")
+        return {"ok": True}
 
     @router.post("/api/image-turns/generations")
     async def create_generation_turn(
