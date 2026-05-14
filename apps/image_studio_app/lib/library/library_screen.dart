@@ -33,14 +33,21 @@ class LibraryScreen extends StatefulWidget {
 
 class _LibraryScreenState extends State<LibraryScreen> {
   String _activeFilter = 'all';
+  bool _newestFirst = true;
 
   @override
   Widget build(BuildContext context) {
     final all = widget.favorites;
-    final visible = switch (_activeFilter) {
+    final filtered = switch (_activeFilter) {
       'favorites' => all, // every item in the favorites list is favorited
       _ => all,
     };
+    final visible = List<StudioFavorite>.of(filtered)
+      ..sort((a, b) {
+        return _newestFirst
+            ? b.createdAt.compareTo(a.createdAt)
+            : a.createdAt.compareTo(b.createdAt);
+      });
 
     return Scaffold(
       body: SafeArea(
@@ -69,7 +76,10 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 ),
                 KilnChipData(label: '项目 ▾', onTap: () => _toast('项目筛选即将上线')),
                 KilnChipData(label: '模型 ▾', onTap: () => _toast('模型筛选即将上线')),
-                KilnChipData(label: '最新 ▾', onTap: () => _toast('排序即将上线')),
+                KilnChipData(
+                  label: _newestFirst ? '最新 ▾' : '最早 ▾',
+                  onTap: () => setState(() => _newestFirst = !_newestFirst),
+                ),
               ],
             ),
             const SizedBox(height: KilnSpacing.sm),
