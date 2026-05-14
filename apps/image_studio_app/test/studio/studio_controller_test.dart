@@ -15,6 +15,50 @@ void main() {
     expect(controller.hasRunningTurns, isFalse);
   });
 
+  test(
+    'failed syncTurn for one turn does not block the rest from progressing',
+    () async {
+      final repository = FakeStudioRepository()
+        ..syncOverrides = {
+          'turn-stale': (_) async => throw Exception('task expired'),
+        };
+      final controller = StudioController(repository);
+
+      controller.replaceTurns([
+        fakeTurn(id: 'turn-stale', status: StudioTurnStatus.running),
+        fakeTurn(id: 'turn-fresh', status: StudioTurnStatus.running),
+      ]);
+
+      await controller.pollRunningTurnsOnce();
+
+      final byId = {for (final t in controller.state.turns) t.id: t};
+      expect(byId['turn-stale']!.status, StudioTurnStatus.running);
+      expect(byId['turn-fresh']!.status, StudioTurnStatus.success);
+    },
+  );
+
+  test('Timer-based polling settles a running turn into success', () async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(
+      repository,
+      pollInterval: const Duration(milliseconds: 20),
+    );
+
+    await controller.submitGeneration(
+      conversationId: 'conversation-1',
+      prompt: 'a glowing kiln',
+    );
+    expect(controller.state.turns.single.status, StudioTurnStatus.running);
+
+    // Wait long enough for the internal Timer to fire and sync the turn.
+    for (var i = 0; i < 20 && controller.hasRunningTurns; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+    }
+
+    expect(controller.state.turns.single.status, StudioTurnStatus.success);
+    expect(controller.hasRunningTurns, isFalse);
+  });
+
   test('draft is preserved when submit fails', () async {
     final repository = FakeStudioRepository()..failSubmit = true;
     final controller = StudioController(repository);
@@ -212,6 +256,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
   List<StudioProject> projects = [];
   Map<String, List<StudioConversation>> conversationsByProject = {};
   Map<String, List<StudioTurn>> turnsByConversation = {};
+  Map<String, Future<StudioTurn> Function(String)> syncOverrides = const {};
 
   @override
   Future<List<StudioProject>> fetchProjects() async {
@@ -272,7 +317,11 @@ class FakeStudioRepository implements StudioRepositoryContract {
 
   @override
   Future<StudioTurn> syncTurn(String turnId) async {
-    return fakeTurn(status: StudioTurnStatus.success);
+    final override = syncOverrides[turnId];
+    if (override != null) {
+      return override(turnId);
+    }
+    return fakeTurn(id: turnId, status: StudioTurnStatus.success);
   }
 
   @override
@@ -297,9 +346,9 @@ class FakeStudioRepository implements StudioRepositoryContract {
   Future<void> deleteFavorite(String favoriteId) async {}
 }
 
-StudioTurn fakeTurn({required StudioTurnStatus status}) {
+StudioTurn fakeTurn({String id = 'turn-1', required StudioTurnStatus status}) {
   return StudioTurn(
-    id: 'turn-1',
+    id: id,
     conversationId: 'conversation-1',
     clientTaskId: 'task-1',
     taskId: 'task-1',

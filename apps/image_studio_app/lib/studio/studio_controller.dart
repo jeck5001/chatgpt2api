@@ -67,6 +67,7 @@ class StudioController extends ChangeNotifier {
   StudioState get state => _state;
 
   Timer? _pollTimer;
+  bool _polling = false;
 
   bool get hasRunningTurns {
     return _state.turns.any((turn) => turn.isRunning);
@@ -214,16 +215,38 @@ class StudioController extends ChangeNotifier {
   }
 
   Future<void> pollRunningTurnsOnce() async {
-    final updated = <StudioTurn>[];
-    for (final turn in _state.turns) {
-      if (turn.isRunning) {
-        updated.add(await _repository.syncTurn(turn.id));
-      } else {
-        updated.add(turn);
+    if (_polling) return;
+    _polling = true;
+    try {
+      final source = _state.turns;
+      final updated = <StudioTurn>[];
+      var changed = false;
+      for (final turn in source) {
+        if (!turn.isRunning) {
+          updated.add(turn);
+          continue;
+        }
+        try {
+          final synced = await _repository.syncTurn(turn.id);
+          updated.add(synced);
+          if (synced.status != turn.status ||
+              synced.resultImages.length != turn.resultImages.length ||
+              synced.error != turn.error) {
+            changed = true;
+          }
+        } catch (_) {
+          // Per-turn error: keep the previous snapshot so the rest of
+          // the list still gets polled. The next tick will retry.
+          updated.add(turn);
+        }
       }
+      if (changed || updated.length != source.length) {
+        _state = _state.copyWith(turns: updated);
+        notifyListeners();
+      }
+    } finally {
+      _polling = false;
     }
-    _state = _state.copyWith(turns: updated);
-    notifyListeners();
   }
 
   bool isFavoriteImage(StudioResultImage image) {
