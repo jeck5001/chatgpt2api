@@ -340,6 +340,24 @@ void main() {
     expect(controller.state.projects.single.archived, isTrue);
   });
 
+  test('submitGeneration with count fans out N independent turns', () async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(repository);
+
+    await controller.submitGeneration(
+      conversationId: 'conversation-1',
+      prompt: 'a cluster of red lanterns',
+      count: 3,
+    );
+
+    expect(controller.state.turns.length, 3);
+    final ids = controller.state.turns.map((t) => t.id).toSet();
+    expect(ids.length, 3, reason: 'each turn must have a unique id');
+    for (final turn in controller.state.turns) {
+      expect(turn.status, StudioTurnStatus.running);
+    }
+  });
+
   test(
     'autoFavorite preference favorites successful turn images during polling',
     () async {
@@ -383,6 +401,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
   bool failSubmit = false;
   String? createdProjectName;
   int? lastEditImages;
+  int _generationCounter = 0;
   List<StudioProject> projects = [];
   Map<String, List<StudioConversation>> conversationsByProject = {};
   Map<String, List<StudioTurn>> turnsByConversation = {};
@@ -469,7 +488,11 @@ class FakeStudioRepository implements StudioRepositoryContract {
     if (failSubmit) {
       throw Exception('network down');
     }
-    return fakeTurn(status: StudioTurnStatus.running);
+    _generationCounter += 1;
+    return fakeTurn(
+      id: 'turn-$_generationCounter',
+      status: StudioTurnStatus.running,
+    );
   }
 
   @override

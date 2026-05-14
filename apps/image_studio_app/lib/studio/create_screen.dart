@@ -109,6 +109,7 @@ class _CreateScreenState extends State<CreateScreen> {
           prompt: prompt,
           model: _selectedModel,
           size: _selectedSize,
+          count: controller.state.preferences.defaultCount,
         );
       } else {
         final payload = await _loadReferenceImages();

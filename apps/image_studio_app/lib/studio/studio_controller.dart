@@ -336,36 +336,53 @@ class StudioController extends ChangeNotifier {
     required String prompt,
     String model = 'gpt-image-2',
     String? size = '1024x1024',
+    int count = 1,
   }) async {
+    final n = count < 1 ? 1 : count;
     _state = _state.copyWith(
       promptDraft: prompt,
       submitting: true,
       clearError: true,
     );
     notifyListeners();
+    final created = <StudioTurn>[];
     try {
-      final turn = await _repository.createGenerationTurn(
-        conversationId: conversationId,
-        clientTaskId: _uuid.v4(),
-        prompt: prompt,
-        model: model,
-        size: size,
-      );
+      for (var i = 0; i < n; i++) {
+        final turn = await _repository.createGenerationTurn(
+          conversationId: conversationId,
+          clientTaskId: _uuid.v4(),
+          prompt: prompt,
+          model: model,
+          size: size,
+        );
+        created.add(turn);
+      }
       _state = _state.copyWith(
-        turns: [turn, ..._state.turns],
+        turns: [...created.reversed, ..._state.turns],
         promptDraft: '',
         submitting: false,
       );
       notifyListeners();
-      if (turn.status == StudioTurnStatus.success) {
-        await _maybeAutoFavorite(turn);
+      for (final turn in created) {
+        if (turn.status == StudioTurnStatus.success) {
+          await _maybeAutoFavorite(turn);
+        }
       }
       _ensurePolling();
     } catch (error) {
-      _state = _state.copyWith(
-        submitting: false,
-        errorMessage: error.toString(),
-      );
+      // Keep any partial successes so the user can see what landed.
+      if (created.isNotEmpty) {
+        _state = _state.copyWith(
+          turns: [...created.reversed, ..._state.turns],
+          submitting: false,
+          errorMessage: error.toString(),
+        );
+      } else {
+        _state = _state.copyWith(
+          submitting: false,
+          errorMessage: error.toString(),
+        );
+      }
       notifyListeners();
       rethrow;
     }
