@@ -21,6 +21,7 @@ class ProjectsScreen extends StatelessWidget {
     this.activeConversationId,
     this.onProjectSelected,
     this.onConversationSelected,
+    this.onCreateProject,
   });
 
   final List<StudioProject> projects;
@@ -29,11 +30,12 @@ class ProjectsScreen extends StatelessWidget {
   final String? activeConversationId;
   final ValueChanged<String>? onProjectSelected;
   final ValueChanged<String>? onConversationSelected;
+  final VoidCallback? onCreateProject;
 
   @override
   Widget build(BuildContext context) {
     if (projects.isEmpty) {
-      return const _EmptyProjects();
+      return _EmptyProjects(onCreate: onCreateProject);
     }
     final activeProject = projects.firstWhere(
       (p) => p.id == activeProjectId,
@@ -51,7 +53,7 @@ class ProjectsScreen extends StatelessWidget {
                 title: '项目',
                 subtitle:
                     '${projects.length} 个项目 · ${conversations.length} 个会话',
-                trailing: _AddButton(onTap: () {}),
+                trailing: _AddButton(onTap: onCreateProject),
               ),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: KilnSpacing.sm)),
@@ -130,14 +132,36 @@ class ProjectsScreen extends StatelessWidget {
 }
 
 class _EmptyProjects extends StatelessWidget {
-  const _EmptyProjects();
+  const _EmptyProjects({this.onCreate});
+  final VoidCallback? onCreate;
 
   @override
   Widget build(BuildContext context) {
-    return const EmptyState(
-      title: '还没有',
-      accent: '项目',
-      message: '生成第一张图后，它就会自动归到一个项目里。',
+    return Scaffold(
+      body: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const EmptyState(
+            title: '还没有',
+            accent: '项目',
+            message: '生成第一张图后，它就会自动归到一个项目里。',
+          ),
+          if (onCreate != null) ...[
+            const SizedBox(height: KilnSpacing.lg),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: KilnSpacing.xxl),
+              child: FilledButton.icon(
+                onPressed: onCreate,
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('新建项目'),
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(44),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

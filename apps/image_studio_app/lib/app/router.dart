@@ -53,7 +53,10 @@ GoRouter buildRouter() {
                 tokenProvider: () async => bearerKey,
               ),
             );
-            final controller = StudioController(repository);
+            final controller = StudioController(
+              repository,
+              imageBaseUrl: baseUrl,
+            );
             router.go('/studio', extra: controller);
           },
         ),

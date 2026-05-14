@@ -56,11 +56,15 @@ class StudioState {
 }
 
 class StudioController extends ChangeNotifier {
-  StudioController(this._repository, {Duration? pollInterval})
-    : _pollInterval = pollInterval ?? const Duration(seconds: 2);
+  StudioController(
+    this._repository, {
+    Duration? pollInterval,
+    this.imageBaseUrl,
+  }) : _pollInterval = pollInterval ?? const Duration(seconds: 2);
 
   final StudioRepositoryContract _repository;
   final Duration _pollInterval;
+  final Uri? imageBaseUrl;
   final Uuid _uuid = const Uuid();
 
   StudioState _state = const StudioState();
@@ -175,6 +179,31 @@ class StudioController extends ChangeNotifier {
     );
     notifyListeners();
     return conversation;
+  }
+
+  Future<StudioProject> createNewProject(String name) async {
+    final project = await _repository.createProject(
+      name.isEmpty ? '新项目' : name,
+    );
+    _state = _state.copyWith(
+      projects: [project, ..._state.projects],
+      activeProject: project,
+      conversations: const <StudioConversation>[],
+      activeConversation: null,
+      turns: const <StudioTurn>[],
+    );
+    notifyListeners();
+    return project;
+  }
+
+  Future<void> removeFavorite(StudioFavorite favorite) async {
+    await _repository.deleteFavorite(favorite.id);
+    _state = _state.copyWith(
+      favorites: _state.favorites
+          .where((fav) => fav.id != favorite.id)
+          .toList(growable: false),
+    );
+    notifyListeners();
   }
 
   Future<void> submitGeneration({

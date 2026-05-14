@@ -1,8 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../app/tokens.dart';
 import '../app/typography.dart';
 import '../shared/components/section_header.dart';
+
+const List<String> _kDefaultModels = ['gpt-image-2', 'gpt-image-1'];
+const List<String> _kDefaultSizes = ['1024x1024', '1024x1792', '1792x1024'];
+const List<int> _kDefaultCounts = [1, 2, 3, 4];
 
 /// "Me" — five quiet cards. The visible class name stays
 /// `SettingsScreen` so existing imports (router, shell) keep working.
@@ -33,6 +40,152 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _autoFavorite = false;
   String _accent = 'ember';
+  String _defaultModel = _kDefaultModels.first;
+  String _defaultSize = _kDefaultSizes.first;
+  int _defaultCount = 2;
+  bool _clearing = false;
+
+  Future<String?> _pickFromList({
+    required String title,
+    required List<String> options,
+    required String current,
+  }) {
+    return showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: KilnColors.ink900,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  KilnSpacing.lg,
+                  KilnSpacing.md,
+                  KilnSpacing.lg,
+                  KilnSpacing.sm,
+                ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    title,
+                    style: KilnTypography.display(
+                      size: 16,
+                      weight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+              for (final option in options)
+                ListTile(
+                  title: Text(option, style: KilnTypography.ui(size: 14)),
+                  trailing: option == current
+                      ? const Icon(
+                          Icons.check_rounded,
+                          color: KilnColors.ember400,
+                          size: 18,
+                        )
+                      : null,
+                  onTap: () => Navigator.of(context).pop(option),
+                ),
+              const SizedBox(height: KilnSpacing.sm),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickDefaultModel() async {
+    final picked = await _pickFromList(
+      title: '默认模型',
+      options: _kDefaultModels,
+      current: _defaultModel,
+    );
+    if (picked != null && picked != _defaultModel) {
+      setState(() => _defaultModel = picked);
+    }
+  }
+
+  Future<void> _pickDefaultSize() async {
+    final picked = await _pickFromList(
+      title: '默认尺寸',
+      options: _kDefaultSizes,
+      current: _defaultSize,
+    );
+    if (picked != null && picked != _defaultSize) {
+      setState(() => _defaultSize = picked);
+    }
+  }
+
+  Future<void> _pickDefaultCount() async {
+    final picked = await _pickFromList(
+      title: '每次生成张数',
+      options: _kDefaultCounts.map((c) => c.toString()).toList(),
+      current: _defaultCount.toString(),
+    );
+    final parsed = int.tryParse(picked ?? '');
+    if (parsed != null && parsed != _defaultCount) {
+      setState(() => _defaultCount = parsed);
+    }
+  }
+
+  Future<void> _clearCache() async {
+    if (_clearing) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('清理缓存'),
+        content: const Text('将删除已保存到本地的图片，但服务端的图片不会受影响。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('清理'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    setState(() => _clearing = true);
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      final entries = dir.existsSync()
+          ? dir.listSync()
+          : const <FileSystemEntity>[];
+      var removed = 0;
+      for (final entity in entries) {
+        final name = entity.path.split('/').last.toLowerCase();
+        if (entity is File &&
+            (name.endsWith('.png') ||
+                name.endsWith('.jpg') ||
+                name.endsWith('.jpeg') ||
+                name.endsWith('.webp'))) {
+          await entity.delete();
+          removed++;
+        }
+      }
+      _toast('已清理 $removed 张本地图片');
+    } catch (error) {
+      _toast('清理失败：$error');
+    } finally {
+      if (mounted) setState(() => _clearing = false);
+    }
+  }
+
+  void _toast(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +217,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     autoFavorite: _autoFavorite,
                     onToggleAutoFavorite: (v) =>
                         setState(() => _autoFavorite = v),
+                    defaultModel: _defaultModel,
+                    defaultSize: _defaultSize,
+                    defaultCount: _defaultCount,
+                    onPickModel: _pickDefaultModel,
+                    onPickSize: _pickDefaultSize,
+                    onPickCount: _pickDefaultCount,
                   ),
                   const SizedBox(height: KilnSpacing.sm + 2),
                   _AppearanceCard(
@@ -74,9 +233,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _StorageCard(
                     usedBytes: widget.cachedBytes,
                     budgetBytes: widget.cacheBudgetBytes,
+                    clearing: _clearing,
+                    onClearCache: _clearCache,
+                    onExportFavorites: () => _toast('收藏导出即将上线'),
                   ),
                   const SizedBox(height: KilnSpacing.sm + 2),
-                  _AboutCard(version: widget.appVersion),
+                  _AboutCard(
+                    version: widget.appVersion,
+                    onTapGithub: () => _toast('GitHub 跳转即将上线'),
+                    onTapFeedback: () => _toast('反馈意见即将上线'),
+                  ),
                 ]),
               ),
             ),
@@ -315,9 +481,21 @@ class _DefaultsCard extends StatelessWidget {
   const _DefaultsCard({
     required this.autoFavorite,
     required this.onToggleAutoFavorite,
+    required this.defaultModel,
+    required this.defaultSize,
+    required this.defaultCount,
+    required this.onPickModel,
+    required this.onPickSize,
+    required this.onPickCount,
   });
   final bool autoFavorite;
   final ValueChanged<bool> onToggleAutoFavorite;
+  final String defaultModel;
+  final String defaultSize;
+  final int defaultCount;
+  final VoidCallback onPickModel;
+  final VoidCallback onPickSize;
+  final VoidCallback onPickCount;
 
   @override
   Widget build(BuildContext context) {
@@ -328,18 +506,22 @@ class _DefaultsCard extends StatelessWidget {
           _RowToggle(
             label: '默认模型',
             sub: '用于每一个新会话',
-            value: 'gpt-image-2',
-            onTap: () {},
+            value: defaultModel,
+            onTap: onPickModel,
           ),
           const Divider(color: KilnColors.hairline, height: 1),
           _RowToggle(
             label: '默认尺寸',
             sub: '新作品的画幅',
-            value: '1024×1024',
-            onTap: () {},
+            value: defaultSize.replaceAll('x', '×'),
+            onTap: onPickSize,
           ),
           const Divider(color: KilnColors.hairline, height: 1),
-          _RowToggle(label: '每次生成张数', value: '2', onTap: () {}),
+          _RowToggle(
+            label: '每次生成张数',
+            value: '$defaultCount',
+            onTap: onPickCount,
+          ),
           const Divider(color: KilnColors.hairline, height: 1),
           _RowToggle(
             label: '成功后自动收藏',
@@ -469,10 +651,19 @@ class _Swatch extends StatelessWidget {
 }
 
 class _StorageCard extends StatelessWidget {
-  const _StorageCard({required this.usedBytes, required this.budgetBytes});
+  const _StorageCard({
+    required this.usedBytes,
+    required this.budgetBytes,
+    required this.clearing,
+    required this.onClearCache,
+    required this.onExportFavorites,
+  });
 
   final int usedBytes;
   final int budgetBytes;
+  final bool clearing;
+  final VoidCallback onClearCache;
+  final VoidCallback onExportFavorites;
 
   @override
   Widget build(BuildContext context) {
@@ -527,7 +718,7 @@ class _StorageCard extends StatelessWidget {
             children: [
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: clearing ? null : onClearCache,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(0, 38),
                     textStyle: KilnTypography.ui(
@@ -535,13 +726,19 @@ class _StorageCard extends StatelessWidget {
                       weight: FontWeight.w600,
                     ),
                   ),
-                  child: const Text('清理缓存'),
+                  child: clearing
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('清理缓存'),
                 ),
               ),
               const SizedBox(width: KilnSpacing.xs + 2),
               Expanded(
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: onExportFavorites,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(0, 38),
                     textStyle: KilnTypography.ui(
@@ -568,8 +765,14 @@ class _StorageCard extends StatelessWidget {
 }
 
 class _AboutCard extends StatelessWidget {
-  const _AboutCard({required this.version});
+  const _AboutCard({
+    required this.version,
+    required this.onTapGithub,
+    required this.onTapFeedback,
+  });
   final String version;
+  final VoidCallback onTapGithub;
+  final VoidCallback onTapFeedback;
 
   @override
   Widget build(BuildContext context) {
@@ -579,9 +782,9 @@ class _AboutCard extends StatelessWidget {
         children: [
           _RowToggle(label: '版本', value: version),
           const Divider(color: KilnColors.hairline, height: 1),
-          _RowToggle(label: 'GitHub 源码', value: '↗', onTap: () {}),
+          _RowToggle(label: 'GitHub 源码', value: '↗', onTap: onTapGithub),
           const Divider(color: KilnColors.hairline, height: 1),
-          _RowToggle(label: '反馈意见', value: '✉', onTap: () {}),
+          _RowToggle(label: '反馈意见', value: '✉', onTap: onTapFeedback),
         ],
       ),
     );

@@ -67,9 +67,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   active: _activeFilter == 'favorites',
                   onTap: () => setState(() => _activeFilter = 'favorites'),
                 ),
-                KilnChipData(label: '项目 ▾', onTap: () {}),
-                KilnChipData(label: '模型 ▾', onTap: () {}),
-                KilnChipData(label: '最新 ▾', onTap: () {}),
+                KilnChipData(label: '项目 ▾', onTap: () => _toast('项目筛选即将上线')),
+                KilnChipData(label: '模型 ▾', onTap: () => _toast('模型筛选即将上线')),
+                KilnChipData(label: '最新 ▾', onTap: () => _toast('排序即将上线')),
               ],
             ),
             const SizedBox(height: KilnSpacing.sm),
@@ -94,6 +94,14 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   int _favoriteCount(List<StudioFavorite> items) => items.length;
+
+  void _toast(String message) {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (messenger == null) return;
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 }
 
 class _Masonry extends StatelessWidget {
