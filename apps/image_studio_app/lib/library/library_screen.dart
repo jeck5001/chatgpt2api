@@ -5,6 +5,7 @@ import '../app/tokens.dart';
 import '../app/typography.dart';
 import '../shared/components/chip_bar.dart';
 import '../shared/components/section_header.dart';
+import '../shared/components/shimmer_placeholder.dart';
 import '../shared/empty_state.dart';
 import '../studio/studio_models.dart';
 
@@ -330,6 +331,7 @@ class _GalleryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tag = 'studio-image:${favorite.imagePath}';
     return ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: Material(
@@ -341,20 +343,39 @@ class _GalleryTile extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                Image.network(
-                  imageUri.toString(),
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stack) => Container(
-                    color: KilnColors.ink800,
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.all(KilnSpacing.sm),
-                    child: Icon(
-                      Icons.broken_image_outlined,
-                      color: KilnColors.ink500,
-                      size: 24,
+                Hero(
+                  tag: tag,
+                  child: Image.network(
+                    imageUri.toString(),
+                    fit: BoxFit.cover,
+                    loadingBuilder: (context, child, progress) {
+                      if (progress == null) return child;
+                      return ShimmerPlaceholder(
+                        aspectRatio: aspectRatio,
+                        borderRadius: 0,
+                      );
+                    },
+                    errorBuilder: (context, error, stack) => Container(
+                      color: KilnColors.ink800,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.all(KilnSpacing.sm),
+                      child: Icon(
+                        Icons.broken_image_outlined,
+                        color: KilnColors.ink500,
+                        size: 24,
+                      ),
                     ),
                   ),
                 ),
+                if (favorite.prompt.isNotEmpty)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: IgnorePointer(
+                      child: _TileCaption(text: favorite.prompt),
+                    ),
+                  ),
                 Positioned(
                   top: 6,
                   right: 6,
@@ -363,6 +384,36 @@ class _GalleryTile extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TileCaption extends StatelessWidget {
+  const _TileCaption({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(10, 18, 10, 8),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0x00000000), Color(0xB3000000)],
+        ),
+      ),
+      child: Text(
+        text,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: KilnTypography.ui(
+          size: 11,
+          weight: FontWeight.w500,
+          color: Colors.white,
+          height: 1.35,
         ),
       ),
     );

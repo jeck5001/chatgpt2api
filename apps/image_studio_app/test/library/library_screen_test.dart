@@ -83,4 +83,23 @@ void main() {
 
     expect(find.textContaining('命中 1 / 1'), findsOneWidget);
   });
+
+  testWidgets('tile renders prompt caption when prompt is non-empty',
+      (tester) async {
+    final favorites = [_fav('1', 'orange product photo')];
+
+    await _pumpLibrary(tester, favorites);
+
+    expect(find.text('orange product photo'), findsOneWidget);
+  });
+
+  testWidgets('tile wraps the image in a Hero with a path-based tag',
+      (tester) async {
+    final favorites = [_fav('1', 'p')];
+
+    await _pumpLibrary(tester, favorites);
+
+    final hero = tester.widget<Hero>(find.byType(Hero));
+    expect(hero.tag, 'studio-image:images/1.png');
+  });
 }

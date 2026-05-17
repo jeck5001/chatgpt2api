@@ -37,6 +37,7 @@ class StudioResultViewer extends StatefulWidget {
     this.imageIndex,
     this.totalImages,
     this.initialFavorited = false,
+    this.heroTag,
     StudioImageSaver? imageSaver,
     SaveImageAction? onSaveImage,
     ShareImageAction? onShareImage,
@@ -55,6 +56,7 @@ class StudioResultViewer extends StatefulWidget {
   final int? imageIndex;
   final int? totalImages;
   final bool initialFavorited;
+  final Object? heroTag;
   final StudioImageSaver imageSaver;
   final SaveImageAction onSaveImage;
   final ShareImageAction onShareImage;
@@ -120,6 +122,12 @@ class _StudioResultViewerState extends State<StudioResultViewer> {
     ).showSnackBar(SnackBar(content: Text('Shared $sharedPath')));
   }
 
+  Widget _maybeHero(Widget child) {
+    final tag = widget.heroTag;
+    if (tag == null) return child;
+    return Hero(tag: tag, child: child);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -151,25 +159,27 @@ class _StudioResultViewerState extends State<StudioResultViewer> {
                 child: InteractiveViewer(
                   minScale: 0.5,
                   maxScale: 4,
-                  child: Image.network(
-                    widget.imageUrl,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stack) {
-                      return Container(
-                        padding: const EdgeInsets.all(24),
-                        alignment: Alignment.center,
-                        child: Text(
-                          widget.imagePath.isEmpty
-                              ? widget.imageUrl
-                              : widget.imagePath,
-                          style: KilnTypography.mono(
-                            size: 12,
-                            color: KilnColors.ink300,
+                  child: _maybeHero(
+                    Image.network(
+                      widget.imageUrl,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stack) {
+                        return Container(
+                          padding: const EdgeInsets.all(24),
+                          alignment: Alignment.center,
+                          child: Text(
+                            widget.imagePath.isEmpty
+                                ? widget.imageUrl
+                                : widget.imagePath,
+                            style: KilnTypography.mono(
+                              size: 12,
+                              color: KilnColors.ink300,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -569,11 +579,13 @@ Future<void> showStudioResultViewer(
   int? imageIndex,
   int? totalImages,
   bool initialFavorited = false,
+  Object? heroTag,
   StudioImageSaver? imageSaver,
   VoidCallback? onFavorite,
   VoidCallback? onVariation,
   VoidCallback? onOpenSource,
 }) {
+  final tag = heroTag ?? (image.path.isNotEmpty ? 'studio-image:${image.path}' : null);
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (context) => StudioResultViewer(
@@ -585,6 +597,7 @@ Future<void> showStudioResultViewer(
         imageIndex: imageIndex,
         totalImages: totalImages,
         initialFavorited: initialFavorited,
+        heroTag: tag,
         imageSaver: imageSaver,
         onFavorite: onFavorite,
         onVariation: onVariation,
