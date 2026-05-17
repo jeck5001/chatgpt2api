@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../app/tokens.dart';
@@ -221,7 +223,7 @@ class _ImageTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    final tile = Material(
       color: Colors.black,
       borderRadius: BorderRadius.circular(14),
       clipBehavior: Clip.antiAlias,
@@ -230,6 +232,10 @@ class _ImageTile extends StatelessWidget {
         child: Image.network(
           image.url.toString(),
           fit: BoxFit.cover,
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return const ShimmerPlaceholder(borderRadius: 14);
+          },
           errorBuilder: (context, error, stackTrace) {
             return Container(
               color: KilnColors.ink800,
@@ -245,6 +251,8 @@ class _ImageTile extends StatelessWidget {
         ),
       ),
     );
+    if (image.path.isEmpty) return tile;
+    return Hero(tag: 'studio-image:${image.path}', child: tile);
   }
 }
 
@@ -280,23 +288,78 @@ class _RunningGrid extends StatelessWidget {
   }
 }
 
-class _RunningStatusLine extends StatelessWidget {
+class _RunningStatusLine extends StatefulWidget {
   const _RunningStatusLine({this.elapsed});
   final String? elapsed;
 
   @override
+  State<_RunningStatusLine> createState() => _RunningStatusLineState();
+}
+
+class _RunningStatusLineState extends State<_RunningStatusLine> {
+  static const List<String> _phases = <String>[
+    '正在构图',
+    '正在渲染',
+    '正在打磨细节',
+    '正在调色',
+  ];
+  static const Duration _phaseDuration = Duration(milliseconds: 2400);
+
+  int _phaseIndex = 0;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(_phaseDuration, (_) {
+      if (!mounted) return;
+      setState(() {
+        _phaseIndex = (_phaseIndex + 1) % _phases.length;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final phase = _phases[_phaseIndex];
+    final label = widget.elapsed == null ? phase : '$phase · ${widget.elapsed}';
     return Row(
       children: [
         const EmberPulseDot(),
         const SizedBox(width: KilnSpacing.xs + 2),
-        Text(
-          elapsed == null ? '正在绘制' : '正在绘制 · $elapsed',
-          style: KilnTypography.mono(
-            size: 11,
-            weight: FontWeight.w500,
-            color: KilnColors.ember400,
-            letterSpacing: 1.5,
+        Expanded(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 320),
+            switchInCurve: Curves.easeOut,
+            switchOutCurve: Curves.easeIn,
+            transitionBuilder: (child, anim) {
+              return FadeTransition(
+                opacity: anim,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.3),
+                    end: Offset.zero,
+                  ).animate(anim),
+                  child: child,
+                ),
+              );
+            },
+            child: Text(
+              label,
+              key: ValueKey(phase),
+              style: KilnTypography.mono(
+                size: 11,
+                weight: FontWeight.w500,
+                color: KilnColors.ember400,
+                letterSpacing: 1.5,
+              ),
+            ),
           ),
         ),
       ],

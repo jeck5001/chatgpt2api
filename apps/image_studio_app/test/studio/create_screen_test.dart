@@ -141,7 +141,7 @@ void main() {
       MaterialApp(home: CreateScreen(controller: controller)),
     );
 
-    expect(find.textContaining('正在绘制'), findsOneWidget);
+    expect(find.textContaining('正在'), findsOneWidget);
   });
 
   testWidgets('failed turns show the backend error and retry button', (
