@@ -189,12 +189,15 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   }
 
   @override
-  Future<void> deleteConversation(String conversationId) async {
+  Future<void> deleteConversation(
+    String conversationId, {
+    bool purge = false,
+  }) async {
     throw UnimplementedError();
   }
 
   @override
-  Future<void> deleteTurn(String turnId) async {
+  Future<void> deleteTurn(String turnId, {bool purge = false}) async {
     throw UnimplementedError();
   }
 

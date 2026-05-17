@@ -78,6 +78,34 @@ void main() {
     expect(error.message, '密钥无效或已失效，请重新登录');
     expect(error.statusCode, 401);
   });
+
+  test('maps 405 from a stale backend to a friendly message', () {
+    final error = ApiError.fromDioException(
+      DioException(
+        requestOptions: RequestOptions(path: '/api/image-turns/abc'),
+        response: Response<Object?>(
+          requestOptions: RequestOptions(path: '/api/image-turns/abc'),
+          statusCode: 405,
+          data: <String, Object?>{'detail': 'Method Not Allowed'},
+        ),
+      ),
+    );
+
+    expect(error.message, contains('服务端版本过旧'));
+    expect(error.statusCode, 405);
+  });
+
+  test('maps connection errors to a friendly network message', () {
+    final error = ApiError.fromDioException(
+      DioException(
+        requestOptions: RequestOptions(path: '/api/projects'),
+        type: DioExceptionType.connectionError,
+        error: 'connection refused',
+      ),
+    );
+
+    expect(error.message, contains('无法连接到服务端'));
+  });
 }
 
 class _RequestHandler extends RequestInterceptorHandler {

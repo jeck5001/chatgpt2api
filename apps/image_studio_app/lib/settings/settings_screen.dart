@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../app/tokens.dart';
@@ -21,12 +22,10 @@ class SettingsScreen extends StatefulWidget {
     this.onExportFavorites,
     this.onTapGithub,
     this.onTapFeedback,
-    this.userName = '王剑锋',
-    this.serverUrl = '192.168.5.35:3030',
+    this.userName,
+    this.serverUrl,
     this.keyActive = true,
-    this.cachedBytes = 342 * 1024 * 1024,
     this.cacheBudgetBytes = 1024 * 1024 * 1024,
-    this.appVersion = '1.0.0 (24)',
     this.preferences = const StudioPreferences(),
     this.onPreferencesChanged,
   });
@@ -35,12 +34,10 @@ class SettingsScreen extends StatefulWidget {
   final Future<void> Function()? onExportFavorites;
   final Future<void> Function()? onTapGithub;
   final Future<void> Function()? onTapFeedback;
-  final String userName;
-  final String serverUrl;
+  final String? userName;
+  final String? serverUrl;
   final bool keyActive;
-  final int cachedBytes;
   final int cacheBudgetBytes;
-  final String appVersion;
   final StudioPreferences preferences;
   final ValueChanged<StudioPreferences>? onPreferencesChanged;
 
@@ -49,8 +46,55 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  String _accent = 'ember';
   bool _clearing = false;
+  int _cachedBytes = 0;
+  String _appVersion = '—';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+    _loadCachedBytes();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() {
+        _appVersion = info.buildNumber.isEmpty
+            ? info.version
+            : '${info.version} (${info.buildNumber})';
+      });
+    } catch (_) {
+      // Best-effort; leave the placeholder.
+    }
+  }
+
+  Future<void> _loadCachedBytes() async {
+    try {
+      final dir = await getApplicationDocumentsDirectory();
+      if (!dir.existsSync()) {
+        if (mounted) setState(() => _cachedBytes = 0);
+        return;
+      }
+      var total = 0;
+      for (final entity in dir.listSync()) {
+        if (entity is! File) continue;
+        final name = entity.path.split('/').last.toLowerCase();
+        if (name.endsWith('.png') ||
+            name.endsWith('.jpg') ||
+            name.endsWith('.jpeg') ||
+            name.endsWith('.webp')) {
+          total += await entity.length();
+        }
+      }
+      if (!mounted) return;
+      setState(() => _cachedBytes = total);
+    } catch (_) {
+      // Leave previous value.
+    }
+  }
 
   StudioPreferences get _prefs => widget.preferences;
 
@@ -189,6 +233,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _toast('清理失败：$error');
     } finally {
       if (mounted) setState(() => _clearing = false);
+      await _loadCachedBytes();
     }
   }
 
@@ -259,8 +304,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
                   _AccountCard(
-                    name: widget.userName,
-                    serverUrl: widget.serverUrl,
+                    name: widget.userName ?? '未登录',
+                    serverUrl: widget.serverUrl ?? '未配置服务器',
                     keyActive: widget.keyActive,
                     onSignOut: widget.onSignOut,
                   ),
@@ -278,12 +323,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: KilnSpacing.sm + 2),
                   _AppearanceCard(
-                    accent: _accent,
-                    onAccentChanged: (v) => setState(() => _accent = v),
+                    accent: _prefs.accent,
+                    onAccentChanged: (v) => _emit(_prefs.copyWith(accent: v)),
                   ),
                   const SizedBox(height: KilnSpacing.sm + 2),
                   _StorageCard(
-                    usedBytes: widget.cachedBytes,
+                    usedBytes: _cachedBytes,
                     budgetBytes: widget.cacheBudgetBytes,
                     clearing: _clearing,
                     onClearCache: _clearCache,
@@ -291,7 +336,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: KilnSpacing.sm + 2),
                   _AboutCard(
-                    version: widget.appVersion,
+                    version: _appVersion,
                     onTapGithub: _openGithub,
                     onTapFeedback: _openFeedback,
                   ),
@@ -812,7 +857,13 @@ class _StorageCard extends StatelessWidget {
     if (bytes >= 1024 * 1024 * 1024) {
       return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
     }
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(0)} MB';
+    if (bytes >= 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(0)} MB';
+    }
+    if (bytes >= 1024) {
+      return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    }
+    return '$bytes B';
   }
 }
 

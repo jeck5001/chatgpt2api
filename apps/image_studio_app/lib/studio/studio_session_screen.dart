@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../auth/auth_models.dart';
 import '../library/library_screen.dart';
 import '../settings/settings_screen.dart';
 import '../shared/adaptive_shell.dart';
+import '../shared/components/name_prompt_dialog.dart';
+import '../shared/components/purge_confirm_dialog.dart';
 import 'create_screen.dart';
 import 'projects_screen.dart';
 import 'studio_controller.dart';
@@ -16,6 +19,7 @@ class StudioSessionScreen extends StatefulWidget {
   const StudioSessionScreen({
     super.key,
     required this.controller,
+    this.session,
     this.onSignOut,
     this.imageSaver,
     this.urlLauncher,
@@ -25,6 +29,7 @@ class StudioSessionScreen extends StatefulWidget {
   });
 
   final StudioController controller;
+  final AuthSession? session;
   final Future<void> Function()? onSignOut;
   final StudioImageSaver? imageSaver;
   final Future<bool> Function(Uri uri)? urlLauncher;
@@ -65,34 +70,13 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
     required String title,
     String hint = '',
     String confirmLabel = '创建',
-  }) async {
-    final field = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: TextField(
-            controller: field,
-            autofocus: true,
-            decoration: InputDecoration(hintText: hint),
-            onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(field.text.trim()),
-              child: Text(confirmLabel),
-            ),
-          ],
-        );
-      },
+  }) {
+    return showNamePromptDialog(
+      context,
+      title: title,
+      hint: hint,
+      confirmLabel: confirmLabel,
     );
-    field.dispose();
-    return result;
   }
 
   Future<void> _createProject() async {
@@ -134,49 +118,21 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
   }
 
   Future<void> _deleteConversation(StudioConversation conversation) async {
-    final confirmed = await _confirm(
+    final purge = await showPurgeConfirmDialog(
+      context,
       title: '删除会话',
       message: '将永久删除会话「${conversation.title}」及其全部生成记录。',
-      confirmLabel: '删除',
-      destructive: true,
     );
-    if (confirmed != true) return;
+    if (purge == null) return;
     try {
-      await widget.controller.deleteConversation(conversation.id);
-      _toast('已删除');
+      await widget.controller.deleteConversation(
+        conversation.id,
+        purge: purge,
+      );
+      _toast(purge ? '已删除（含服务器图片）' : '已删除');
     } catch (error) {
       _toast('删除失败：$error');
     }
-  }
-
-  Future<bool?> _confirm({
-    required String title,
-    required String message,
-    String confirmLabel = '确定',
-    bool destructive = false,
-  }) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(title),
-          content: Text(message),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              style: destructive
-                  ? FilledButton.styleFrom(backgroundColor: Colors.redAccent)
-                  : null,
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(confirmLabel),
-            ),
-          ],
-        );
-      },
-    );
   }
 
   Future<void> _toggleFavorite(StudioFavorite favorite) async {
@@ -317,6 +273,12 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
             baseUrl: widget.controller.imageBaseUrl,
             onFavorite: _toggleFavorite,
             onContinueEdit: _openFavoriteInViewer,
+            initialNewestFirst: state.preferences.libraryNewestFirst,
+            onSortChanged: (newestFirst) {
+              widget.controller.updatePreferences(
+                state.preferences.copyWith(libraryNewestFirst: newestFirst),
+              );
+            },
           ),
           projects: ProjectsScreen(
             projects: state.projects,
@@ -341,6 +303,9 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
             onExportFavorites: _exportFavorites,
             onTapGithub: _openGithub,
             onTapFeedback: _openFeedback,
+            userName: widget.session?.identity.name,
+            serverUrl: widget.session?.baseUrl.authority,
+            keyActive: widget.session != null,
           ),
         );
       },

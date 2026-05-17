@@ -174,6 +174,20 @@ class ImageTaskService:
         items = result.get("items") if isinstance(result, dict) else []
         return items[0] if items else None
 
+    def forget_tasks(self, identity: dict[str, object], task_ids: list[str]) -> int:
+        owner = _owner_id(identity)
+        removed = 0
+        with self._lock:
+            for raw_id in task_ids:
+                task_id = _clean(raw_id)
+                if not task_id:
+                    continue
+                if self._tasks.pop(_task_key(owner, task_id), None) is not None:
+                    removed += 1
+            if removed:
+                self._save_locked()
+        return removed
+
     def _submit(
         self,
         identity: dict[str, object],

@@ -7,6 +7,8 @@ import 'package:share_plus/share_plus.dart';
 
 import '../app/tokens.dart';
 import '../app/typography.dart';
+import '../shared/components/name_prompt_dialog.dart';
+import '../shared/components/purge_confirm_dialog.dart';
 import '../shared/empty_state.dart';
 import 'composer_bar.dart';
 import 'studio_controller.dart';
@@ -178,7 +180,15 @@ class _CreateScreenState extends State<CreateScreen> {
     final controller = widget.controller;
     if (controller == null) return;
     if (turn.mode == StudioTurnMode.edit) {
-      _showSnack('图生图任务暂不支持重试，请重新发起。');
+      _editPrompt(turn);
+      if (_kSupportedModels.contains(turn.model)) {
+        setState(() => _selectedModel = turn.model);
+      }
+      final size = turn.size;
+      if (size != null && _kSupportedSizes.contains(size)) {
+        setState(() => _selectedSize = size);
+      }
+      _showSnack('已复制 prompt 与参数，请重新添加参考图。');
       return;
     }
     unawaited(
@@ -257,31 +267,16 @@ class _CreateScreenState extends State<CreateScreen> {
   Future<void> _confirmDeleteTurn(StudioTurn turn) async {
     final controller = widget.controller;
     if (controller == null) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('删除这条生成'),
-          content: const Text('将永久删除该条记录及其生成的图片。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('删除'),
-            ),
-          ],
-        );
-      },
+    final purge = await showPurgeConfirmDialog(
+      context,
+      title: '删除这条生成',
+      message: '将永久删除该条记录及其生成的图片。',
     );
-    if (confirmed != true) return;
+    if (purge == null) return;
     try {
-      await controller.deleteTurn(turn.id);
+      await controller.deleteTurn(turn.id, purge: purge);
       if (!mounted) return;
-      _showSnack('已删除');
+      _showSnack(purge ? '已删除（含服务器图片）' : '已删除');
     } catch (error) {
       if (!mounted) return;
       _showSnack('删除失败：$error');
@@ -604,39 +599,12 @@ class _CreateScreenState extends State<CreateScreen> {
     }
   }
 
-  Future<String?> _promptForTitle() async {
-    final controller = TextEditingController();
-    final result = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: KilnColors.ink900,
-          title: Text(
-            '新建会话',
-            style: KilnTypography.display(size: 16, weight: FontWeight.w500),
-          ),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            decoration: const InputDecoration(hintText: '会话标题（可留空）'),
-            onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(controller.text.trim()),
-              child: const Text('创建'),
-            ),
-          ],
-        );
-      },
+  Future<String?> _promptForTitle() {
+    return showNamePromptDialog(
+      context,
+      title: '新建会话',
+      hint: '会话标题（可留空）',
     );
-    controller.dispose();
-    return result;
   }
 
   @override

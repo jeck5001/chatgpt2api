@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'defaults.dart';
+import '../auth/auth_models.dart';
 import '../auth/auth_repository.dart';
 import '../auth/login_screen.dart';
 import '../auth/onboarding_screen.dart';
@@ -14,6 +15,8 @@ import '../studio/studio_controller.dart';
 import '../studio/studio_preferences.dart';
 import '../studio/studio_repository.dart';
 import '../studio/studio_session_screen.dart';
+
+typedef StudioRouteArgs = ({StudioController controller, AuthSession session});
 
 GoRouter buildRouter() {
   Uri? pendingBaseUrl;
@@ -44,7 +47,7 @@ GoRouter buildRouter() {
               tokenStore: tokenStore,
               profileStore: profileStore,
             );
-            await authRepository.loginWithBearerKey(
+            final session = await authRepository.loginWithBearerKey(
               baseUrl: baseUrl,
               bearerKey: bearerKey,
             );
@@ -62,27 +65,42 @@ GoRouter buildRouter() {
                 sharedPrefs,
               ),
             );
-            router.go('/studio', extra: controller);
+            router.go(
+              '/studio',
+              extra: (controller: controller, session: session),
+            );
           },
         ),
       ),
       GoRoute(
         path: '/studio',
         builder: (context, state) {
-          final controller = state.extra as StudioController?;
-          if (controller == null) {
-            return const Scaffold(
-              body: Center(child: Text('Missing studio session')),
+          final extra = state.extra;
+          if (extra is StudioRouteArgs) {
+            return StudioSessionScreen(
+              controller: extra.controller,
+              session: extra.session,
+              onSignOut: () async {
+                final router = GoRouter.of(context);
+                await activeAuthRepository?.signOut();
+                activeAuthRepository = null;
+                router.go('/');
+              },
             );
           }
-          return StudioSessionScreen(
-            controller: controller,
-            onSignOut: () async {
-              final router = GoRouter.of(context);
-              await activeAuthRepository?.signOut();
-              activeAuthRepository = null;
-              router.go('/');
-            },
+          if (extra is StudioController) {
+            return StudioSessionScreen(
+              controller: extra,
+              onSignOut: () async {
+                final router = GoRouter.of(context);
+                await activeAuthRepository?.signOut();
+                activeAuthRepository = null;
+                router.go('/');
+              },
+            );
+          }
+          return const Scaffold(
+            body: Center(child: Text('Missing studio session')),
           );
         },
       ),

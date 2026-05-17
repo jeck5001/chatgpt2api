@@ -304,8 +304,11 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> deleteConversation(String conversationId) async {
-    await _repository.deleteConversation(conversationId);
+  Future<void> deleteConversation(
+    String conversationId, {
+    bool purge = false,
+  }) async {
+    await _repository.deleteConversation(conversationId, purge: purge);
     final remaining = _state.conversations
         .where((c) => c.id != conversationId)
         .toList(growable: false);
@@ -336,8 +339,8 @@ class StudioController extends ChangeNotifier {
     _ensurePolling();
   }
 
-  Future<void> deleteTurn(String turnId) async {
-    await _repository.deleteTurn(turnId);
+  Future<void> deleteTurn(String turnId, {bool purge = false}) async {
+    await _repository.deleteTurn(turnId, purge: purge);
     _state = _state.copyWith(
       turns: _state.turns
           .where((turn) => turn.id != turnId)

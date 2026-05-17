@@ -4,7 +4,7 @@ from copy import deepcopy
 import uuid
 from datetime import datetime, timezone
 from threading import RLock
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlsplit
 
 from services.config import config
@@ -115,9 +115,33 @@ DEFAULT_TEMPLATES = [
 ]
 
 
+def _default_purge_files(paths: list[str]) -> None:
+    if not paths:
+        return
+    from services.image_service import delete_images
+
+    delete_images(paths=paths)
+
+
+def _default_forget_tasks(identity: dict[str, object], task_ids: list[str]) -> None:
+    if not task_ids:
+        return
+    from services.image_task_service import image_task_service
+
+    image_task_service.forget_tasks(identity, task_ids)
+
+
 class StudioService:
-    def __init__(self, storage: StorageBackend):
+    def __init__(
+        self,
+        storage: StorageBackend,
+        *,
+        purge_files: Callable[[list[str]], None] | None = None,
+        forget_tasks: Callable[[dict[str, object], list[str]], None] | None = None,
+    ):
         self.storage = storage
+        self._purge_files = purge_files or _default_purge_files
+        self._forget_tasks = forget_tasks or _default_forget_tasks
         self._lock = RLock()
         self._state = self._normalize_state(self.storage.load_studio_state())
 
@@ -247,11 +271,26 @@ class StudioService:
             ]
             return sorted(items, key=lambda item: str(item.get("updated_at") or ""), reverse=True)
 
-    def delete_conversation(self, identity: dict[str, object], conversation_id: str) -> bool:
+    def delete_conversation(
+        self,
+        identity: dict[str, object],
+        conversation_id: str,
+        *,
+        purge_images: bool = False,
+    ) -> bool:
+        image_paths: list[str] = []
+        task_ids: list[str] = []
         with self._lock:
             conversation = self._find_visible(identity, "conversations", conversation_id)
             if conversation is None:
                 return False
+            if purge_images:
+                affected = [
+                    item
+                    for item in self._state["turns"]
+                    if item.get("conversation_id") == conversation_id
+                ]
+                image_paths, task_ids = self._collect_purge_targets(affected)
             before = deepcopy(self._state)
             self._state["conversations"] = [
                 item
@@ -264,7 +303,9 @@ class StudioService:
                 if item.get("conversation_id") != conversation_id
             ]
             self._rollback_save_locked(before)
-            return True
+        if purge_images:
+            self._run_purge(identity, image_paths, task_ids)
+        return True
 
     def create_turn(self, identity: dict[str, object], conversation_id: str, **values: Any) -> dict[str, Any]:
         with self._lock:
@@ -356,11 +397,21 @@ class StudioService:
             item = self._find_visible(identity, "turns", turn_id)
             return _public(item) if item is not None else None
 
-    def delete_turn(self, identity: dict[str, object], turn_id: str) -> bool:
+    def delete_turn(
+        self,
+        identity: dict[str, object],
+        turn_id: str,
+        *,
+        purge_images: bool = False,
+    ) -> bool:
+        image_paths: list[str] = []
+        task_ids: list[str] = []
         with self._lock:
             item = self._find_visible(identity, "turns", turn_id)
             if item is None:
                 return False
+            if purge_images:
+                image_paths, task_ids = self._collect_purge_targets([item])
             before = deepcopy(self._state)
             self._state["turns"] = [
                 turn
@@ -368,7 +419,43 @@ class StudioService:
                 if turn.get("id") != turn_id
             ]
             self._rollback_save_locked(before)
-            return True
+        if purge_images:
+            self._run_purge(identity, image_paths, task_ids)
+        return True
+
+    def _collect_purge_targets(
+        self, turns: list[dict[str, Any]]
+    ) -> tuple[list[str], list[str]]:
+        paths: list[str] = []
+        task_ids: list[str] = []
+        for turn in turns:
+            task_id = _clean(turn.get("task_id"))
+            if task_id:
+                task_ids.append(task_id)
+            for image in turn.get("result_images") or []:
+                if not isinstance(image, dict):
+                    continue
+                path = _clean(image.get("path"))
+                if path:
+                    paths.append(path)
+        return paths, task_ids
+
+    def _run_purge(
+        self,
+        identity: dict[str, object],
+        image_paths: list[str],
+        task_ids: list[str],
+    ) -> None:
+        if image_paths:
+            try:
+                self._purge_files(image_paths)
+            except Exception:
+                pass
+        if task_ids:
+            try:
+                self._forget_tasks(identity, task_ids)
+            except Exception:
+                pass
 
     def sync_turn_from_task(
         self,

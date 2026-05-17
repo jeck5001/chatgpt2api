@@ -70,12 +70,12 @@ class FakeStudioService:
     def list_turns(self, identity, conversation_id):
         return [item for item in self.turns if item.get("conversation_id") == conversation_id]
 
-    def delete_conversation(self, identity, conversation_id):
-        self.deleted_conversations.append((identity, conversation_id))
+    def delete_conversation(self, identity, conversation_id, *, purge_images=False):
+        self.deleted_conversations.append((identity, conversation_id, purge_images))
         return self.delete_conversation_result
 
-    def delete_turn(self, identity, turn_id):
-        self.deleted_turns.append((identity, turn_id))
+    def delete_turn(self, identity, turn_id, *, purge_images=False):
+        self.deleted_turns.append((identity, turn_id, purge_images))
         return self.delete_turn_result
 
     def create_turn(self, identity, conversation_id, **values):
@@ -284,6 +284,15 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json(), {"ok": True})
         self.assertEqual(self.fake_service.deleted_conversations[0][1], "conversation-1")
+        self.assertFalse(self.fake_service.deleted_conversations[0][2])
+
+    def test_delete_conversation_passes_purge_flag(self):
+        response = self.client.delete(
+            "/api/image-conversations/conversation-1?purge=true", headers=AUTH_HEADERS
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(self.fake_service.deleted_conversations[0][2])
 
     def test_delete_conversation_returns_404_when_missing(self):
         self.fake_service.delete_conversation_result = False
@@ -299,6 +308,15 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json(), {"ok": True})
         self.assertEqual(self.fake_service.deleted_turns[0][1], "turn-1")
+        self.assertFalse(self.fake_service.deleted_turns[0][2])
+
+    def test_delete_image_turn_passes_purge_flag(self):
+        response = self.client.delete(
+            "/api/image-turns/turn-1?purge=true", headers=AUTH_HEADERS
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(self.fake_service.deleted_turns[0][2])
 
     def test_delete_image_turn_returns_404_when_missing(self):
         self.fake_service.delete_turn_result = False

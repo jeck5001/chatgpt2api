@@ -20,12 +20,16 @@ class LibraryScreen extends StatefulWidget {
     this.baseUrl,
     this.onFavorite,
     this.onContinueEdit,
+    this.initialNewestFirst = true,
+    this.onSortChanged,
   });
 
   final List<StudioFavorite> favorites;
   final Uri? baseUrl;
   final ValueChanged<StudioFavorite>? onFavorite;
   final ValueChanged<StudioFavorite>? onContinueEdit;
+  final bool initialNewestFirst;
+  final ValueChanged<bool>? onSortChanged;
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -33,7 +37,21 @@ class LibraryScreen extends StatefulWidget {
 
 class _LibraryScreenState extends State<LibraryScreen> {
   String _activeFilter = 'all';
-  bool _newestFirst = true;
+  late bool _newestFirst = widget.initialNewestFirst;
+
+  @override
+  void didUpdateWidget(covariant LibraryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialNewestFirst != widget.initialNewestFirst) {
+      _newestFirst = widget.initialNewestFirst;
+    }
+  }
+
+  void _toggleNewestFirst() {
+    final next = !_newestFirst;
+    setState(() => _newestFirst = next);
+    widget.onSortChanged?.call(next);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +96,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                 KilnChipData(label: '模型 ▾', onTap: () => _toast('模型筛选即将上线')),
                 KilnChipData(
                   label: _newestFirst ? '最新 ▾' : '最早 ▾',
-                  onTap: () => setState(() => _newestFirst = !_newestFirst),
+                  onTap: _toggleNewestFirst,
                 ),
               ],
             ),

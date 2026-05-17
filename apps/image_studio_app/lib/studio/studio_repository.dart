@@ -36,7 +36,7 @@ abstract interface class StudioRepositoryContract {
     String mode = 'generate',
   });
 
-  Future<void> deleteConversation(String conversationId);
+  Future<void> deleteConversation(String conversationId, {bool purge = false});
 
   Future<List<StudioTurn>> fetchTurns(String conversationId);
 
@@ -64,7 +64,7 @@ abstract interface class StudioRepositoryContract {
 
   Future<StudioTurn> syncTurn(String turnId);
 
-  Future<void> deleteTurn(String turnId);
+  Future<void> deleteTurn(String turnId, {bool purge = false});
 
   Future<List<StudioFavorite>> fetchFavorites();
 
@@ -149,8 +149,14 @@ class StudioRepository implements StudioRepositoryContract {
   }
 
   @override
-  Future<void> deleteConversation(String conversationId) async {
-    await _client.deleteJson('/api/image-conversations/$conversationId');
+  Future<void> deleteConversation(
+    String conversationId, {
+    bool purge = false,
+  }) async {
+    await _client.deleteJson(
+      '/api/image-conversations/$conversationId',
+      query: purge ? const <String, Object?>{'purge': 'true'} : null,
+    );
   }
 
   @override
@@ -220,8 +226,11 @@ class StudioRepository implements StudioRepositoryContract {
   }
 
   @override
-  Future<void> deleteTurn(String turnId) async {
-    await _client.deleteJson('/api/image-turns/$turnId');
+  Future<void> deleteTurn(String turnId, {bool purge = false}) async {
+    await _client.deleteJson(
+      '/api/image-turns/$turnId',
+      query: purge ? const <String, Object?>{'purge': 'true'} : null,
+    );
   }
 
   @override

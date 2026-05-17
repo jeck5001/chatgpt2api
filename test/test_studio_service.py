@@ -35,11 +35,19 @@ ADMIN = {"id": "admin-1", "name": "Admin", "role": "admin"}
 
 
 class StudioServiceTests(unittest.TestCase):
-    def make_service(self):
+    def make_service(self, *, purge_files=None, forget_tasks=None):
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir)
             storage = JSONStorageBackend(path / "accounts.json", path / "auth_keys.json", path / "studio.json")
-            return StudioService(storage), storage, path
+            return (
+                StudioService(
+                    storage,
+                    purge_files=purge_files,
+                    forget_tasks=forget_tasks,
+                ),
+                storage,
+                path,
+            )
 
     def test_user_project_conversation_turn_lifecycle(self):
         service, _storage, _path = self.make_service()
@@ -468,3 +476,160 @@ class StudioServiceTests(unittest.TestCase):
 
         self.assertFalse(service.delete_turn(OTHER_OWNER, turn["id"]))
         self.assertEqual(len(service.list_turns(OWNER, conversation["id"])), 1)
+
+    def test_delete_conversation_does_not_purge_by_default(self):
+        purged_files: list[list[str]] = []
+        forgotten_tasks: list[tuple[dict, list[str]]] = []
+        service, _storage, _path = self.make_service(
+            purge_files=lambda paths: purged_files.append(list(paths)),
+            forget_tasks=lambda identity, ids: forgotten_tasks.append((identity, list(ids))),
+        )
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            prompt="cat",
+            result_images=[{"path": "2026/05/cat.png"}],
+        )
+
+        self.assertTrue(service.delete_conversation(OWNER, conversation["id"]))
+        self.assertEqual(purged_files, [])
+        self.assertEqual(forgotten_tasks, [])
+
+    def test_delete_conversation_purges_image_files_and_tasks_when_requested(self):
+        purged_files: list[list[str]] = []
+        forgotten_tasks: list[tuple[dict, list[str]]] = []
+        service, _storage, _path = self.make_service(
+            purge_files=lambda paths: purged_files.append(list(paths)),
+            forget_tasks=lambda identity, ids: forgotten_tasks.append((identity, list(ids))),
+        )
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            prompt="cat",
+            result_images=[{"path": "2026/05/cat.png"}, {"path": "2026/05/cat-2.png"}],
+        )
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-2",
+            task_id="task-2",
+            prompt="dog",
+            result_images=[{"path": "2026/05/dog.png"}],
+        )
+
+        self.assertTrue(
+            service.delete_conversation(OWNER, conversation["id"], purge_images=True)
+        )
+
+        self.assertEqual(
+            sorted(purged_files[0]),
+            ["2026/05/cat-2.png", "2026/05/cat.png", "2026/05/dog.png"],
+        )
+        self.assertEqual(sorted(forgotten_tasks[0][1]), ["task-1", "task-2"])
+        self.assertEqual(forgotten_tasks[0][0]["id"], OWNER["id"])
+
+    def test_delete_conversation_with_purge_swallows_purge_errors(self):
+        def raise_purge(_paths):
+            raise RuntimeError("disk full")
+
+        def raise_forget(_identity, _ids):
+            raise RuntimeError("task store offline")
+
+        service, _storage, _path = self.make_service(
+            purge_files=raise_purge,
+            forget_tasks=raise_forget,
+        )
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            task_id="task-1",
+            prompt="cat",
+            result_images=[{"path": "2026/05/cat.png"}],
+        )
+
+        self.assertTrue(
+            service.delete_conversation(OWNER, conversation["id"], purge_images=True)
+        )
+        self.assertEqual(service.list_conversations(OWNER, project["id"]), [])
+
+    def test_delete_turn_purges_image_files_and_task_when_requested(self):
+        purged_files: list[list[str]] = []
+        forgotten_tasks: list[tuple[dict, list[str]]] = []
+        service, _storage, _path = self.make_service(
+            purge_files=lambda paths: purged_files.append(list(paths)),
+            forget_tasks=lambda identity, ids: forgotten_tasks.append((identity, list(ids))),
+        )
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        target = service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-1",
+            task_id="task-1",
+            prompt="cat",
+            result_images=[{"path": "2026/05/cat.png"}],
+        )
+        # An unrelated turn must not be touched.
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            client_task_id="task-2",
+            task_id="task-2",
+            prompt="dog",
+            result_images=[{"path": "2026/05/dog.png"}],
+        )
+
+        self.assertTrue(service.delete_turn(OWNER, target["id"], purge_images=True))
+        self.assertEqual(purged_files, [["2026/05/cat.png"]])
+        self.assertEqual(forgotten_tasks[0][1], ["task-1"])
+
+    def test_delete_turn_does_not_purge_by_default(self):
+        purged_files: list[list[str]] = []
+        forgotten_tasks: list[tuple[dict, list[str]]] = []
+        service, _storage, _path = self.make_service(
+            purge_files=lambda paths: purged_files.append(list(paths)),
+            forget_tasks=lambda identity, ids: forgotten_tasks.append((identity, list(ids))),
+        )
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            task_id="task-1",
+            prompt="cat",
+            result_images=[{"path": "2026/05/cat.png"}],
+        )
+
+        self.assertTrue(service.delete_turn(OWNER, turn["id"]))
+        self.assertEqual(purged_files, [])
+        self.assertEqual(forgotten_tasks, [])
+
+    def test_delete_turn_with_purge_skips_callbacks_when_no_images(self):
+        purged_files: list[list[str]] = []
+        forgotten_tasks: list[tuple[dict, list[str]]] = []
+        service, _storage, _path = self.make_service(
+            purge_files=lambda paths: purged_files.append(list(paths)),
+            forget_tasks=lambda identity, ids: forgotten_tasks.append((identity, list(ids))),
+        )
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            prompt="cat",
+            result_images=[],
+        )
+
+        self.assertTrue(service.delete_turn(OWNER, turn["id"], purge_images=True))
+        self.assertEqual(purged_files, [])
+        self.assertEqual(forgotten_tasks, [])

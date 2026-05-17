@@ -625,12 +625,15 @@ class FakeStudioRepository implements StudioRepositoryContract {
   }
 
   @override
-  Future<void> deleteConversation(String conversationId) async {
+  Future<void> deleteConversation(
+    String conversationId, {
+    bool purge = false,
+  }) async {
     deletedConversations.add(conversationId);
   }
 
   @override
-  Future<void> deleteTurn(String turnId) async {
+  Future<void> deleteTurn(String turnId, {bool purge = false}) async {
     deletedTurns.add(turnId);
   }
 

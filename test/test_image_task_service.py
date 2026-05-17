@@ -182,6 +182,49 @@ class ImageTaskServiceTests(unittest.TestCase):
             self.assertEqual([item["status"] for item in result["items"]], ["error", "error"])
             self.assertTrue(all("已中断" in item.get("error", "") for item in result["items"]))
 
+    def test_forget_tasks_removes_only_caller_owned_records(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "image_tasks.json"
+            service = self.make_service(path)
+            service.submit_generation(
+                OWNER,
+                client_task_id="task-keep",
+                prompt="cat",
+                model="gpt-image-2",
+                size=None,
+                base_url="http://local.test",
+            )
+            service.submit_generation(
+                OWNER,
+                client_task_id="task-drop",
+                prompt="cat",
+                model="gpt-image-2",
+                size=None,
+                base_url="http://local.test",
+            )
+            service.submit_generation(
+                OTHER_OWNER,
+                client_task_id="task-drop",
+                prompt="cat",
+                model="gpt-image-2",
+                size=None,
+                base_url="http://local.test",
+            )
+            wait_for_task(service, OWNER, "task-keep", "success")
+            wait_for_task(service, OWNER, "task-drop", "success")
+            wait_for_task(service, OTHER_OWNER, "task-drop", "success")
+
+            removed = service.forget_tasks(OWNER, ["task-drop", "", "ghost"])
+
+            self.assertEqual(removed, 1)
+            self.assertIsNone(service.get_task(OWNER, "task-drop"))
+            self.assertIsNotNone(service.get_task(OWNER, "task-keep"))
+            self.assertIsNotNone(service.get_task(OTHER_OWNER, "task-drop"))
+
+            reloaded = self.make_service(path)
+            self.assertIsNone(reloaded.get_task(OWNER, "task-drop"))
+            self.assertIsNotNone(reloaded.get_task(OTHER_OWNER, "task-drop"))
+
 
 if __name__ == "__main__":
     unittest.main()

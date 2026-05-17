@@ -39,53 +39,77 @@ class ApiClient {
     String path, {
     Map<String, Object?>? query,
   }) async {
-    final response = await _dio.get<Object?>(
-      path,
-      queryParameters: query,
-      options: Options(responseType: ResponseType.json),
-    );
-    return _decodeMap(response, path);
+    try {
+      final response = await _dio.get<Object?>(
+        path,
+        queryParameters: query,
+        options: Options(responseType: ResponseType.json),
+      );
+      return _decodeMap(response, path);
+    } on DioException catch (error) {
+      throw ApiError.fromDioException(error);
+    }
   }
 
   Future<Map<String, Object?>> postJson(String path, {Object? body}) async {
-    final response = await _dio.post<Object?>(
-      path,
-      data: body ?? <String, Object?>{},
-      options: Options(responseType: ResponseType.json),
-    );
-    return _decodeMap(response, path);
+    try {
+      final response = await _dio.post<Object?>(
+        path,
+        data: body ?? <String, Object?>{},
+        options: Options(responseType: ResponseType.json),
+      );
+      return _decodeMap(response, path);
+    } on DioException catch (error) {
+      throw ApiError.fromDioException(error);
+    }
   }
 
   Future<Map<String, Object?>> postMultipart(
     String path, {
     required FormData formData,
   }) async {
-    final response = await _dio.post<Object?>(
-      path,
-      data: formData,
-      options: Options(
-        responseType: ResponseType.json,
-        contentType: 'multipart/form-data',
-      ),
-    );
-    return _decodeMap(response, path);
+    try {
+      final response = await _dio.post<Object?>(
+        path,
+        data: formData,
+        options: Options(
+          responseType: ResponseType.json,
+          contentType: 'multipart/form-data',
+        ),
+      );
+      return _decodeMap(response, path);
+    } on DioException catch (error) {
+      throw ApiError.fromDioException(error);
+    }
   }
 
   Future<Map<String, Object?>> patchJson(String path, {Object? body}) async {
-    final response = await _dio.patch<Object?>(
-      path,
-      data: body ?? <String, Object?>{},
-      options: Options(responseType: ResponseType.json),
-    );
-    return _decodeMap(response, path);
+    try {
+      final response = await _dio.patch<Object?>(
+        path,
+        data: body ?? <String, Object?>{},
+        options: Options(responseType: ResponseType.json),
+      );
+      return _decodeMap(response, path);
+    } on DioException catch (error) {
+      throw ApiError.fromDioException(error);
+    }
   }
 
-  Future<Map<String, Object?>> deleteJson(String path) async {
-    final response = await _dio.delete<Object?>(
-      path,
-      options: Options(responseType: ResponseType.json),
-    );
-    return _decodeMap(response, path);
+  Future<Map<String, Object?>> deleteJson(
+    String path, {
+    Map<String, Object?>? query,
+  }) async {
+    try {
+      final response = await _dio.delete<Object?>(
+        path,
+        queryParameters: query,
+        options: Options(responseType: ResponseType.json),
+      );
+      return _decodeMap(response, path);
+    } on DioException catch (error) {
+      throw ApiError.fromDioException(error);
+    }
   }
 
   Map<String, Object?> _decodeMap(Response<Object?> response, String path) {

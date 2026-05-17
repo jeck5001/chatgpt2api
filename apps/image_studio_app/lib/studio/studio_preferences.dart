@@ -4,6 +4,10 @@ const String _kPrefModel = 'studio.default_model';
 const String _kPrefSize = 'studio.default_size';
 const String _kPrefCount = 'studio.default_count';
 const String _kPrefAutoFavorite = 'studio.auto_favorite';
+const String _kPrefAccent = 'studio.accent';
+const String _kPrefLibraryNewestFirst = 'studio.library_newest_first';
+
+const Set<String> kSupportedAccents = {'ember', 'sage', 'indigo', 'slate'};
 
 class StudioPreferences {
   const StudioPreferences({
@@ -11,24 +15,32 @@ class StudioPreferences {
     this.defaultSize = '1024x1024',
     this.defaultCount = 1,
     this.autoFavorite = false,
+    this.accent = 'ember',
+    this.libraryNewestFirst = true,
   });
 
   final String defaultModel;
   final String defaultSize;
   final int defaultCount;
   final bool autoFavorite;
+  final String accent;
+  final bool libraryNewestFirst;
 
   StudioPreferences copyWith({
     String? defaultModel,
     String? defaultSize,
     int? defaultCount,
     bool? autoFavorite,
+    String? accent,
+    bool? libraryNewestFirst,
   }) {
     return StudioPreferences(
       defaultModel: defaultModel ?? this.defaultModel,
       defaultSize: defaultSize ?? this.defaultSize,
       defaultCount: defaultCount ?? this.defaultCount,
       autoFavorite: autoFavorite ?? this.autoFavorite,
+      accent: accent ?? this.accent,
+      libraryNewestFirst: libraryNewestFirst ?? this.libraryNewestFirst,
     );
   }
 }
@@ -46,6 +58,7 @@ class SharedPreferencesStudioPreferencesStore
 
   @override
   Future<StudioPreferences> read() async {
+    final accent = _prefs.getString(_kPrefAccent);
     return StudioPreferences(
       defaultModel:
           _prefs.getString(_kPrefModel) ??
@@ -55,6 +68,12 @@ class SharedPreferencesStudioPreferencesStore
       defaultCount:
           _prefs.getInt(_kPrefCount) ?? const StudioPreferences().defaultCount,
       autoFavorite: _prefs.getBool(_kPrefAutoFavorite) ?? false,
+      accent: kSupportedAccents.contains(accent)
+          ? accent!
+          : const StudioPreferences().accent,
+      libraryNewestFirst:
+          _prefs.getBool(_kPrefLibraryNewestFirst) ??
+          const StudioPreferences().libraryNewestFirst,
     );
   }
 
@@ -65,6 +84,8 @@ class SharedPreferencesStudioPreferencesStore
       _prefs.setString(_kPrefSize, preferences.defaultSize),
       _prefs.setInt(_kPrefCount, preferences.defaultCount),
       _prefs.setBool(_kPrefAutoFavorite, preferences.autoFavorite),
+      _prefs.setString(_kPrefAccent, preferences.accent),
+      _prefs.setBool(_kPrefLibraryNewestFirst, preferences.libraryNewestFirst),
     ]);
   }
 }
