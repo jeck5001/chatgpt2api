@@ -107,6 +107,55 @@ class LogService:
         self.path.write_text(content, encoding="utf-8")
         return {"removed": removed}
 
+    def delete_by_image_paths(self, paths: list[str]) -> dict[str, int]:
+        targets = {
+            str(item or "").strip().lstrip("/")
+            for item in paths
+            if str(item or "").strip()
+        }
+        if not self.path.exists() or not targets:
+            return {"removed": 0}
+        lines = self.path.read_text(encoding="utf-8").splitlines()
+        kept_lines: list[str] = []
+        removed = 0
+        for line_number, raw_line in enumerate(lines):
+            item = self._parse_line(raw_line, line_number)
+            if item is None:
+                kept_lines.append(raw_line)
+                continue
+            if self._entry_references_any(item, targets):
+                removed += 1
+                continue
+            kept_lines.append(self._serialize_item(item))
+        content = "\n".join(kept_lines)
+        if content:
+            content += "\n"
+        self.path.write_text(content, encoding="utf-8")
+        return {"removed": removed}
+
+    @staticmethod
+    def _entry_references_any(item: dict[str, Any], targets: set[str]) -> bool:
+        detail = item.get("detail")
+        if not isinstance(detail, dict):
+            return False
+        urls = detail.get("urls")
+        if not isinstance(urls, list):
+            return False
+        marker = "/images/"
+        for url in urls:
+            if not isinstance(url, str):
+                continue
+            idx = url.find(marker)
+            if idx < 0:
+                continue
+            tail = url[idx + len(marker):].lstrip("/")
+            for sep in ("?", "#"):
+                if sep in tail:
+                    tail = tail.split(sep, 1)[0]
+            if tail in targets:
+                return True
+        return False
+
 
 log_service = LogService(DATA_DIR / "logs.jsonl")
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 
 import '../app/tokens.dart';
+import '../app/typography.dart';
 import '../shared/components/chip_bar.dart';
 import '../shared/components/section_header.dart';
 import '../shared/empty_state.dart';
@@ -38,6 +39,20 @@ class LibraryScreen extends StatefulWidget {
 class _LibraryScreenState extends State<LibraryScreen> {
   String _activeFilter = 'all';
   late bool _newestFirst = widget.initialNewestFirst;
+  late final TextEditingController _searchController;
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void didUpdateWidget(covariant LibraryScreen oldWidget) {
@@ -53,19 +68,42 @@ class _LibraryScreenState extends State<LibraryScreen> {
     widget.onSortChanged?.call(next);
   }
 
+  void _onSearchChanged(String value) {
+    final next = value.trim();
+    if (next == _searchQuery) return;
+    setState(() => _searchQuery = next);
+  }
+
+  void _clearSearch() {
+    if (_searchQuery.isEmpty && _searchController.text.isEmpty) return;
+    _searchController.clear();
+    setState(() => _searchQuery = '');
+  }
+
+  bool _matches(StudioFavorite favorite, String needle) {
+    if (needle.isEmpty) return true;
+    return favorite.prompt.toLowerCase().contains(needle);
+  }
+
   @override
   Widget build(BuildContext context) {
     final all = widget.favorites;
-    final filtered = switch (_activeFilter) {
+    final needle = _searchQuery.toLowerCase();
+    final filteredByChip = switch (_activeFilter) {
       'favorites' => all, // every item in the favorites list is favorited
       _ => all,
     };
-    final visible = List<StudioFavorite>.of(filtered)
-      ..sort((a, b) {
-        return _newestFirst
-            ? b.createdAt.compareTo(a.createdAt)
-            : a.createdAt.compareTo(b.createdAt);
-      });
+    final visible =
+        List<StudioFavorite>.of(filteredByChip.where((f) => _matches(f, needle)))
+          ..sort((a, b) {
+            return _newestFirst
+                ? b.createdAt.compareTo(a.createdAt)
+                : a.createdAt.compareTo(b.createdAt);
+          });
+    final searching = _searchQuery.isNotEmpty;
+    final subtitle = searching
+        ? '搜索 “$_searchQuery” · 命中 ${visible.length} / ${all.length}'
+        : '${all.length} 张作品 · ${_favoriteCount(all)} 个收藏';
 
     return Scaffold(
       body: SafeArea(
@@ -76,7 +114,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
             SectionHeader.large(
               kicker: '05 · 图库',
               title: '图库',
-              subtitle: '${all.length} 张作品 · ${_favoriteCount(all)} 个收藏',
+              subtitle: subtitle,
+            ),
+            const SizedBox(height: KilnSpacing.sm),
+            Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: KilnSpacing.sm + 2,
+              ),
+              child: _LibrarySearchField(
+                controller: _searchController,
+                onChanged: _onSearchChanged,
+                onClear: _clearSearch,
+                hasQuery: searching,
+              ),
             ),
             const SizedBox(height: KilnSpacing.sm),
             KilnChipBar(
@@ -103,10 +153,12 @@ class _LibraryScreenState extends State<LibraryScreen> {
             const SizedBox(height: KilnSpacing.sm),
             Expanded(
               child: visible.isEmpty
-                  ? const EmptyState(
+                  ? EmptyState(
                       title: '图库',
-                      accent: '空空如也',
-                      message: '完成第一张作品，它就会出现在这里。',
+                      accent: searching ? '没找到' : '空空如也',
+                      message: searching
+                          ? '换个关键词试试，或清空搜索看看所有作品。'
+                          : '完成第一张作品，它就会出现在这里。',
                     )
                   : _Masonry(
                       items: visible,
@@ -129,6 +181,67 @@ class _LibraryScreenState extends State<LibraryScreen> {
     messenger
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _LibrarySearchField extends StatelessWidget {
+  const _LibrarySearchField({
+    required this.controller,
+    required this.onChanged,
+    required this.onClear,
+    required this.hasQuery,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onClear;
+  final bool hasQuery;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: KilnColors.ink800,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: KilnSpacing.sm),
+      child: Row(
+        children: [
+          Icon(Icons.search, size: 18, color: KilnColors.ink500),
+          const SizedBox(width: KilnSpacing.xs),
+          Expanded(
+            child: TextField(
+              controller: controller,
+              onChanged: onChanged,
+              textInputAction: TextInputAction.search,
+              style: KilnTypography.ui(size: 14),
+              cursorColor: KilnColors.ember500,
+              decoration: InputDecoration(
+                isCollapsed: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                hintText: '搜索 prompt',
+                hintStyle: KilnTypography.ui(
+                  size: 14,
+                  color: KilnColors.ink500,
+                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                filled: false,
+              ),
+            ),
+          ),
+          if (hasQuery)
+            IconButton(
+              icon: Icon(Icons.close, size: 16, color: KilnColors.ink500),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              tooltip: '清除',
+              onPressed: onClear,
+            ),
+        ],
+      ),
+    );
   }
 }
 

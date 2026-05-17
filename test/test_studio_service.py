@@ -35,7 +35,7 @@ ADMIN = {"id": "admin-1", "name": "Admin", "role": "admin"}
 
 
 class StudioServiceTests(unittest.TestCase):
-    def make_service(self, *, purge_files=None, forget_tasks=None):
+    def make_service(self, *, purge_files=None, forget_tasks=None, forget_logs=None):
         with tempfile.TemporaryDirectory() as tmp_dir:
             path = Path(tmp_dir)
             storage = JSONStorageBackend(path / "accounts.json", path / "auth_keys.json", path / "studio.json")
@@ -44,6 +44,7 @@ class StudioServiceTests(unittest.TestCase):
                     storage,
                     purge_files=purge_files,
                     forget_tasks=forget_tasks,
+                    forget_logs=forget_logs,
                 ),
                 storage,
                 path,
@@ -96,6 +97,71 @@ class StudioServiceTests(unittest.TestCase):
 
         self.assertEqual(first["id"], second["id"])
         self.assertEqual(len(service.list_favorites(OWNER)), 1)
+
+    def test_list_favorites_includes_prompt_joined_from_source_turn(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn_with_path = service.create_turn(
+            OWNER,
+            conversation["id"],
+            prompt="orange product photo",
+            result_images=[{"path": "2026/05/orange.png"}],
+        )
+
+        service.add_favorite(
+            OWNER,
+            "2026/05/orange.png",
+            source_turn_id=turn_with_path["id"],
+        )
+        service.add_favorite(OWNER, "2026/05/orphan.png")
+
+        favorites = service.list_favorites(OWNER)
+
+        prompt_map = {fav["image_path"]: fav.get("prompt", "") for fav in favorites}
+        self.assertEqual(prompt_map["2026/05/orange.png"], "orange product photo")
+        self.assertEqual(prompt_map["2026/05/orphan.png"], "")
+
+    def test_add_favorite_returns_prompt_for_visible_turn(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            prompt="mint product photo",
+            result_images=[{"path": "2026/05/mint.png"}],
+        )
+
+        favorite = service.add_favorite(
+            OWNER,
+            "2026/05/mint.png",
+            source_turn_id=turn["id"],
+        )
+
+        self.assertEqual(favorite["prompt"], "mint product photo")
+
+    def test_list_favorites_hides_prompt_from_other_users_turns(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
+        owner_turn = service.create_turn(
+            OWNER,
+            conversation["id"],
+            prompt="owner's secret prompt",
+            result_images=[{"path": "2026/05/secret.png"}],
+        )
+        # Another user favorites the same image path. They should not see
+        # the prompt from the owner's private turn.
+        service.add_favorite(
+            OTHER_OWNER,
+            "2026/05/secret.png",
+            source_turn_id=owner_turn["id"],
+        )
+
+        favorites = service.list_favorites(OTHER_OWNER)
+
+        self.assertEqual(favorites[0]["prompt"], "")
 
     def test_create_turn_copies_caller_reference_images(self):
         service, _storage, _path = self.make_service()
@@ -502,9 +568,11 @@ class StudioServiceTests(unittest.TestCase):
     def test_delete_conversation_purges_image_files_and_tasks_when_requested(self):
         purged_files: list[list[str]] = []
         forgotten_tasks: list[tuple[dict, list[str]]] = []
+        forgotten_logs: list[list[str]] = []
         service, _storage, _path = self.make_service(
             purge_files=lambda paths: purged_files.append(list(paths)),
             forget_tasks=lambda identity, ids: forgotten_tasks.append((identity, list(ids))),
+            forget_logs=lambda paths: forgotten_logs.append(list(paths)),
         )
         project = service.create_project(OWNER, "Spring")
         conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")
@@ -535,6 +603,10 @@ class StudioServiceTests(unittest.TestCase):
         )
         self.assertEqual(sorted(forgotten_tasks[0][1]), ["task-1", "task-2"])
         self.assertEqual(forgotten_tasks[0][0]["id"], OWNER["id"])
+        self.assertEqual(
+            sorted(forgotten_logs[0]),
+            ["2026/05/cat-2.png", "2026/05/cat.png", "2026/05/dog.png"],
+        )
 
     def test_delete_conversation_with_purge_swallows_purge_errors(self):
         def raise_purge(_paths):
@@ -543,9 +615,13 @@ class StudioServiceTests(unittest.TestCase):
         def raise_forget(_identity, _ids):
             raise RuntimeError("task store offline")
 
+        def raise_logs(_paths):
+            raise RuntimeError("log store offline")
+
         service, _storage, _path = self.make_service(
             purge_files=raise_purge,
             forget_tasks=raise_forget,
+            forget_logs=raise_logs,
         )
         project = service.create_project(OWNER, "Spring")
         conversation = service.create_conversation(OWNER, project["id"], "Hero", "generate")

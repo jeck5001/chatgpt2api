@@ -131,6 +131,14 @@ def _default_forget_tasks(identity: dict[str, object], task_ids: list[str]) -> N
     image_task_service.forget_tasks(identity, task_ids)
 
 
+def _default_forget_logs(paths: list[str]) -> None:
+    if not paths:
+        return
+    from services.log_service import log_service
+
+    log_service.delete_by_image_paths(paths)
+
+
 class StudioService:
     def __init__(
         self,
@@ -138,10 +146,12 @@ class StudioService:
         *,
         purge_files: Callable[[list[str]], None] | None = None,
         forget_tasks: Callable[[dict[str, object], list[str]], None] | None = None,
+        forget_logs: Callable[[list[str]], None] | None = None,
     ):
         self.storage = storage
         self._purge_files = purge_files or _default_purge_files
         self._forget_tasks = forget_tasks or _default_forget_tasks
+        self._forget_logs = forget_logs or _default_forget_logs
         self._lock = RLock()
         self._state = self._normalize_state(self.storage.load_studio_state())
 
@@ -451,6 +461,10 @@ class StudioService:
                 self._purge_files(image_paths)
             except Exception:
                 pass
+            try:
+                self._forget_logs(image_paths)
+            except Exception:
+                pass
         if task_ids:
             try:
                 self._forget_tasks(identity, task_ids)
@@ -646,7 +660,7 @@ class StudioService:
         with self._lock:
             for item in self._state["favorites"]:
                 if item.get("owner_id") == owner and item.get("image_path") == normalized_path:
-                    return _public(item)
+                    return self._favorite_with_prompt(identity, item)
             before = deepcopy(self._state)
             item = {
                 "id": _id("favorite"),
@@ -658,12 +672,41 @@ class StudioService:
             }
             self._state["favorites"].append(item)
             self._rollback_save_locked(before)
-            return _public(item)
+            return self._favorite_with_prompt(identity, item)
+
+    def _favorite_with_prompt(
+        self, identity: dict[str, object], item: dict[str, Any]
+    ) -> dict[str, Any]:
+        result = _public(item)
+        source_turn_id = _clean(result.get("source_turn_id"))
+        if not source_turn_id:
+            result["prompt"] = ""
+            return result
+        prompts = self._turn_prompt_index(identity)
+        result["prompt"] = prompts.get(source_turn_id, "")
+        return result
 
     def list_favorites(self, identity: dict[str, object]) -> list[dict[str, Any]]:
         with self._lock:
             items = self._visible(identity, self._state["favorites"])
+            prompts = self._turn_prompt_index(identity)
+            for item in items:
+                source_turn_id = _clean(item.get("source_turn_id"))
+                item["prompt"] = prompts.get(source_turn_id, "")
             return sorted(items, key=lambda item: str(item.get("created_at") or ""), reverse=True)
+
+    def _turn_prompt_index(self, identity: dict[str, object]) -> dict[str, str]:
+        is_admin = _is_admin(identity)
+        owner = _owner_id(identity)
+        index: dict[str, str] = {}
+        for turn in self._state["turns"]:
+            turn_id = _clean(turn.get("id"))
+            if not turn_id:
+                continue
+            if not is_admin and _clean(turn.get("owner_id")) != owner:
+                continue
+            index[turn_id] = _clean(turn.get("prompt"))
+        return index
 
     def delete_favorite(self, identity: dict[str, object], favorite_id: str) -> bool:
         with self._lock:

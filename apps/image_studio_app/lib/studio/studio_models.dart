@@ -141,12 +141,14 @@ class StudioFavorite {
     required this.imagePath,
     required this.sourceTurnId,
     required this.createdAt,
+    this.prompt = '',
   });
 
   final String id;
   final String imagePath;
   final String sourceTurnId;
   final DateTime createdAt;
+  final String prompt;
 
   factory StudioFavorite.fromJson(Map<String, Object?> json) {
     return StudioFavorite(
@@ -154,6 +156,7 @@ class StudioFavorite {
       imagePath: json['image_path'].toString(),
       sourceTurnId: (json['source_turn_id'] ?? '').toString(),
       createdAt: DateTime.parse(json['created_at'].toString()),
+      prompt: (json['prompt'] ?? '').toString(),
     );
   }
 }
