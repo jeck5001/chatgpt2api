@@ -113,20 +113,38 @@ class _LibraryScreenState extends State<LibraryScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SectionHeader.large(
-              kicker: '05 · 图库',
+              kicker: '05 · GALLERY',
               title: '图库',
               subtitle: subtitle,
             ),
             const SizedBox(height: KilnSpacing.sm),
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: KilnSpacing.sm + 2,
-              ),
-              child: _LibrarySearchField(
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-                onClear: _clearSearch,
-                hasQuery: searching,
+              padding: const EdgeInsets.symmetric(horizontal: KilnSpacing.md),
+              child: Container(
+                padding: const EdgeInsets.all(KilnSpacing.sm),
+                decoration: BoxDecoration(
+                  color: KilnColors.ink900,
+                  borderRadius: BorderRadius.circular(KilnRadii.card),
+                  border: Border.all(color: KilnColors.hairline),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '继续浏览你保存下来的作品、变体和灵感结果。',
+                      style: KilnTypography.bodyS.copyWith(
+                        color: KilnColors.ink300,
+                      ),
+                    ),
+                    const SizedBox(height: KilnSpacing.sm),
+                    _LibrarySearchField(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                      onClear: _clearSearch,
+                      hasQuery: searching,
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: KilnSpacing.sm),

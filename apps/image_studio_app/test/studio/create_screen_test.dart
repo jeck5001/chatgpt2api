@@ -77,8 +77,9 @@ void main() {
       MaterialApp(home: CreateScreen(controller: controller)),
     );
 
-    expect(find.byType(Image), findsOneWidget);
+    expect(find.byType(Image), findsAtLeastNWidgets(1));
     expect(find.text('beautiful landscape'), findsOneWidget);
+    expect(find.text('查看作品'), findsOneWidget);
   });
 
   testWidgets('tapping a result image opens the preview viewer', (
@@ -111,11 +112,42 @@ void main() {
       MaterialApp(home: CreateScreen(controller: controller)),
     );
 
-    await tester.tap(find.byType(Image));
+    await tester.tap(find.byType(Image).first);
     await tester.pumpAndSettle();
 
     // Viewer route is pushed — confirm we left the studio composer behind.
     expect(find.byKey(_submitKey), findsNothing);
+  });
+
+  testWidgets('success turns expose a detail entry point', (tester) async {
+    final controller = StudioController(FakeStudioRepository());
+    controller.replaceTurns([
+      StudioTurn(
+        id: 'turn-success',
+        conversationId: 'conversation-1',
+        clientTaskId: 'task-success',
+        taskId: 'task-success',
+        mode: StudioTurnMode.generate,
+        prompt: 'beautiful landscape',
+        model: 'gpt-image-2',
+        size: '1024x1024',
+        resultImages: [
+          StudioResultImage(
+            url: Uri.parse('http://example.test/images/landscape.png'),
+            path: '2026/05/landscape.png',
+          ),
+        ],
+        status: StudioTurnStatus.success,
+        error: '',
+        updatedAt: DateTime.utc(2026, 5, 13),
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(home: CreateScreen(controller: controller)),
+    );
+
+    expect(find.text('详情'), findsOneWidget);
   });
 
   testWidgets('renders shimmer placeholders for running turns', (tester) async {

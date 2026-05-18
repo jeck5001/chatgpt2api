@@ -46,7 +46,7 @@ class StudioSessionScreen extends StatefulWidget {
 class _StudioSessionScreenState extends State<StudioSessionScreen> {
   late final Future<void> _loadFuture;
   late final StudioImageSaver _imageSaver;
-  int _selectedIndex = 0;
+  int _selectedIndex = 1;
 
   @override
   void initState() {
