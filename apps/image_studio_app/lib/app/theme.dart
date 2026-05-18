@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'accent.dart';
 import 'tokens.dart';
 import 'typography.dart';
 
@@ -9,14 +10,21 @@ import 'typography.dart';
 /// Pulls every color, radius, shadow, and font from [KilnColors], [KilnRadii],
 /// [KilnShadows], and [KilnTypography]. Adjust those token files to retune
 /// the app's look; this file should rarely need to change.
-ThemeData buildImageStudioTheme() {
-  final scheme = const ColorScheme.dark(
-    primary: KilnColors.ember500,
-    onPrimary: Color(0xFF1A0E04),
-    primaryContainer: KilnColors.ember700,
-    onPrimaryContainer: KilnColors.ember300,
-    secondary: KilnColors.ember400,
-    onSecondary: Color(0xFF1A0E04),
+///
+/// The accent-colored bits (primary, focus rings, selected indicators) come
+/// from [palette]. Defaults to the ember palette so callers outside the
+/// signed-in studio (login, onboarding) still see the brand color.
+ThemeData buildImageStudioTheme({
+  KilnAccentPalette palette = KilnAccentPalette.ember,
+}) {
+  final selectedTint = palette.shade500.withValues(alpha: 0.12);
+  final scheme = ColorScheme.dark(
+    primary: palette.shade500,
+    onPrimary: const Color(0xFF1A0E04),
+    primaryContainer: palette.shade700,
+    onPrimaryContainer: palette.shade300,
+    secondary: palette.shade400,
+    onSecondary: const Color(0xFF1A0E04),
     surface: KilnColors.ink900,
     onSurface: KilnColors.ink100,
     surfaceContainerLowest: KilnColors.ink950,
@@ -28,7 +36,7 @@ ThemeData buildImageStudioTheme() {
     outline: KilnColors.ink600,
     outlineVariant: KilnColors.ink700,
     error: KilnColors.danger,
-    onError: Color(0xFF1A0807),
+    onError: const Color(0xFF1A0807),
   );
 
   return ThemeData(
@@ -70,7 +78,7 @@ ThemeData buildImageStudioTheme() {
       hintStyle: KilnTypography.ui(color: KilnColors.ink500),
       labelStyle: KilnTypography.label,
       floatingLabelStyle: KilnTypography.label.copyWith(
-        color: KilnColors.ember400,
+        color: palette.shade400,
       ),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: KilnSpacing.md,
@@ -86,7 +94,7 @@ ThemeData buildImageStudioTheme() {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(KilnRadii.input),
-        borderSide: const BorderSide(color: KilnColors.ember500, width: 1.5),
+        borderSide: BorderSide(color: palette.shade500, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(KilnRadii.input),
@@ -95,7 +103,7 @@ ThemeData buildImageStudioTheme() {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: KilnColors.ember500,
+        backgroundColor: palette.shade500,
         foregroundColor: const Color(0xFF1A0E04),
         minimumSize: const Size(0, 48),
         padding: const EdgeInsets.symmetric(horizontal: KilnSpacing.xl),
@@ -137,7 +145,7 @@ ThemeData buildImageStudioTheme() {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
-        foregroundColor: KilnColors.ember400,
+        foregroundColor: palette.shade400,
         textStyle: KilnTypography.ui(size: 14, weight: FontWeight.w600),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(KilnRadii.button),
@@ -155,10 +163,10 @@ ThemeData buildImageStudioTheme() {
     ),
     chipTheme: ChipThemeData(
       backgroundColor: KilnColors.ink800,
-      selectedColor: const Color(0x1FE8A84A),
+      selectedColor: selectedTint,
       labelStyle: KilnTypography.chipMono,
       secondaryLabelStyle: KilnTypography.chipMono.copyWith(
-        color: KilnColors.ember400,
+        color: palette.shade400,
       ),
       side: const BorderSide(color: KilnColors.hairlineStrong),
       shape: const StadiumBorder(),
@@ -166,20 +174,20 @@ ThemeData buildImageStudioTheme() {
     ),
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: KilnColors.ink900,
-      indicatorColor: const Color(0x1FE8A84A),
+      indicatorColor: selectedTint,
       surfaceTintColor: Colors.transparent,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return KilnTypography.ui(
           size: 11,
           weight: FontWeight.w600,
-          color: selected ? KilnColors.ember400 : KilnColors.ink400,
+          color: selected ? palette.shade400 : KilnColors.ink400,
         );
       }),
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
-          color: selected ? KilnColors.ember400 : KilnColors.ink400,
+          color: selected ? palette.shade400 : KilnColors.ink400,
           size: 22,
         );
       }),
@@ -187,9 +195,9 @@ ThemeData buildImageStudioTheme() {
     ),
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: KilnColors.ink900,
-      indicatorColor: const Color(0x1FE8A84A),
-      selectedIconTheme: const IconThemeData(
-        color: KilnColors.ember400,
+      indicatorColor: selectedTint,
+      selectedIconTheme: IconThemeData(
+        color: palette.shade400,
         size: 24,
       ),
       unselectedIconTheme: const IconThemeData(
@@ -199,7 +207,7 @@ ThemeData buildImageStudioTheme() {
       selectedLabelTextStyle: KilnTypography.ui(
         size: 12,
         weight: FontWeight.w600,
-        color: KilnColors.ember400,
+        color: palette.shade400,
       ),
       unselectedLabelTextStyle: KilnTypography.ui(
         size: 12,
@@ -215,16 +223,16 @@ ThemeData buildImageStudioTheme() {
         side: const BorderSide(color: KilnColors.hairline),
       ),
     ),
-    progressIndicatorTheme: const ProgressIndicatorThemeData(
-      color: KilnColors.ember500,
+    progressIndicatorTheme: ProgressIndicatorThemeData(
+      color: palette.shade500,
       linearTrackColor: KilnColors.ink700,
       circularTrackColor: KilnColors.ink700,
     ),
     sliderTheme: SliderThemeData(
-      activeTrackColor: KilnColors.ember500,
+      activeTrackColor: palette.shade500,
       inactiveTrackColor: KilnColors.ink700,
-      thumbColor: KilnColors.ember400,
-      overlayColor: const Color(0x33E8A84A),
+      thumbColor: palette.shade400,
+      overlayColor: palette.glow,
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) {
@@ -234,7 +242,7 @@ ThemeData buildImageStudioTheme() {
       }),
       trackColor: WidgetStateProperty.resolveWith((states) {
         return states.contains(WidgetState.selected)
-            ? KilnColors.ember500
+            ? palette.shade500
             : KilnColors.ink700;
       }),
       trackOutlineColor: WidgetStateProperty.all(Colors.transparent),

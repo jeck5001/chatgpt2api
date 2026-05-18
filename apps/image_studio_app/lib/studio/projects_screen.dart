@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../app/accent.dart';
 import '../app/tokens.dart';
 import '../app/typography.dart';
+import '../shared/components/press_scale.dart';
 import '../shared/components/section_header.dart';
 import '../shared/empty_state.dart';
 import 'studio_models.dart';
@@ -348,93 +350,96 @@ class _CoverCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: KilnColors.ink800,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Placeholder gradient background; real cover image would be
-            // sourced from the project's latest result image.
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    KilnColors.ember500.withValues(alpha: 0.20),
-                    KilnColors.ember700.withValues(alpha: 0.10),
-                    KilnColors.ink900,
-                  ],
-                  stops: const [0.0, 0.6, 1.0],
+    final palette = KilnThemeScope.of(context);
+    return PressScale(
+      child: Material(
+        color: KilnColors.ink800,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Placeholder gradient background; real cover image would be
+              // sourced from the project's latest result image.
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      palette.shade500.withValues(alpha: 0.20),
+                      palette.shade700.withValues(alpha: 0.10),
+                      KilnColors.ink900,
+                    ],
+                    stops: const [0.0, 0.6, 1.0],
+                  ),
                 ),
               ),
-            ),
-            const Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(gradient: KilnGradients.coverOverlay),
+              const Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(gradient: KilnGradients.coverOverlay),
+                ),
               ),
-            ),
-            if (isActive)
+              if (isActive)
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '进行中',
+                      style: KilnTypography.mono(
+                        size: 9,
+                        color: palette.shade400,
+                        letterSpacing: 1.8,
+                        weight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
               Positioned(
-                top: 10,
-                left: 10,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    '进行中',
-                    style: KilnTypography.mono(
-                      size: 9,
-                      color: KilnColors.ember400,
-                      letterSpacing: 1.8,
-                      weight: FontWeight.w500,
+                left: 14,
+                right: 14,
+                bottom: 14,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      project.name,
+                      style: KilnTypography.display(
+                        size: 18,
+                        weight: FontWeight.w500,
+                        color: Colors.white,
+                        letterSpacing: -0.1,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$conversationsCount 个会话',
+                      style: KilnTypography.mono(
+                        size: 10,
+                        color: Colors.white.withValues(alpha: 0.65),
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            Positioned(
-              left: 14,
-              right: 14,
-              bottom: 14,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    project.name,
-                    style: KilnTypography.display(
-                      size: 18,
-                      weight: FontWeight.w500,
-                      color: Colors.white,
-                      letterSpacing: -0.1,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '$conversationsCount 个会话',
-                    style: KilnTypography.mono(
-                      size: 10,
-                      color: Colors.white.withValues(alpha: 0.65),
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -456,77 +461,82 @@ class _ConversationRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: isActive ? KilnColors.ink800 : KilnColors.ink900,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
+    final palette = KilnThemeScope.of(context);
+    return PressScale(
+      child: Material(
+        color: isActive ? KilnColors.ink800 : KilnColors.ink900,
         borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: KilnSpacing.sm + 2,
-            vertical: KilnSpacing.sm + 2,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isActive ? const Color(0x33E8A84A) : KilnColors.hairline,
-              width: 1,
+        child: InkWell(
+          onTap: onTap,
+          onLongPress: onLongPress,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: KilnSpacing.sm + 2,
+              vertical: KilnSpacing.sm + 2,
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? const Color(0x1FE8A84A)
-                      : KilnColors.overlayWeak,
-                  borderRadius: BorderRadius.circular(KilnRadii.md),
-                ),
-                alignment: Alignment.center,
-                child: Icon(
-                  conversation.mode == StudioTurnMode.edit
-                      ? Icons.brush_outlined
-                      : Icons.auto_awesome_outlined,
-                  size: 16,
-                  color: isActive ? KilnColors.ember400 : KilnColors.ink400,
-                ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: isActive
+                    ? palette.shade500.withValues(alpha: 0.2)
+                    : KilnColors.hairline,
+                width: 1,
               ),
-              const SizedBox(width: KilnSpacing.sm + 2),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      conversation.title,
-                      style: KilnTypography.ui(
-                        size: 14,
-                        weight: FontWeight.w500,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      _formatTime(conversation.updatedAt),
-                      style: KilnTypography.metaMono,
-                    ),
-                  ],
-                ),
-              ),
-              if (isActive)
-                const Padding(
-                  padding: EdgeInsets.only(left: KilnSpacing.xs),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? palette.shade500.withValues(alpha: 0.12)
+                        : KilnColors.overlayWeak,
+                    borderRadius: BorderRadius.circular(KilnRadii.md),
+                  ),
+                  alignment: Alignment.center,
                   child: Icon(
-                    Icons.chevron_right_rounded,
-                    size: 18,
-                    color: KilnColors.ember400,
+                    conversation.mode == StudioTurnMode.edit
+                        ? Icons.brush_outlined
+                        : Icons.auto_awesome_outlined,
+                    size: 16,
+                    color: isActive ? palette.shade400 : KilnColors.ink400,
                   ),
                 ),
-            ],
+                const SizedBox(width: KilnSpacing.sm + 2),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        conversation.title,
+                        style: KilnTypography.ui(
+                          size: 14,
+                          weight: FontWeight.w500,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatTime(conversation.updatedAt),
+                        style: KilnTypography.metaMono,
+                      ),
+                    ],
+                  ),
+                ),
+                if (isActive)
+                  Padding(
+                    padding: const EdgeInsets.only(left: KilnSpacing.xs),
+                    child: Icon(
+                      Icons.chevron_right_rounded,
+                      size: 18,
+                      color: palette.shade400,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app/accent.dart';
 import '../app/tokens.dart';
 import '../app/typography.dart';
 
@@ -29,21 +30,22 @@ class ComposerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = KilnThemeScope.of(context);
     return Container(
       decoration: BoxDecoration(
         color: KilnColors.ink900.withValues(alpha: 0.92),
         borderRadius: BorderRadius.circular(KilnRadii.xl),
         border: Border.all(color: KilnColors.hairlineStrong, width: 1),
-        boxShadow: const [
-          BoxShadow(
+        boxShadow: [
+          const BoxShadow(
             color: Color(0x99000000),
             blurRadius: 50,
             offset: Offset(0, 20),
           ),
           BoxShadow(
-            color: Color(0x0FE8A84A),
+            color: palette.shade500.withValues(alpha: 0.06),
             blurRadius: 1,
-            offset: Offset(0, 0),
+            offset: const Offset(0, 0),
             spreadRadius: 1,
           ),
         ],
@@ -67,7 +69,7 @@ class ComposerBar extends StatelessWidget {
                   maxLines: 5,
                   textInputAction: TextInputAction.newline,
                   style: KilnTypography.ui(size: 14),
-                  cursorColor: KilnColors.ember500,
+                  cursorColor: palette.shade500,
                   decoration: InputDecoration(
                     hintText: hint,
                     hintStyle: KilnTypography.ui(
@@ -138,10 +140,13 @@ class _ComposerChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = data.active ? const Color(0x1FE8A84A) : KilnColors.ink800;
-    final fg = data.active ? KilnColors.ember400 : KilnColors.ink200;
+    final palette = KilnThemeScope.of(context);
+    final bg = data.active
+        ? palette.shade500.withValues(alpha: 0.12)
+        : KilnColors.ink800;
+    final fg = data.active ? palette.shade400 : KilnColors.ink200;
     final border = data.active
-        ? const Color(0x4DE8A84A)
+        ? palette.shade500.withValues(alpha: 0.30)
         : KilnColors.hairlineStrong;
     return Material(
       color: Colors.transparent,
@@ -203,6 +208,7 @@ class _SendButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = KilnThemeScope.of(context);
     return AnimatedOpacity(
       duration: KilnMotion.base,
       opacity: enabled ? 1.0 : 0.45,
@@ -213,7 +219,7 @@ class _SendButton extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            gradient: KilnGradients.kiln,
+            gradient: palette.gradient,
             borderRadius: BorderRadius.circular(KilnRadii.button),
             boxShadow: enabled ? KilnShadows.cta : null,
           ),

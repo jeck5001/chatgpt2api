@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_studio_app/app/accent.dart';
 import 'package:image_studio_app/studio/projects_screen.dart';
 import 'package:image_studio_app/studio/studio_models.dart';
 
@@ -108,5 +109,44 @@ void main() {
     await tester.pump();
 
     expect(selectedProjectId, 'project-1');
+  });
+
+  testWidgets('active conversation chevron picks up the accent palette',
+      (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: KilnThemeScope(
+          palette: KilnAccentPalette.sage,
+          child: ProjectsScreen(
+            projects: [
+              StudioProject(
+                id: 'project-1',
+                name: 'Project One',
+                ownerId: 'admin',
+                archived: false,
+                createdAt: DateTime.utc(2026, 5, 12),
+                updatedAt: DateTime.utc(2026, 5, 12),
+              ),
+            ],
+            conversations: [
+              StudioConversation(
+                id: 'conversation-1',
+                projectId: 'project-1',
+                title: 'Session One',
+                mode: StudioTurnMode.generate,
+                updatedAt: DateTime.utc(2026, 5, 12),
+              ),
+            ],
+            activeProjectId: 'project-1',
+            activeConversationId: 'conversation-1',
+          ),
+        ),
+      ),
+    );
+
+    final chevron = tester.widget<Icon>(
+      find.byIcon(Icons.chevron_right_rounded),
+    );
+    expect(chevron.color, KilnAccentPalette.sage.shade400);
   });
 }

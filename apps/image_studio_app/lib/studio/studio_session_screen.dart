@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../app/accent.dart';
+import '../app/theme.dart';
 import '../auth/auth_models.dart';
 import '../library/library_screen.dart';
 import '../settings/settings_screen.dart';
@@ -260,52 +262,63 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
           );
         }
         final state = widget.controller.state;
-        return AdaptiveShell(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: (index) {
-            setState(() {
-              _selectedIndex = index;
-            });
-          },
-          create: CreateScreen(controller: widget.controller),
-          library: LibraryScreen(
-            favorites: state.favorites,
-            baseUrl: widget.controller.imageBaseUrl,
-            onFavorite: _toggleFavorite,
-            onContinueEdit: _openFavoriteInViewer,
-            initialNewestFirst: state.preferences.libraryNewestFirst,
-            onSortChanged: (newestFirst) {
-              widget.controller.updatePreferences(
-                state.preferences.copyWith(libraryNewestFirst: newestFirst),
-              );
-            },
-          ),
-          projects: ProjectsScreen(
-            projects: state.projects,
-            conversations: state.conversations,
-            activeProjectId: state.activeProject?.id,
-            activeConversationId: state.activeConversation?.id,
-            onProjectSelected: (projectId) async {
-              await widget.controller.selectProject(projectId);
-            },
-            onConversationSelected: (conversationId) async {
-              await widget.controller.selectConversation(conversationId);
-            },
-            onCreateProject: _createProject,
-            onRenameProject: _renameProject,
-            onArchiveProject: _archiveProject,
-            onDeleteConversation: _deleteConversation,
-          ),
-          settings: SettingsScreen(
-            preferences: state.preferences,
-            onPreferencesChanged: widget.controller.updatePreferences,
-            onSignOut: widget.onSignOut,
-            onExportFavorites: _exportFavorites,
-            onTapGithub: _openGithub,
-            onTapFeedback: _openFeedback,
-            userName: widget.session?.identity.name,
-            serverUrl: widget.session?.baseUrl.authority,
-            keyActive: widget.session != null,
+        final palette = KilnAccentPalette.forAccent(
+          KilnAccent.fromName(state.preferences.accent),
+        );
+        return KilnThemeScope(
+          palette: palette,
+          child: Theme(
+            data: buildImageStudioTheme(palette: palette),
+            child: AdaptiveShell(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (index) {
+                setState(() {
+                  _selectedIndex = index;
+                });
+              },
+              create: CreateScreen(controller: widget.controller),
+              library: LibraryScreen(
+                favorites: state.favorites,
+                baseUrl: widget.controller.imageBaseUrl,
+                onFavorite: _toggleFavorite,
+                onContinueEdit: _openFavoriteInViewer,
+                initialNewestFirst: state.preferences.libraryNewestFirst,
+                onSortChanged: (newestFirst) {
+                  widget.controller.updatePreferences(
+                    state.preferences.copyWith(
+                      libraryNewestFirst: newestFirst,
+                    ),
+                  );
+                },
+              ),
+              projects: ProjectsScreen(
+                projects: state.projects,
+                conversations: state.conversations,
+                activeProjectId: state.activeProject?.id,
+                activeConversationId: state.activeConversation?.id,
+                onProjectSelected: (projectId) async {
+                  await widget.controller.selectProject(projectId);
+                },
+                onConversationSelected: (conversationId) async {
+                  await widget.controller.selectConversation(conversationId);
+                },
+                onCreateProject: _createProject,
+                onRenameProject: _renameProject,
+                onArchiveProject: _archiveProject,
+                onDeleteConversation: _deleteConversation,
+              ),
+              settings: SettingsScreen(
+                preferences: state.preferences,
+                onPreferencesChanged: widget.controller.updatePreferences,
+                onSignOut: widget.onSignOut,
+                onExportFavorites: _exportFavorites,
+                onTapGithub: _openGithub,
+                onTapFeedback: _openFeedback,
+                userName: widget.session?.identity.name,
+                serverUrl: widget.session?.baseUrl.authority,
+                keyActive: widget.session != null,
+              ),
+            ),
           ),
         );
       },

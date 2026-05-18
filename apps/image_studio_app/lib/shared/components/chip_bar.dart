@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../app/accent.dart';
 import '../../app/tokens.dart';
 import '../../app/typography.dart';
 
@@ -60,10 +61,13 @@ class KilnChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = data.active ? const Color(0x1FE8A84A) : KilnColors.ink800;
-    final fg = data.active ? KilnColors.ember400 : KilnColors.ink200;
+    final palette = KilnThemeScope.of(context);
+    final bg = data.active
+        ? palette.shade500.withValues(alpha: 0.12)
+        : KilnColors.ink800;
+    final fg = data.active ? palette.shade400 : KilnColors.ink200;
     final border = data.active
-        ? const Color(0x4DE8A84A)
+        ? palette.shade500.withValues(alpha: 0.30)
         : KilnColors.hairlineStrong;
     return Material(
       color: Colors.transparent,
@@ -85,8 +89,8 @@ class KilnChip extends StatelessWidget {
                 Container(
                   width: 5,
                   height: 5,
-                  decoration: const BoxDecoration(
-                    color: KilnColors.ember500,
+                  decoration: BoxDecoration(
+                    color: palette.shade500,
                     shape: BoxShape.circle,
                   ),
                 ),
