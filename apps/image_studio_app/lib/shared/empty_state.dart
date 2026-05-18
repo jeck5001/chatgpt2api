@@ -14,6 +14,7 @@ class EmptyState extends StatelessWidget {
     required this.message,
     this.accent,
     this.showLogo = true,
+    this.icon,
   });
 
   /// Headline. Anything inside curly braces "{like this}" is rendered in
@@ -23,8 +24,14 @@ class EmptyState extends StatelessWidget {
   final String? accent;
   final bool showLogo;
 
+  /// Context-specific glyph rendered in place of the kiln crest. Lets
+  /// each empty state feel tailored (search → magnifier, library →
+  /// collections, etc.) without losing the warm tone.
+  final IconData? icon;
+
   @override
   Widget build(BuildContext context) {
+    final showCrest = showLogo && icon == null;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -34,7 +41,10 @@ class EmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (showLogo) ...[
+            if (icon != null) ...[
+              _GlyphHalo(icon: icon!),
+              const SizedBox(height: KilnSpacing.xl),
+            ] else if (showCrest) ...[
               const KilnLogo(size: 64),
               const SizedBox(height: KilnSpacing.xl),
             ],
@@ -85,6 +95,33 @@ class EmptyState extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _GlyphHalo extends StatelessWidget {
+  const _GlyphHalo({required this.icon});
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: KilnColors.ink900,
+        border: Border.all(color: KilnColors.hairlineStrong, width: 1),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x29E8A84A),
+            blurRadius: 22,
+            spreadRadius: 0,
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: 28, color: KilnColors.ember400),
     );
   }
 }

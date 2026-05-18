@@ -20,12 +20,27 @@ class AdaptiveShell extends StatelessWidget {
   final Widget projects;
   final Widget settings;
 
+  Widget _crossFadePage(Widget page) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 240),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, anim) {
+        return FadeTransition(opacity: anim, child: child);
+      },
+      child: KeyedSubtree(
+        key: ValueKey<int>(selectedIndex),
+        child: page,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final pages = [create, library, projects, settings];
     return switch (windowClassOf(context)) {
       WindowClass.compact => Scaffold(
-        body: pages[selectedIndex],
+        body: _crossFadePage(pages[selectedIndex]),
         bottomNavigationBar: NavigationBar(
           selectedIndex: selectedIndex,
           onDestinationSelected: onDestinationSelected,
@@ -74,7 +89,7 @@ class AdaptiveShell extends StatelessWidget {
             ],
           ),
           const VerticalDivider(width: 1),
-          Expanded(child: pages[selectedIndex]),
+          Expanded(child: _crossFadePage(pages[selectedIndex])),
         ],
       ),
       WindowClass.expanded => Row(

@@ -160,6 +160,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       message: searching
                           ? '换个关键词试试，或清空搜索看看所有作品。'
                           : '完成第一张作品，它就会出现在这里。',
+                      icon: searching
+                          ? Icons.search_off_rounded
+                          : Icons.collections_outlined,
                     )
                   : _Masonry(
                       items: visible,

@@ -927,6 +927,7 @@ class _EmptyStudio extends StatelessWidget {
         title: '今天想',
         accent: '画点什么？',
         message: '从一句 prompt 开始。每张图都会留在这段对话里。',
+        icon: Icons.auto_awesome_outlined,
       ),
     );
   }

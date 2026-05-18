@@ -286,6 +286,7 @@ class _EmptyProjects extends StatelessWidget {
             title: '还没有',
             accent: '项目',
             message: '生成第一张图后，它就会自动归到一个项目里。',
+            icon: Icons.folder_open_outlined,
           ),
           if (onCreate != null) ...[
             const SizedBox(height: KilnSpacing.lg),
