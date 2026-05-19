@@ -600,11 +600,7 @@ class _CreateScreenState extends State<CreateScreen> {
   }
 
   Future<String?> _promptForTitle() {
-    return showNamePromptDialog(
-      context,
-      title: '新建会话',
-      hint: '会话标题（可留空）',
-    );
+    return showNamePromptDialog(context, title: '新建会话', hint: '会话标题（可留空）');
   }
 
   @override

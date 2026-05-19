@@ -95,12 +95,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
       _ => all,
     };
     final visible =
-        List<StudioFavorite>.of(filteredByChip.where((f) => _matches(f, needle)))
-          ..sort((a, b) {
-            return _newestFirst
-                ? b.createdAt.compareTo(a.createdAt)
-                : a.createdAt.compareTo(b.createdAt);
-          });
+        List<StudioFavorite>.of(
+          filteredByChip.where((f) => _matches(f, needle)),
+        )..sort((a, b) {
+          return _newestFirst
+              ? b.createdAt.compareTo(a.createdAt)
+              : a.createdAt.compareTo(b.createdAt);
+        });
     final searching = _searchQuery.isNotEmpty;
     final subtitle = searching
         ? '搜索 “$_searchQuery” · 命中 ${visible.length} / ${all.length}'

@@ -20,14 +20,22 @@ void main() {
 
   group('KilnAccentPalette.forAccent', () {
     test('returns the matching palette', () {
-      expect(KilnAccentPalette.forAccent(KilnAccent.ember),
-          same(KilnAccentPalette.ember));
-      expect(KilnAccentPalette.forAccent(KilnAccent.sage),
-          same(KilnAccentPalette.sage));
-      expect(KilnAccentPalette.forAccent(KilnAccent.indigo),
-          same(KilnAccentPalette.indigo));
-      expect(KilnAccentPalette.forAccent(KilnAccent.slate),
-          same(KilnAccentPalette.slate));
+      expect(
+        KilnAccentPalette.forAccent(KilnAccent.ember),
+        same(KilnAccentPalette.ember),
+      );
+      expect(
+        KilnAccentPalette.forAccent(KilnAccent.sage),
+        same(KilnAccentPalette.sage),
+      );
+      expect(
+        KilnAccentPalette.forAccent(KilnAccent.indigo),
+        same(KilnAccentPalette.indigo),
+      );
+      expect(
+        KilnAccentPalette.forAccent(KilnAccent.slate),
+        same(KilnAccentPalette.slate),
+      );
     });
   });
 
@@ -47,20 +55,21 @@ void main() {
       expect(captured, same(KilnAccentPalette.ember));
     });
 
-    testWidgets('returns the active palette and rebuilds on change',
-        (tester) async {
+    testWidgets('returns the active palette and rebuilds on change', (
+      tester,
+    ) async {
       final palettes = <KilnAccentPalette>[];
       Widget host(KilnAccentPalette palette) => MaterialApp(
-            home: KilnThemeScope(
-              palette: palette,
-              child: Builder(
-                builder: (context) {
-                  palettes.add(KilnThemeScope.of(context));
-                  return const SizedBox.shrink();
-                },
-              ),
-            ),
-          );
+        home: KilnThemeScope(
+          palette: palette,
+          child: Builder(
+            builder: (context) {
+              palettes.add(KilnThemeScope.of(context));
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+      );
 
       await tester.pumpWidget(host(KilnAccentPalette.sage));
       expect(palettes.last, same(KilnAccentPalette.sage));

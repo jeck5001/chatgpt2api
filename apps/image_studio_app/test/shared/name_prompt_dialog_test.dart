@@ -49,10 +49,7 @@ void main() {
             builder: (context) {
               return ElevatedButton(
                 onPressed: () async {
-                  captured = await showNamePromptDialog(
-                    context,
-                    title: '新建会话',
-                  );
+                  captured = await showNamePromptDialog(context, title: '新建会话');
                 },
                 child: const Text('open'),
               );
@@ -80,10 +77,7 @@ void main() {
           body: Builder(
             builder: (context) {
               return ElevatedButton(
-                onPressed: () => showNamePromptDialog(
-                  context,
-                  title: '新建',
-                ),
+                onPressed: () => showNamePromptDialog(context, title: '新建'),
                 child: const Text('open'),
               );
             },

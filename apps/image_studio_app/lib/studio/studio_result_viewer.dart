@@ -585,7 +585,8 @@ Future<void> showStudioResultViewer(
   VoidCallback? onVariation,
   VoidCallback? onOpenSource,
 }) {
-  final tag = heroTag ?? (image.path.isNotEmpty ? 'studio-image:${image.path}' : null);
+  final tag =
+      heroTag ?? (image.path.isNotEmpty ? 'studio-image:${image.path}' : null);
   return Navigator.of(context).push(
     MaterialPageRoute<void>(
       builder: (context) => StudioResultViewer(

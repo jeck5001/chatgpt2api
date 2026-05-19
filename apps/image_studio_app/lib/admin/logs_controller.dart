@@ -77,7 +77,12 @@ class SystemLogsController extends ChangeNotifier {
   Future<void> refresh() async {
     if (_state.isLoading) return;
     _update(
-      _state.copyWith(isLoading: true, clearError: true, page: 1, items: const []),
+      _state.copyWith(
+        isLoading: true,
+        clearError: true,
+        page: 1,
+        items: const [],
+      ),
     );
     try {
       final page = await _repository.fetchPage(
@@ -155,7 +160,9 @@ class SystemLogsController extends ChangeNotifier {
     _update(_state.copyWith(isDeleting: true, clearError: true));
     try {
       final removed = await _repository.deleteByIds(ids);
-      _update(_state.copyWith(isDeleting: false, selectedIds: const <String>{}));
+      _update(
+        _state.copyWith(isDeleting: false, selectedIds: const <String>{}),
+      );
       await refresh();
       return removed;
     } catch (error) {
@@ -171,7 +178,9 @@ class SystemLogsController extends ChangeNotifier {
     _update(_state.copyWith(isDeleting: true, clearError: true));
     try {
       final removed = await _repository.deleteByFilter(_state.filter);
-      _update(_state.copyWith(isDeleting: false, selectedIds: const <String>{}));
+      _update(
+        _state.copyWith(isDeleting: false, selectedIds: const <String>{}),
+      );
       await refresh();
       return removed;
     } catch (error) {

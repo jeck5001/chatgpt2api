@@ -439,10 +439,9 @@ void main() {
       await controller.deleteConversation('conversation-1');
 
       expect(repository.deletedConversations, ['conversation-1']);
-      expect(
-        controller.state.conversations.map((c) => c.id).toList(),
-        ['conversation-2'],
-      );
+      expect(controller.state.conversations.map((c) => c.id).toList(), [
+        'conversation-2',
+      ]);
       expect(controller.state.activeConversation?.id, 'conversation-2');
       expect(controller.state.turns.single.id, 'turn-other');
     },

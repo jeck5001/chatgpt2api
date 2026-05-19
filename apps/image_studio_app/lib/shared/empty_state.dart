@@ -113,11 +113,7 @@ class _GlyphHalo extends StatelessWidget {
         color: KilnColors.ink900,
         border: Border.all(color: KilnColors.hairlineStrong, width: 1),
         boxShadow: const [
-          BoxShadow(
-            color: Color(0x29E8A84A),
-            blurRadius: 22,
-            spreadRadius: 0,
-          ),
+          BoxShadow(color: Color(0x29E8A84A), blurRadius: 22, spreadRadius: 0),
         ],
       ),
       alignment: Alignment.center,

@@ -24,10 +24,7 @@ class SystemLogsRepository implements SystemLogsRepositoryContract {
     int pageSize = 30,
     required SystemLogFilter filter,
   }) async {
-    final query = <String, Object?>{
-      'page': '$page',
-      'page_size': '$pageSize',
-    };
+    final query = <String, Object?>{'page': '$page', 'page_size': '$pageSize'};
     _applyFilter(query, filter);
     final payload = await _client.getJson('/api/logs', query: query);
     return SystemLogPage.fromJson(payload);

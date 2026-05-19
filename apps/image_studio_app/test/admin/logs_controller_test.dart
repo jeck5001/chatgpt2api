@@ -145,12 +145,7 @@ void main() {
           page: 1,
           hasMore: true,
         ),
-        2: _page(
-          items: [_entry('c')],
-          total: 4,
-          page: 2,
-          hasMore: false,
-        ),
+        2: _page(items: [_entry('c')], total: 4, page: 2, hasMore: false),
       },
     );
     final controller = SystemLogsController(repo, pageSize: 2);
@@ -212,26 +207,29 @@ void main() {
     expect(controller.state.items.single.id, 'c');
   });
 
-  test('deleteAllMatching calls repository with filter and refreshes', () async {
-    final repo = _StubLogsRepository(
-      pages: {
-        1: _page(
-          items: [_entry('a'), _entry('b')],
-          total: 2,
-          page: 1,
-          hasMore: false,
-        ),
-      },
-    )..deletedByFilterReturn = 2;
-    final controller = SystemLogsController(repo);
-    await controller.applyFilter(const SystemLogFilter(type: 'call'));
+  test(
+    'deleteAllMatching calls repository with filter and refreshes',
+    () async {
+      final repo = _StubLogsRepository(
+        pages: {
+          1: _page(
+            items: [_entry('a'), _entry('b')],
+            total: 2,
+            page: 1,
+            hasMore: false,
+          ),
+        },
+      )..deletedByFilterReturn = 2;
+      final controller = SystemLogsController(repo);
+      await controller.applyFilter(const SystemLogFilter(type: 'call'));
 
-    repo.pages[1] = _page(items: const [], total: 0, page: 1, hasMore: false);
-    final removed = await controller.deleteAllMatching();
+      repo.pages[1] = _page(items: const [], total: 0, page: 1, hasMore: false);
+      final removed = await controller.deleteAllMatching();
 
-    expect(removed, 2);
-    expect(repo.deleteByFilterCalls.single.type, 'call');
-    expect(controller.state.items, isEmpty);
-    expect(controller.state.total, 0);
-  });
+      expect(removed, 2);
+      expect(repo.deleteByFilterCalls.single.type, 'call');
+      expect(controller.state.items, isEmpty);
+      expect(controller.state.total, 0);
+    },
+  );
 }

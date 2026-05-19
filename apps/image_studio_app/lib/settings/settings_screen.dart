@@ -315,9 +315,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   if (widget.isAdmin && widget.onOpenServerLogs != null) ...[
                     const SizedBox(height: KilnSpacing.sm + 2),
-                    _AdminCard(
-                      onOpenServerLogs: widget.onOpenServerLogs!,
-                    ),
+                    _AdminCard(onOpenServerLogs: widget.onOpenServerLogs!),
                   ],
                   const SizedBox(height: KilnSpacing.sm + 2),
                   _DefaultsCard(
@@ -602,9 +600,7 @@ class _AdminCard extends StatelessWidget {
           try {
             await onOpenServerLogs();
           } catch (error) {
-            messenger?.showSnackBar(
-              SnackBar(content: Text('打开失败：$error')),
-            );
+            messenger?.showSnackBar(SnackBar(content: Text('打开失败：$error')));
           }
         },
       ),

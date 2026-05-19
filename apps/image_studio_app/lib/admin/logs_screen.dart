@@ -97,8 +97,12 @@ class _LogsScreenState extends State<LogsScreen> {
   Future<void> _pickDateRange() async {
     final state = widget.controller.state;
     final now = DateTime.now();
-    final initial = state.filter.startDate != null && state.filter.endDate != null
-        ? DateTimeRange(start: state.filter.startDate!, end: state.filter.endDate!)
+    final initial =
+        state.filter.startDate != null && state.filter.endDate != null
+        ? DateTimeRange(
+            start: state.filter.startDate!,
+            end: state.filter.endDate!,
+          )
         : null;
     final picked = await showDateRangePicker(
       context: context,
@@ -296,17 +300,27 @@ class _LogsScreenState extends State<LogsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SectionHeader.inline(
-            title: '筛选 · 共 ${state.total} 条',
-          ),
+          SectionHeader.inline(title: '筛选 · 共 ${state.total} 条'),
           const SizedBox(height: KilnSpacing.sm),
           Wrap(
             spacing: KilnSpacing.xs,
             runSpacing: KilnSpacing.xs,
             children: [
-              _filterChip(label: '全部类型', active: filter.type.isEmpty, onTap: () => _applyTypeFilter('')),
-              _filterChip(label: '调用', active: filter.type == 'call', onTap: () => _applyTypeFilter('call')),
-              _filterChip(label: '账号', active: filter.type == 'account', onTap: () => _applyTypeFilter('account')),
+              _filterChip(
+                label: '全部类型',
+                active: filter.type.isEmpty,
+                onTap: () => _applyTypeFilter(''),
+              ),
+              _filterChip(
+                label: '调用',
+                active: filter.type == 'call',
+                onTap: () => _applyTypeFilter('call'),
+              ),
+              _filterChip(
+                label: '账号',
+                active: filter.type == 'account',
+                onTap: () => _applyTypeFilter('account'),
+              ),
             ],
           ),
           const SizedBox(height: KilnSpacing.sm),
@@ -317,11 +331,21 @@ class _LogsScreenState extends State<LogsScreen> {
             style: KilnTypography.bodyM.copyWith(color: KilnColors.ink100),
             decoration: InputDecoration(
               hintText: '搜索摘要或详情',
-              hintStyle: KilnTypography.bodyM.copyWith(color: KilnColors.ink500),
-              prefixIcon: const Icon(Icons.search, color: KilnColors.ink400, size: 18),
+              hintStyle: KilnTypography.bodyM.copyWith(
+                color: KilnColors.ink500,
+              ),
+              prefixIcon: const Icon(
+                Icons.search,
+                color: KilnColors.ink400,
+                size: 18,
+              ),
               suffixIcon: _qInput.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.close, size: 18, color: KilnColors.ink400),
+                      icon: const Icon(
+                        Icons.close,
+                        size: 18,
+                        color: KilnColors.ink400,
+                      ),
                       onPressed: () {
                         _qInput.clear();
                         _submitQuery();
@@ -445,20 +469,17 @@ class _LogsScreenState extends State<LogsScreen> {
       );
     }
     return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          if (index == state.items.length) {
-            return _buildFooterSliver(state);
-          }
-          final entry = state.items[index];
-          return _LogRow(
-            entry: entry,
-            selected: state.selectedIds.contains(entry.id),
-            onToggle: () => widget.controller.toggleSelected(entry.id),
-          );
-        },
-        childCount: state.items.length + 1,
-      ),
+      delegate: SliverChildBuilderDelegate((context, index) {
+        if (index == state.items.length) {
+          return _buildFooterSliver(state);
+        }
+        final entry = state.items[index];
+        return _LogRow(
+          entry: entry,
+          selected: state.selectedIds.contains(entry.id),
+          onToggle: () => widget.controller.toggleSelected(entry.id),
+        );
+      }, childCount: state.items.length + 1),
     );
   }
 
@@ -470,7 +491,10 @@ class _LogsScreenState extends State<LogsScreen> {
           child: SizedBox(
             width: 24,
             height: 24,
-            child: CircularProgressIndicator(strokeWidth: 2, color: KilnColors.ember500),
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: KilnColors.ember500,
+            ),
           ),
         ),
       );
@@ -533,7 +557,10 @@ class _LogsScreenState extends State<LogsScreen> {
                         : widget.controller.clearSelection,
                     child: Text(
                       '取消',
-                      style: KilnTypography.ui(size: 13, color: KilnColors.ink300),
+                      style: KilnTypography.ui(
+                        size: 13,
+                        color: KilnColors.ink300,
+                      ),
                     ),
                   ),
                   const SizedBox(width: KilnSpacing.xs),
@@ -582,7 +609,11 @@ class _LogRow extends StatelessWidget {
     final isCallType = entry.type == 'call';
     final statusValue = entry.detail['status'];
     final isFailed = statusValue == 'failed';
-    final typeLabel = isCallType ? '调用' : entry.type == 'account' ? '账号' : entry.type;
+    final typeLabel = isCallType
+        ? '调用'
+        : entry.type == 'account'
+        ? '账号'
+        : entry.type;
     final typeColor = isCallType
         ? (isFailed ? KilnColors.danger : KilnColors.success)
         : KilnColors.info;
@@ -661,7 +692,9 @@ class _LogRow extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       entry.summary.isEmpty ? '（无摘要）' : entry.summary,
-                      style: KilnTypography.bodyM.copyWith(color: KilnColors.ink100),
+                      style: KilnTypography.bodyM.copyWith(
+                        color: KilnColors.ink100,
+                      ),
                     ),
                     if (entry.detail['error'] is String &&
                         (entry.detail['error'] as String).isNotEmpty) ...[
@@ -670,7 +703,9 @@ class _LogRow extends StatelessWidget {
                         entry.detail['error'] as String,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: KilnTypography.bodyS.copyWith(color: KilnColors.danger),
+                        style: KilnTypography.bodyS.copyWith(
+                          color: KilnColors.danger,
+                        ),
                       ),
                     ],
                   ],
