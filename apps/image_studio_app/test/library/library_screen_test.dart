@@ -41,8 +41,9 @@ void main() {
     expect(find.textContaining('搜索 “orange”'), findsOneWidget);
   });
 
-  testWidgets('search shows no-results empty state when nothing matches',
-      (tester) async {
+  testWidgets('search shows no-results empty state when nothing matches', (
+    tester,
+  ) async {
     final favorites = [_fav('1', 'orange product photo')];
 
     await _pumpLibrary(tester, favorites);
@@ -53,8 +54,9 @@ void main() {
     expect(find.text('换个关键词试试，或清空搜索看看所有作品。'), findsOneWidget);
   });
 
-  testWidgets('clear button resets the search and restores all items',
-      (tester) async {
+  testWidgets('clear button resets the search and restores all items', (
+    tester,
+  ) async {
     final favorites = [
       _fav('1', 'orange product photo'),
       _fav('2', 'blue sky landscape'),
@@ -84,8 +86,9 @@ void main() {
     expect(find.textContaining('命中 1 / 1'), findsOneWidget);
   });
 
-  testWidgets('tile renders prompt caption when prompt is non-empty',
-      (tester) async {
+  testWidgets('tile renders prompt caption when prompt is non-empty', (
+    tester,
+  ) async {
     final favorites = [_fav('1', 'orange product photo')];
 
     await _pumpLibrary(tester, favorites);
@@ -93,8 +96,9 @@ void main() {
     expect(find.text('orange product photo'), findsOneWidget);
   });
 
-  testWidgets('tile wraps the image in a Hero with a path-based tag',
-      (tester) async {
+  testWidgets('tile wraps the image in a Hero with a path-based tag', (
+    tester,
+  ) async {
     final favorites = [_fav('1', 'p')];
 
     await _pumpLibrary(tester, favorites);

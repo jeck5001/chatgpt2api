@@ -95,11 +95,7 @@ class TurnDetailScreen extends StatelessWidget {
 }
 
 class _HeroImage extends StatelessWidget {
-  const _HeroImage({
-    required this.image,
-    required this.prompt,
-    this.onTap,
-  });
+  const _HeroImage({required this.image, required this.prompt, this.onTap});
 
   final StudioResultImage image;
   final String prompt;
@@ -147,7 +143,10 @@ class _HeroImage extends StatelessWidget {
                   prompt,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: KilnTypography.display(size: 18, weight: FontWeight.w500),
+                  style: KilnTypography.display(
+                    size: 18,
+                    weight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -207,10 +206,7 @@ class _PromptSection extends StatelessWidget {
 }
 
 class _VariantsSection extends StatelessWidget {
-  const _VariantsSection({
-    required this.images,
-    this.onOpenImage,
-  });
+  const _VariantsSection({required this.images, this.onOpenImage});
 
   final List<StudioResultImage> images;
   final ValueChanged<StudioResultImage>? onOpenImage;
@@ -235,16 +231,16 @@ class _VariantsSection extends StatelessWidget {
                 child: Material(
                   color: KilnColors.ink900,
                   child: InkWell(
-                    onTap: onOpenImage == null ? null : () => onOpenImage!(image),
+                    onTap: onOpenImage == null
+                        ? null
+                        : () => onOpenImage!(image),
                     child: AspectRatio(
                       aspectRatio: 1,
                       child: Image.network(
                         image.url.toString(),
                         fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          color: KilnColors.ink850,
-                          width: 96,
-                        ),
+                        errorBuilder: (_, _, _) =>
+                            Container(color: KilnColors.ink850, width: 96),
                       ),
                     ),
                   ),

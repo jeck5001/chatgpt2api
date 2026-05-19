@@ -196,10 +196,7 @@ ThemeData buildImageStudioTheme({
     navigationRailTheme: NavigationRailThemeData(
       backgroundColor: KilnColors.ink900,
       indicatorColor: selectedTint,
-      selectedIconTheme: IconThemeData(
-        color: palette.shade400,
-        size: 24,
-      ),
+      selectedIconTheme: IconThemeData(color: palette.shade400, size: 24),
       unselectedIconTheme: const IconThemeData(
         color: KilnColors.ink400,
         size: 22,

@@ -29,18 +29,20 @@ void main() {
     expect(read.libraryNewestFirst, false);
   });
 
-  test('falls back to default accent when stored value is unsupported',
-      () async {
-    SharedPreferences.setMockInitialValues(<String, Object>{
-      'studio.accent': 'fuchsia',
-    });
-    final prefs = await SharedPreferences.getInstance();
-    final store = SharedPreferencesStudioPreferencesStore(prefs);
+  test(
+    'falls back to default accent when stored value is unsupported',
+    () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        'studio.accent': 'fuchsia',
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final store = SharedPreferencesStudioPreferencesStore(prefs);
 
-    final read = await store.read();
+      final read = await store.read();
 
-    expect(read.accent, 'ember');
-  });
+      expect(read.accent, 'ember');
+    },
+  );
 
   test('returns default accent when nothing is stored', () async {
     final prefs = await SharedPreferences.getInstance();

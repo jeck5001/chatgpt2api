@@ -11,11 +11,7 @@ void main() {
             child: PressScale(
               scale: 0.9,
               duration: const Duration(milliseconds: 50),
-              child: Container(
-                width: 80,
-                height: 80,
-                color: Colors.red,
-              ),
+              child: Container(width: 80, height: 80, color: Colors.red),
             ),
           ),
         ),
@@ -46,11 +42,7 @@ void main() {
         home: Scaffold(
           body: PressScale(
             scale: 0.8,
-            child: Container(
-              width: 100,
-              height: 100,
-              color: Colors.blue,
-            ),
+            child: Container(width: 100, height: 100, color: Colors.blue),
           ),
         ),
       ),
@@ -61,17 +53,11 @@ void main() {
     );
     await tester.pump();
 
-    expect(
-      tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale,
-      0.8,
-    );
+    expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 0.8);
 
     await gesture.cancel();
     await tester.pump();
 
-    expect(
-      tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale,
-      1.0,
-    );
+    expect(tester.widget<AnimatedScale>(find.byType(AnimatedScale)).scale, 1.0);
   });
 }

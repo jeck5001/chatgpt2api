@@ -3,8 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_studio_app/shared/empty_state.dart';
 
 void main() {
-  testWidgets('renders provided icon in place of the kiln crest',
-      (tester) async {
+  testWidgets('renders provided icon in place of the kiln crest', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -20,8 +21,9 @@ void main() {
     expect(find.byIcon(Icons.search_off_rounded), findsOneWidget);
   });
 
-  testWidgets('falls back to the kiln crest when no icon is provided',
-      (tester) async {
+  testWidgets('falls back to the kiln crest when no icon is provided', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -33,16 +35,13 @@ void main() {
     expect(find.byIcon(Icons.search_off_rounded), findsNothing);
   });
 
-  testWidgets('omits the crest entirely when showLogo is false',
-      (tester) async {
+  testWidgets('omits the crest entirely when showLogo is false', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: EmptyState(
-            title: '简洁',
-            message: 'm',
-            showLogo: false,
-          ),
+          body: EmptyState(title: '简洁', message: 'm', showLogo: false),
         ),
       ),
     );

@@ -32,8 +32,9 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('returns false by default when confirming without checking',
-      (tester) async {
+  testWidgets('returns false by default when confirming without checking', (
+    tester,
+  ) async {
     bool? captured;
     await openDialog(
       tester,
@@ -48,8 +49,7 @@ void main() {
     expect(captured, false);
   });
 
-  testWidgets('returns true after toggling the purge checkbox',
-      (tester) async {
+  testWidgets('returns true after toggling the purge checkbox', (tester) async {
     bool? captured;
     await openDialog(
       tester,

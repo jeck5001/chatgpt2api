@@ -45,8 +45,9 @@ void main() {
     expect(find.text('正在渲染'), findsOneWidget);
   });
 
-  testWidgets('successful image tile wraps Image.network in a Hero',
-      (tester) async {
+  testWidgets('successful image tile wraps Image.network in a Hero', (
+    tester,
+  ) async {
     final turn = _turn(
       status: StudioTurnStatus.success,
       images: [
@@ -58,7 +59,9 @@ void main() {
     );
 
     await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: TurnCard(turn: turn))),
+      MaterialApp(
+        home: Scaffold(body: TurnCard(turn: turn)),
+      ),
     );
     await tester.pump();
 
@@ -67,23 +70,26 @@ void main() {
   });
 
   testWidgets(
-      'image tile without a path does not allocate a Hero (avoids tag collisions)',
-      (tester) async {
-    final turn = _turn(
-      status: StudioTurnStatus.success,
-      images: [
-        StudioResultImage(
-          url: Uri.parse('http://test/images/orphan.png'),
-          path: '',
+    'image tile without a path does not allocate a Hero (avoids tag collisions)',
+    (tester) async {
+      final turn = _turn(
+        status: StudioTurnStatus.success,
+        images: [
+          StudioResultImage(
+            url: Uri.parse('http://test/images/orphan.png'),
+            path: '',
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(body: TurnCard(turn: turn)),
         ),
-      ],
-    );
+      );
+      await tester.pump();
 
-    await tester.pumpWidget(
-      MaterialApp(home: Scaffold(body: TurnCard(turn: turn))),
-    );
-    await tester.pump();
-
-    expect(find.byType(Hero), findsNothing);
-  });
+      expect(find.byType(Hero), findsNothing);
+    },
+  );
 }

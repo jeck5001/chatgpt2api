@@ -127,10 +127,7 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
     );
     if (purge == null) return;
     try {
-      await widget.controller.deleteConversation(
-        conversation.id,
-        purge: purge,
-      );
+      await widget.controller.deleteConversation(conversation.id, purge: purge);
       _toast(purge ? '已删除（含服务器图片）' : '已删除');
     } catch (error) {
       _toast('删除失败：$error');
@@ -285,9 +282,7 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
                 initialNewestFirst: state.preferences.libraryNewestFirst,
                 onSortChanged: (newestFirst) {
                   widget.controller.updatePreferences(
-                    state.preferences.copyWith(
-                      libraryNewestFirst: newestFirst,
-                    ),
+                    state.preferences.copyWith(libraryNewestFirst: newestFirst),
                   );
                 },
               ),

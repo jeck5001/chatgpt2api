@@ -620,11 +620,7 @@ class _CreateScreenState extends State<CreateScreen> {
   }
 
   Future<String?> _promptForTitle() {
-    return showNamePromptDialog(
-      context,
-      title: '新建会话',
-      hint: '会话标题（可留空）',
-    );
+    return showNamePromptDialog(context, title: '新建会话', hint: '会话标题（可留空）');
   }
 
   @override
@@ -653,53 +649,59 @@ class _CreateScreenState extends State<CreateScreen> {
                   ? null
                   : _createNewConversation,
             ),
-            if (latestSuccessful != null)
-              _StudioHero(
-                turn: latestSuccessful,
-                onOpen: () => _openImage(
-                  latestSuccessful,
-                  latestSuccessful.resultImages.first,
-                ),
-                onVariation: () => _variation(latestSuccessful),
-                palette: palette,
-              ),
             Expanded(
               child: turns.isEmpty
                   ? const _EmptyStudio()
                   : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(
-                        KilnSpacing.md,
-                        KilnSpacing.md,
-                        KilnSpacing.md,
-                        140,
-                      ),
-                      itemCount: turns.length,
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 140),
+                      itemCount:
+                          turns.length + (latestSuccessful == null ? 0 : 1),
                       separatorBuilder: (_, _) =>
                           const SizedBox(height: KilnSpacing.md),
                       itemBuilder: (context, index) {
-                        final turn = turns[index];
-                        return TurnCard(
-                          turn: turn,
-                          onImageTap: (image, _) => _openImage(turn, image),
-                          onRetry: () => _retry(turn),
-                          onEditPrompt: () => _editPrompt(turn),
-                          onFavorite: () => _toggleFavorite(turn),
-                          onVariation: () => _variation(turn),
-                          onEdit: () => _editPrompt(turn),
-                          onLongPress: () => _confirmDeleteTurn(turn),
-                          onSave: turn.resultImages.isEmpty
-                              ? null
-                              : () => _saveImage(turn.resultImages.first),
-                          onShare: turn.resultImages.isEmpty
-                              ? null
-                              : () => _shareImage(turn.resultImages.first),
-                          onOpenDetail: turn.resultImages.isEmpty
-                              ? null
-                              : () => _openTurnDetail(turn),
-                          isFavoriteImage: widget.controller?.isFavoriteImage,
-                          runningElapsed: turn.isRunning
-                              ? _formatElapsed(turn.updatedAt)
-                              : null,
+                        if (latestSuccessful != null && index == 0) {
+                          return _StudioHero(
+                            turn: latestSuccessful,
+                            onOpen: () => _openImage(
+                              latestSuccessful,
+                              latestSuccessful.resultImages.first,
+                            ),
+                            onVariation: () => _variation(latestSuccessful),
+                            onDetail: () => _openTurnDetail(latestSuccessful),
+                            palette: palette,
+                          );
+                        }
+                        final turnIndex = latestSuccessful == null
+                            ? index
+                            : index - 1;
+                        final turn = turns[turnIndex];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: KilnSpacing.md,
+                          ),
+                          child: TurnCard(
+                            turn: turn,
+                            onImageTap: (image, _) => _openImage(turn, image),
+                            onRetry: () => _retry(turn),
+                            onEditPrompt: () => _editPrompt(turn),
+                            onFavorite: () => _toggleFavorite(turn),
+                            onVariation: () => _variation(turn),
+                            onEdit: () => _editPrompt(turn),
+                            onLongPress: () => _confirmDeleteTurn(turn),
+                            onSave: turn.resultImages.isEmpty
+                                ? null
+                                : () => _saveImage(turn.resultImages.first),
+                            onShare: turn.resultImages.isEmpty
+                                ? null
+                                : () => _shareImage(turn.resultImages.first),
+                            onOpenDetail: turn.resultImages.isEmpty
+                                ? null
+                                : () => _openTurnDetail(turn),
+                            isFavoriteImage: widget.controller?.isFavoriteImage,
+                            runningElapsed: turn.isRunning
+                                ? _formatElapsed(turn.updatedAt)
+                                : null,
+                          ),
                         );
                       },
                     ),
@@ -995,12 +997,14 @@ class _StudioHero extends StatelessWidget {
     required this.turn,
     required this.onOpen,
     required this.onVariation,
+    required this.onDetail,
     required this.palette,
   });
 
   final StudioTurn turn;
   final VoidCallback onOpen;
   final VoidCallback onVariation;
+  final VoidCallback onDetail;
   final KilnAccentPalette palette;
 
   @override
@@ -1016,9 +1020,7 @@ class _StudioHero extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(KilnRadii.xl),
-          border: Border.all(
-            color: palette.shade500.withValues(alpha: 0.24),
-          ),
+          border: Border.all(color: palette.shade500.withValues(alpha: 0.24)),
           gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
@@ -1026,99 +1028,129 @@ class _StudioHero extends StatelessWidget {
           ),
         ),
         padding: const EdgeInsets.all(KilnSpacing.sm),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(KilnRadii.card),
-              child: AspectRatio(
-                aspectRatio: 1.22,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.network(
-                      image.url.toString(),
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        color: KilnColors.ink850,
-                        alignment: Alignment.center,
-                        child: const Icon(
-                          Icons.broken_image_outlined,
-                          color: KilnColors.ink500,
-                        ),
-                      ),
-                    ),
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.16),
-                            Colors.black.withValues(alpha: 0.70),
-                          ],
-                          stops: const [0.0, 0.55, 1.0],
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: KilnSpacing.md,
-                      right: KilnSpacing.md,
-                      bottom: KilnSpacing.md,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : MediaQuery.sizeOf(context).width;
+            final imageHeight = (availableWidth / 1.22)
+                .clamp(180.0, 280.0)
+                .toDouble();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onOpen,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(KilnRadii.card),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: imageHeight,
+                      child: Stack(
+                        fit: StackFit.expand,
                         children: [
-                          Text(
-                            turn.prompt,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: KilnTypography.display(
-                              size: 19,
-                              weight: FontWeight.w500,
-                              color: Colors.white,
-                              height: 1.2,
+                          Image.network(
+                            image.url.toString(),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(
+                              color: KilnColors.ink850,
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.broken_image_outlined,
+                                color: KilnColors.ink500,
+                              ),
                             ),
                           ),
-                          const SizedBox(height: KilnSpacing.xs),
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: [
-                              _HeroChip(label: turn.model),
-                              if ((turn.size ?? '').isNotEmpty)
-                                _HeroChip(label: turn.size!.replaceAll('x', '×')),
-                              _HeroChip(label: '${turn.resultImages.length} 张'),
-                            ],
+                          IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withValues(alpha: 0.16),
+                                    Colors.black.withValues(alpha: 0.70),
+                                  ],
+                                  stops: const [0.0, 0.55, 1.0],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: KilnSpacing.md,
+                            right: KilnSpacing.md,
+                            bottom: KilnSpacing.md,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  turn.prompt,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: KilnTypography.display(
+                                    size: 19,
+                                    weight: FontWeight.w500,
+                                    color: Colors.white,
+                                    height: 1.2,
+                                  ),
+                                ),
+                                const SizedBox(height: KilnSpacing.xs),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _HeroChip(label: turn.model),
+                                    if ((turn.size ?? '').isNotEmpty)
+                                      _HeroChip(
+                                        label: turn.size!.replaceAll('x', '×'),
+                                      ),
+                                    _HeroChip(
+                                      label: '${turn.resultImages.length} 张',
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ],
                       ),
                     ),
+                  ),
+                ),
+                const SizedBox(height: KilnSpacing.sm),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: onOpen,
+                        icon: const Icon(Icons.open_in_full_rounded, size: 18),
+                        label: const Text('查看作品'),
+                      ),
+                    ),
+                    const SizedBox(width: KilnSpacing.sm),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: onVariation,
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                        label: const Text('生成变体'),
+                      ),
+                    ),
+                    const SizedBox(width: KilnSpacing.sm),
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: onDetail,
+                        icon: const Icon(Icons.tune_rounded, size: 18),
+                        label: const Text('详情'),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ),
-            const SizedBox(height: KilnSpacing.sm),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: onOpen,
-                    icon: const Icon(Icons.open_in_full_rounded, size: 18),
-                    label: const Text('查看作品'),
-                  ),
-                ),
-                const SizedBox(width: KilnSpacing.sm),
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onVariation,
-                    icon: const Icon(Icons.auto_awesome_rounded, size: 18),
-                    label: const Text('生成变体'),
-                  ),
-                ),
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

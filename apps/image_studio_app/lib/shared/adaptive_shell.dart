@@ -29,10 +29,7 @@ class AdaptiveShell extends StatelessWidget {
       transitionBuilder: (child, anim) {
         return FadeTransition(opacity: anim, child: child);
       },
-      child: KeyedSubtree(
-        key: ValueKey<int>(selectedIndex),
-        child: page,
-      ),
+      child: KeyedSubtree(key: ValueKey<int>(selectedIndex), child: page),
     );
   }
 

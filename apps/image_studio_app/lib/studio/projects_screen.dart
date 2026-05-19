@@ -255,10 +255,7 @@ class ProjectsScreen extends StatelessWidget {
                 ),
                 title: Text(
                   '删除会话',
-                  style: KilnTypography.ui(
-                    size: 14,
-                    color: KilnColors.danger,
-                  ),
+                  style: KilnTypography.ui(size: 14, color: KilnColors.danger),
                 ),
                 onTap: () {
                   Navigator.of(sheetContext).pop();
@@ -380,7 +377,9 @@ class _CoverCard extends StatelessWidget {
               ),
               const Positioned.fill(
                 child: DecoratedBox(
-                  decoration: BoxDecoration(gradient: KilnGradients.coverOverlay),
+                  decoration: BoxDecoration(
+                    gradient: KilnGradients.coverOverlay,
+                  ),
                 ),
               ),
               if (isActive)

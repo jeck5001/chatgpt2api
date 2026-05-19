@@ -111,8 +111,9 @@ void main() {
     expect(selectedProjectId, 'project-1');
   });
 
-  testWidgets('active conversation chevron picks up the accent palette',
-      (tester) async {
+  testWidgets('active conversation chevron picks up the accent palette', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: KilnThemeScope(
