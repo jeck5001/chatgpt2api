@@ -671,7 +671,6 @@ class _CreateScreenState extends State<CreateScreen> {
                         KilnSpacing.md,
                         KilnSpacing.md,
                         KilnSpacing.md,
-                        KilnSpacing.md,
                         140,
                       ),
                       itemCount: turns.length,
