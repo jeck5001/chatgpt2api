@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 
 import 'api_error.dart';
@@ -59,6 +61,29 @@ class ApiClient {
         options: Options(responseType: ResponseType.json),
       );
       return _decodeMap(response, path);
+    } on DioException catch (error) {
+      throw ApiError.fromDioException(error);
+    }
+  }
+
+  Future<Uint8List> postBytes(String path, {Object? body}) async {
+    try {
+      final response = await _dio.post<Object?>(
+        path,
+        data: body ?? <String, Object?>{},
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final data = response.data;
+      if (data is Uint8List) {
+        return data;
+      }
+      if (data is List<int>) {
+        return Uint8List.fromList(data);
+      }
+      throw ApiError(
+        message: '这个地址没有返回可下载的文件内容：$path',
+        statusCode: response.statusCode,
+      );
     } on DioException catch (error) {
       throw ApiError.fromDioException(error);
     }

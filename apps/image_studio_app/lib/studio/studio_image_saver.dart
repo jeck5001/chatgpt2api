@@ -29,6 +29,16 @@ class StudioImageSaver {
     return targetFile.writeAsBytes(bytes, flush: true);
   }
 
+  Future<File> saveBytes({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final outputDirectory = await _outputDirectoryProvider();
+    await outputDirectory.create(recursive: true);
+    final targetFile = File('${outputDirectory.path}/$fileName');
+    return targetFile.writeAsBytes(bytes, flush: true);
+  }
+
   static Future<Uint8List> _defaultBytesLoader(Uri imageUrl) async {
     final response = await Dio().get<List<int>>(
       imageUrl.toString(),

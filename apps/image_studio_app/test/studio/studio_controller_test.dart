@@ -135,6 +135,84 @@ void main() {
   });
 
   test(
+    'load workspace keeps library assets available for the gallery',
+    () async {
+      final repository = FakeStudioRepository()
+        ..libraryAssets = [
+          StudioAsset(
+            path: '2026/05/19/orange.png',
+            name: 'orange.png',
+            date: '2026-05-19',
+            sizeBytes: 4096,
+            createdAt: DateTime(2026, 5, 19, 9, 30),
+            url: Uri.parse(
+              'http://localhost:8000/images/2026/05/19/orange.png',
+            ),
+            thumbnailUrl: Uri.parse(
+              'http://localhost:8000/image-thumbnails/2026/05/19/orange.png',
+            ),
+            tags: const ['海报'],
+            prompt: 'orange product photo',
+            model: 'gpt-image-2',
+            projectName: 'Spring Campaign',
+          ),
+        ];
+      final controller = StudioController(repository);
+
+      await controller.loadWorkspace();
+
+      expect(
+        controller.state.libraryAssets.single.path,
+        '2026/05/19/orange.png',
+      );
+      expect(
+        controller.state.libraryAssets.single.projectName,
+        'Spring Campaign',
+      );
+    },
+  );
+
+  test(
+    'deleteLibraryAssets removes selected assets from state after API success',
+    () async {
+      final repository = FakeStudioRepository()
+        ..libraryAssets = [
+          StudioAsset(
+            path: '2026/05/19/orange.png',
+            name: 'orange.png',
+            date: '2026-05-19',
+            sizeBytes: 4096,
+            createdAt: DateTime(2026, 5, 19, 9, 30),
+            url: Uri.parse(
+              'http://localhost:8000/images/2026/05/19/orange.png',
+            ),
+            thumbnailUrl: Uri.parse(
+              'http://localhost:8000/image-thumbnails/2026/05/19/orange.png',
+            ),
+          ),
+          StudioAsset(
+            path: '2026/05/19/blue.png',
+            name: 'blue.png',
+            date: '2026-05-19',
+            sizeBytes: 4096,
+            createdAt: DateTime(2026, 5, 19, 10),
+            url: Uri.parse('http://localhost:8000/images/2026/05/19/blue.png'),
+            thumbnailUrl: Uri.parse(
+              'http://localhost:8000/image-thumbnails/2026/05/19/blue.png',
+            ),
+          ),
+        ];
+      final controller = StudioController(repository);
+      await controller.loadWorkspace();
+
+      await controller.deleteLibraryAssets(const ['2026/05/19/orange.png']);
+
+      expect(repository.deletedImages, ['2026/05/19/orange.png']);
+      expect(controller.state.libraryAssets.single.path, '2026/05/19/blue.png');
+    },
+  );
+
+  test(
     'load workspace keeps available project and conversation lists',
     () async {
       final repository = FakeStudioRepository()
@@ -504,11 +582,13 @@ class FakeStudioRepository implements StudioRepositoryContract {
   int? lastEditImages;
   int _generationCounter = 0;
   List<StudioProject> projects = [];
+  List<StudioAsset> libraryAssets = [];
   Map<String, List<StudioConversation>> conversationsByProject = {};
   Map<String, List<StudioTurn>> turnsByConversation = {};
   Map<String, Future<StudioTurn> Function(String)> syncOverrides = const {};
   final List<String> deletedConversations = [];
   final List<String> deletedTurns = [];
+  final List<String> deletedImages = [];
 
   @override
   Future<List<StudioProject>> fetchProjects() async {
@@ -650,6 +730,35 @@ class FakeStudioRepository implements StudioRepositoryContract {
   @override
   Future<List<StudioFavorite>> fetchFavorites() async {
     return [];
+  }
+
+  @override
+  Future<List<StudioAsset>> fetchLibraryAssets({
+    String startDate = '',
+    String endDate = '',
+  }) async {
+    return libraryAssets;
+  }
+
+  @override
+  Future<List<String>> fetchImageTags() async => const [];
+
+  @override
+  Future<List<String>> updateImageTags({
+    required String imagePath,
+    required List<String> tags,
+  }) async {
+    return tags;
+  }
+
+  @override
+  Future<void> deleteImages(List<String> imagePaths) async {
+    deletedImages.addAll(imagePaths);
+  }
+
+  @override
+  Future<Uint8List> downloadImagesZip(List<String> imagePaths) async {
+    return Uint8List.fromList(const [80, 75, 3, 4]);
   }
 
   @override

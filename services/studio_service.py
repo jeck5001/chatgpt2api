@@ -708,6 +708,47 @@ class StudioService:
             index[turn_id] = _clean(turn.get("prompt"))
         return index
 
+    def image_asset_metadata_index(self, identity: dict[str, object]) -> dict[str, dict[str, Any]]:
+        with self._lock:
+            projects = {
+                _clean(item.get("id")): item
+                for item in self._state["projects"]
+                if _clean(item.get("id"))
+            }
+            conversations = {
+                _clean(item.get("id")): item
+                for item in self._state["conversations"]
+                if _clean(item.get("id"))
+            }
+            index: dict[str, dict[str, Any]] = {}
+            for turn in self._visible(identity, self._state["turns"]):
+                conversation_id = _clean(turn.get("conversation_id"))
+                conversation = conversations.get(conversation_id) or {}
+                project_id = _clean(conversation.get("project_id"))
+                project = projects.get(project_id) or {}
+                for image in turn.get("result_images") or []:
+                    if not isinstance(image, dict):
+                        continue
+                    path = _clean(image.get("path")).lstrip("/")
+                    if not path:
+                        path = _image_path_from_url(_clean(image.get("url")))
+                    if not path:
+                        continue
+                    index[path] = {
+                        "turn_id": _clean(turn.get("id")),
+                        "conversation_id": conversation_id,
+                        "conversation_title": _clean(conversation.get("title")),
+                        "project_id": project_id,
+                        "project_name": _clean(project.get("name")),
+                        "prompt": _clean(turn.get("prompt")),
+                        "revised_prompt": _clean(image.get("revised_prompt")),
+                        "model": _clean(turn.get("model")) or "gpt-image-2",
+                        "mode": _clean(turn.get("mode")) or "generate",
+                        "size_label": _clean(turn.get("size")),
+                        "updated_at": _clean(turn.get("updated_at")),
+                    }
+            return deepcopy(index)
+
     def delete_favorite(self, identity: dict[str, object], favorite_id: str) -> bool:
         with self._lock:
             before_state = deepcopy(self._state)

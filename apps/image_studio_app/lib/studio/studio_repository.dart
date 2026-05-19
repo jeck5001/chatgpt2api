@@ -75,6 +75,22 @@ abstract interface class StudioRepositoryContract {
 
   Future<void> deleteFavorite(String favoriteId);
 
+  Future<List<StudioAsset>> fetchLibraryAssets({
+    String startDate = '',
+    String endDate = '',
+  });
+
+  Future<List<String>> fetchImageTags();
+
+  Future<List<String>> updateImageTags({
+    required String imagePath,
+    required List<String> tags,
+  });
+
+  Future<void> deleteImages(List<String> imagePaths);
+
+  Future<Uint8List> downloadImagesZip(List<String> imagePaths);
+
   Future<List<StudioPromptTemplate>> fetchPromptTemplates();
 
   Future<StudioPromptTemplate> createPromptTemplate({
@@ -269,6 +285,62 @@ class StudioRepository implements StudioRepositoryContract {
   @override
   Future<void> deleteFavorite(String favoriteId) async {
     await _client.deleteJson('/api/image-favorites/$favoriteId');
+  }
+
+  @override
+  Future<List<StudioAsset>> fetchLibraryAssets({
+    String startDate = '',
+    String endDate = '',
+  }) async {
+    final query = <String, Object?>{
+      if (startDate.isNotEmpty) 'start_date': startDate,
+      if (endDate.isNotEmpty) 'end_date': endDate,
+    };
+    final payload = await _client.getJson(
+      '/api/images',
+      query: query.isEmpty ? null : query,
+    );
+    return _items(payload).map(StudioAsset.fromJson).toList();
+  }
+
+  @override
+  Future<List<String>> fetchImageTags() async {
+    final payload = await _client.getJson('/api/images/tags');
+    return ((payload['tags'] ?? <Object?>[]) as List)
+        .map((tag) => tag.toString())
+        .where((tag) => tag.trim().isNotEmpty)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<List<String>> updateImageTags({
+    required String imagePath,
+    required List<String> tags,
+  }) async {
+    final payload = await _client.postJson(
+      '/api/images/tags',
+      body: <String, Object?>{'path': imagePath, 'tags': tags},
+    );
+    return ((payload['tags'] ?? <Object?>[]) as List)
+        .map((tag) => tag.toString())
+        .where((tag) => tag.trim().isNotEmpty)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> deleteImages(List<String> imagePaths) async {
+    await _client.postJson(
+      '/api/images/delete',
+      body: <String, Object?>{'paths': imagePaths},
+    );
+  }
+
+  @override
+  Future<Uint8List> downloadImagesZip(List<String> imagePaths) async {
+    return _client.postBytes(
+      '/api/images/download',
+      body: <String, Object?>{'paths': imagePaths},
+    );
   }
 
   @override

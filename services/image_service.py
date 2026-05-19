@@ -136,16 +136,23 @@ def _image_items(start_date: str = "", end_date: str = "") -> list[dict[str, obj
     return items
 
 
-def list_images(base_url: str, start_date: str = "", end_date: str = "") -> dict[str, object]:
+def list_images(
+    base_url: str,
+    start_date: str = "",
+    end_date: str = "",
+    metadata_by_path: dict[str, dict[str, object]] | None = None,
+) -> dict[str, object]:
     config.cleanup_old_images()
     cleanup_image_thumbnails()
     all_tags = load_tags()
+    metadata_by_path = metadata_by_path or {}
     items = [
         {
             **item,
             "url": f"{base_url.rstrip('/')}/images/{item['path']}",
             "thumbnail_url": thumbnail_url(base_url, str(item["path"])),
             "tags": all_tags.get(str(item["path"]), []),
+            **metadata_by_path.get(str(item["path"]), {}),
         }
         for item in _image_items(start_date, end_date)
     ]

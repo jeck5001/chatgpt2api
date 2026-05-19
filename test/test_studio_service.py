@@ -122,6 +122,35 @@ class StudioServiceTests(unittest.TestCase):
         self.assertEqual(prompt_map["2026/05/orange.png"], "orange product photo")
         self.assertEqual(prompt_map["2026/05/orphan.png"], "")
 
+    def test_image_asset_metadata_index_joins_turn_project_and_prompt_by_path(self):
+        service, _storage, _path = self.make_service()
+        project = service.create_project(OWNER, "Spring Campaign")
+        conversation = service.create_conversation(OWNER, project["id"], "Hero images", "generate")
+        service.create_turn(
+            OWNER,
+            conversation["id"],
+            prompt="orange product photo",
+            model="gpt-image-2",
+            size="1024x1024",
+            result_images=[
+                {
+                    "path": "2026/05/orange.png",
+                    "url": "http://testserver/images/2026/05/orange.png",
+                    "revised_prompt": "bright orange product photo",
+                }
+            ],
+            status="success",
+        )
+
+        metadata = service.image_asset_metadata_index(OWNER)
+
+        self.assertEqual(metadata["2026/05/orange.png"]["prompt"], "orange product photo")
+        self.assertEqual(metadata["2026/05/orange.png"]["revised_prompt"], "bright orange product photo")
+        self.assertEqual(metadata["2026/05/orange.png"]["model"], "gpt-image-2")
+        self.assertEqual(metadata["2026/05/orange.png"]["project_id"], project["id"])
+        self.assertEqual(metadata["2026/05/orange.png"]["project_name"], "Spring Campaign")
+        self.assertEqual(metadata["2026/05/orange.png"]["conversation_title"], "Hero images")
+
     def test_add_favorite_returns_prompt_for_visible_turn(self):
         service, _storage, _path = self.make_service()
         project = service.create_project(OWNER, "Spring")

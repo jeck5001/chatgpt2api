@@ -156,6 +156,31 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
     );
   }
 
+  void _openAssetInViewer(StudioAsset asset) {
+    showStudioResultViewer(
+      context,
+      StudioResultImage(url: _resolveAssetUri(asset), path: asset.path),
+      promptText: asset.prompt.isNotEmpty ? asset.prompt : asset.revisedPrompt,
+      model: asset.model.isNotEmpty ? asset.model : null,
+      size: asset.sizeLabel.isNotEmpty ? asset.sizeLabel : null,
+      initialFavorited: widget.controller.state.favorites.any(
+        (favorite) => favorite.imagePath == asset.path,
+      ),
+      imageSaver: _imageSaver,
+      onFavorite: () => _toggleFavoriteAsset(asset),
+      onVariation: () => _generateVariantFromAsset(asset),
+    );
+  }
+
+  Uri _resolveAssetUri(StudioAsset asset) {
+    if (asset.url.hasScheme) {
+      return asset.url;
+    }
+    final base =
+        widget.controller.imageBaseUrl ?? Uri.parse('http://localhost:8000');
+    return base.resolve(asset.path);
+  }
+
   Uri _resolveFavoriteUri(StudioFavorite favorite) {
     final absolute = Uri.tryParse(favorite.imagePath);
     if (absolute != null && absolute.hasScheme) {
@@ -164,6 +189,141 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
     final base =
         widget.controller.imageBaseUrl ?? Uri.parse('http://localhost:8000');
     return base.resolve(favorite.imagePath);
+  }
+
+  Future<void> _toggleFavoriteAsset(StudioAsset asset) async {
+    try {
+      await widget.controller.toggleFavoriteAsset(asset);
+      final favorited = widget.controller.state.favorites.any(
+        (favorite) => favorite.imagePath == asset.path,
+      );
+      _toast(favorited ? '已收藏' : '已取消收藏');
+    } catch (error) {
+      _toast('收藏失败：$error');
+    }
+  }
+
+  Future<void> _generateVariantFromAsset(StudioAsset asset) async {
+    final conversationId = widget.controller.state.activeConversation?.id;
+    if (conversationId == null) {
+      _toast('请先创建一个会话');
+      return;
+    }
+    final prompt = asset.prompt.isNotEmpty
+        ? asset.prompt
+        : asset.revisedPrompt.isNotEmpty
+        ? asset.revisedPrompt
+        : asset.name;
+    if (prompt.trim().isEmpty) {
+      _toast('这张图没有可复用的 prompt');
+      return;
+    }
+    setState(() => _selectedIndex = 1);
+    try {
+      await widget.controller.submitGeneration(
+        conversationId: conversationId,
+        prompt: prompt,
+        model: asset.model.isNotEmpty ? asset.model : 'gpt-image-2',
+        size: asset.sizeLabel.isNotEmpty ? asset.sizeLabel : null,
+      );
+      _toast('已发起变体生成');
+    } catch (error) {
+      _toast('生成变体失败：$error');
+    }
+  }
+
+  Future<void> _downloadAsset(StudioAsset asset) async {
+    try {
+      final file = await _imageSaver.saveImage(
+        imageUrl: _resolveAssetUri(asset),
+        fileName: _assetFileName(asset),
+      );
+      _toast('已保存到 ${file.path}');
+    } catch (error) {
+      _toast('下载失败：$error');
+    }
+  }
+
+  Future<void> _shareAsset(StudioAsset asset) async {
+    try {
+      final file = await _imageSaver.saveImage(
+        imageUrl: _resolveAssetUri(asset),
+        fileName: _assetFileName(asset),
+      );
+      final sharer = widget.fileSharer ?? _shareFiles;
+      await sharer([XFile(file.path)]);
+      _toast('已分享 ${asset.name}');
+    } catch (error) {
+      _toast('分享失败：$error');
+    }
+  }
+
+  Future<void> _downloadAssetZip(List<StudioAsset> assets) async {
+    if (assets.isEmpty) return;
+    try {
+      final bytes = await widget.controller.downloadLibraryAssets(
+        assets.map((asset) => asset.path).toList(growable: false),
+      );
+      final file = await _imageSaver.saveBytes(
+        bytes: bytes,
+        fileName: _assetZipFileName(),
+      );
+      final sharer = widget.fileSharer ?? _shareFiles;
+      await sharer([XFile(file.path)]);
+      _toast('已导出 ${assets.length} 张为 zip');
+    } catch (error) {
+      _toast('导出 zip 失败：$error');
+    }
+  }
+
+  Future<void> _tagAssets(List<StudioAsset> assets) async {
+    if (assets.isEmpty) return;
+    final tag = await _promptForName(
+      title: '批量打标签',
+      hint: '输入标签名',
+      confirmLabel: '保存',
+    );
+    if (tag == null || tag.trim().isEmpty) return;
+    try {
+      await widget.controller.tagLibraryAssets(
+        imagePaths: assets.map((asset) => asset.path).toList(growable: false),
+        tags: [tag.trim()],
+      );
+      _toast('已为 ${assets.length} 张图片打标签');
+    } catch (error) {
+      _toast('打标签失败：$error');
+    }
+  }
+
+  Future<void> _deleteAssets(List<StudioAsset> assets) async {
+    if (assets.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('批量删除'),
+        content: Text('将永久删除选中的 ${assets.length} 张服务器图片，继续吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await widget.controller.deleteLibraryAssets(
+        assets.map((asset) => asset.path).toList(growable: false),
+      );
+      _toast('已删除 ${assets.length} 张图片');
+    } catch (error) {
+      _toast('删除失败：$error');
+    }
   }
 
   Future<void> _exportFavorites() async {
@@ -206,6 +366,25 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
       return segment;
     }
     return 'favorite-${favorite.id}.png';
+  }
+
+  String _assetFileName(StudioAsset asset) {
+    if (asset.name.isNotEmpty && asset.name.contains('.')) {
+      return asset.name;
+    }
+    final segment = asset.path.split('/').last;
+    if (segment.isNotEmpty && segment.contains('.')) {
+      return segment;
+    }
+    return 'asset-${asset.path.hashCode}.png';
+  }
+
+  String _assetZipFileName() {
+    final now = DateTime.now();
+    final stamp =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}-'
+        '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
+    return 'image-library-$stamp.zip';
   }
 
   Future<void> _shareFiles(List<XFile> files) async {
@@ -300,10 +479,19 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
               },
               create: CreateScreen(controller: widget.controller),
               library: LibraryScreen(
+                assets: state.libraryAssets,
                 favorites: state.favorites,
                 baseUrl: widget.controller.imageBaseUrl,
                 onFavorite: _toggleFavorite,
                 onContinueEdit: _openFavoriteInViewer,
+                onToggleFavoriteAsset: _toggleFavoriteAsset,
+                onContinueEditAsset: _openAssetInViewer,
+                onGenerateVariant: _generateVariantFromAsset,
+                onDownloadAsset: _downloadAsset,
+                onShareAsset: _shareAsset,
+                onBatchDownload: _downloadAssetZip,
+                onBatchTag: _tagAssets,
+                onBatchDelete: _deleteAssets,
                 initialNewestFirst: state.preferences.libraryNewestFirst,
                 onSortChanged: (newestFirst) {
                   widget.controller.updatePreferences(

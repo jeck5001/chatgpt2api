@@ -135,6 +135,154 @@ class StudioTurn {
   }
 }
 
+class StudioAsset {
+  const StudioAsset({
+    required this.path,
+    required this.name,
+    required this.date,
+    required this.sizeBytes,
+    required this.createdAt,
+    required this.url,
+    required this.thumbnailUrl,
+    this.tags = const [],
+    this.width,
+    this.height,
+    this.prompt = '',
+    this.revisedPrompt = '',
+    this.model = '',
+    this.projectId = '',
+    this.projectName = '',
+    this.conversationId = '',
+    this.conversationTitle = '',
+    this.turnId = '',
+    this.mode = '',
+    this.sizeLabel = '',
+  });
+
+  final String path;
+  final String name;
+  final String date;
+  final int sizeBytes;
+  final DateTime createdAt;
+  final Uri url;
+  final Uri thumbnailUrl;
+  final List<String> tags;
+  final int? width;
+  final int? height;
+  final String prompt;
+  final String revisedPrompt;
+  final String model;
+  final String projectId;
+  final String projectName;
+  final String conversationId;
+  final String conversationTitle;
+  final String turnId;
+  final String mode;
+  final String sizeLabel;
+
+  String get displayTitle {
+    if (prompt.isNotEmpty) return prompt;
+    if (revisedPrompt.isNotEmpty) return revisedPrompt;
+    return name.isNotEmpty ? name : path;
+  }
+
+  String get searchText {
+    return [
+      path,
+      name,
+      date,
+      prompt,
+      revisedPrompt,
+      model,
+      projectName,
+      conversationTitle,
+      mode,
+      sizeLabel,
+      ...tags,
+    ].where((value) => value.trim().isNotEmpty).join(' ').toLowerCase();
+  }
+
+  double get aspectRatio {
+    final w = width;
+    final h = height;
+    if (w == null || h == null || w <= 0 || h <= 0) {
+      return 1;
+    }
+    return w / h;
+  }
+
+  StudioAsset copyWith({List<String>? tags}) {
+    return StudioAsset(
+      path: path,
+      name: name,
+      date: date,
+      sizeBytes: sizeBytes,
+      createdAt: createdAt,
+      url: url,
+      thumbnailUrl: thumbnailUrl,
+      tags: tags ?? this.tags,
+      width: width,
+      height: height,
+      prompt: prompt,
+      revisedPrompt: revisedPrompt,
+      model: model,
+      projectId: projectId,
+      projectName: projectName,
+      conversationId: conversationId,
+      conversationTitle: conversationTitle,
+      turnId: turnId,
+      mode: mode,
+      sizeLabel: sizeLabel,
+    );
+  }
+
+  factory StudioAsset.fromJson(Map<String, Object?> json) {
+    return StudioAsset(
+      path: (json['path'] ?? json['rel'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      date: (json['date'] ?? '').toString(),
+      sizeBytes: _intValue(json['size']),
+      createdAt: _dateTimeValue(json['created_at']),
+      url: Uri.parse((json['url'] ?? '').toString()),
+      thumbnailUrl: Uri.parse(
+        (json['thumbnail_url'] ?? json['url'] ?? '').toString(),
+      ),
+      tags: ((json['tags'] ?? <Object?>[]) as List)
+          .map((tag) => tag.toString())
+          .where((tag) => tag.trim().isNotEmpty)
+          .toList(growable: false),
+      width: json['width'] == null ? null : _intValue(json['width']),
+      height: json['height'] == null ? null : _intValue(json['height']),
+      prompt: (json['prompt'] ?? '').toString(),
+      revisedPrompt: (json['revised_prompt'] ?? '').toString(),
+      model: (json['model'] ?? '').toString(),
+      projectId: (json['project_id'] ?? '').toString(),
+      projectName: (json['project_name'] ?? '').toString(),
+      conversationId: (json['conversation_id'] ?? '').toString(),
+      conversationTitle: (json['conversation_title'] ?? '').toString(),
+      turnId: (json['turn_id'] ?? '').toString(),
+      mode: (json['mode'] ?? '').toString(),
+      sizeLabel: (json['size_label'] ?? '').toString(),
+    );
+  }
+
+  static int _intValue(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    return int.tryParse((value ?? '').toString()) ?? 0;
+  }
+
+  static DateTime _dateTimeValue(Object? value) {
+    final raw = (value ?? '').toString().trim();
+    if (raw.isEmpty) {
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
+    return DateTime.tryParse(raw) ??
+        DateTime.tryParse(raw.replaceFirst(' ', 'T')) ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+  }
+}
+
 class StudioFavorite {
   const StudioFavorite({
     required this.id,

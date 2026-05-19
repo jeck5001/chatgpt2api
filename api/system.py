@@ -14,6 +14,7 @@ from services.image_service import delete_images, download_images_zip, get_image
 from services.image_tags_service import delete_tag, get_all_tags, set_tags
 from services.log_service import log_service
 from services.proxy_service import test_proxy
+from services.studio_service import studio_service
 
 
 class SettingsUpdateRequest(BaseModel):
@@ -98,8 +99,13 @@ def create_router(app_version: str) -> APIRouter:
 
     @router.get("/api/images")
     async def get_images(request: Request, start_date: str = "", end_date: str = "", authorization: str | None = Header(default=None)):
-        require_admin(authorization)
-        return list_images(resolve_image_base_url(request), start_date=start_date.strip(), end_date=end_date.strip())
+        identity = require_admin(authorization)
+        return list_images(
+            resolve_image_base_url(request),
+            start_date=start_date.strip(),
+            end_date=end_date.strip(),
+            metadata_by_path=studio_service.image_asset_metadata_index(identity),
+        )
 
     @router.get("/image-thumbnails/{image_path:path}", include_in_schema=False)
     async def get_image_thumbnail(image_path: str):

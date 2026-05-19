@@ -15,6 +15,7 @@ class StudioState {
     this.activeConversation,
     this.turns = const [],
     this.favorites = const [],
+    this.libraryAssets = const [],
     this.templates = const [],
     this.preferences = const StudioPreferences(),
     this.promptDraft = '',
@@ -28,6 +29,7 @@ class StudioState {
   final StudioConversation? activeConversation;
   final List<StudioTurn> turns;
   final List<StudioFavorite> favorites;
+  final List<StudioAsset> libraryAssets;
   final List<StudioPromptTemplate> templates;
   final StudioPreferences preferences;
   final String promptDraft;
@@ -41,6 +43,7 @@ class StudioState {
     StudioConversation? activeConversation,
     List<StudioTurn>? turns,
     List<StudioFavorite>? favorites,
+    List<StudioAsset>? libraryAssets,
     List<StudioPromptTemplate>? templates,
     StudioPreferences? preferences,
     String? promptDraft,
@@ -55,6 +58,7 @@ class StudioState {
       activeConversation: activeConversation ?? this.activeConversation,
       turns: turns ?? this.turns,
       favorites: favorites ?? this.favorites,
+      libraryAssets: libraryAssets ?? this.libraryAssets,
       templates: templates ?? this.templates,
       preferences: preferences ?? this.preferences,
       promptDraft: promptDraft ?? this.promptDraft,
@@ -153,6 +157,12 @@ class StudioController extends ChangeNotifier {
     } catch (_) {
       favorites = const [];
     }
+    List<StudioAsset> libraryAssets;
+    try {
+      libraryAssets = await _repository.fetchLibraryAssets();
+    } catch (_) {
+      libraryAssets = const [];
+    }
     List<StudioPromptTemplate> templates;
     try {
       templates = await _repository.fetchPromptTemplates();
@@ -166,6 +176,7 @@ class StudioController extends ChangeNotifier {
       activeConversation: activeConversation,
       turns: turns,
       favorites: favorites,
+      libraryAssets: libraryAssets,
       templates: templates,
       preferences: loadedPreferences,
     );
@@ -304,6 +315,77 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> refreshLibraryAssets() async {
+    final assets = await _repository.fetchLibraryAssets();
+    _state = _state.copyWith(libraryAssets: assets);
+    notifyListeners();
+  }
+
+  Future<void> deleteLibraryAssets(List<String> imagePaths) async {
+    if (imagePaths.isEmpty) return;
+    final selected = imagePaths.toSet();
+    await _repository.deleteImages(imagePaths);
+    _state = _state.copyWith(
+      libraryAssets: _state.libraryAssets
+          .where((asset) => !selected.contains(asset.path))
+          .toList(growable: false),
+      favorites: _state.favorites
+          .where((favorite) => !selected.contains(favorite.imagePath))
+          .toList(growable: false),
+    );
+    notifyListeners();
+  }
+
+  Future<Uint8List> downloadLibraryAssets(List<String> imagePaths) {
+    if (imagePaths.isEmpty) {
+      return Future<Uint8List>.value(Uint8List(0));
+    }
+    return _repository.downloadImagesZip(imagePaths);
+  }
+
+  Future<void> tagLibraryAssets({
+    required List<String> imagePaths,
+    required List<String> tags,
+  }) async {
+    if (imagePaths.isEmpty) return;
+    final updatedByPath = <String, List<String>>{};
+    for (final path in imagePaths) {
+      updatedByPath[path] = await _repository.updateImageTags(
+        imagePath: path,
+        tags: tags,
+      );
+    }
+    _state = _state.copyWith(
+      libraryAssets: _state.libraryAssets
+          .map((asset) {
+            final updatedTags = updatedByPath[asset.path];
+            return updatedTags == null
+                ? asset
+                : asset.copyWith(tags: updatedTags);
+          })
+          .toList(growable: false),
+    );
+    notifyListeners();
+  }
+
+  Future<void> toggleFavoriteAsset(StudioAsset asset) async {
+    final existing = _state.favorites
+        .where((favorite) => favorite.imagePath == asset.path)
+        .firstOrNull;
+    if (existing != null) {
+      await removeFavorite(existing);
+      return;
+    }
+    final favorite = await _repository.favoriteImage(
+      imagePath: asset.path,
+      sourceTurnId: asset.turnId,
+    );
+    _state = _state.copyWith(
+      favorites: <StudioFavorite>[..._state.favorites, favorite],
+    );
+    notifyListeners();
+  }
+
   Future<void> deleteConversation(
     String conversationId, {
     bool purge = false,
@@ -329,6 +411,7 @@ class StudioController extends ChangeNotifier {
       activeConversation: nextActive,
       turns: nextTurns,
       favorites: _state.favorites,
+      libraryAssets: _state.libraryAssets,
       templates: _state.templates,
       preferences: _state.preferences,
       promptDraft: _state.promptDraft,

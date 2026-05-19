@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_studio_app/studio/create_screen.dart';
@@ -306,6 +308,29 @@ class FakeStudioRepository implements StudioRepositoryContract {
 
   @override
   Future<List<StudioFavorite>> fetchFavorites() async => [];
+
+  @override
+  Future<List<StudioAsset>> fetchLibraryAssets({
+    String startDate = '',
+    String endDate = '',
+  }) async => const [];
+
+  @override
+  Future<List<String>> fetchImageTags() async => const [];
+
+  @override
+  Future<List<String>> updateImageTags({
+    required String imagePath,
+    required List<String> tags,
+  }) async => tags;
+
+  @override
+  Future<void> deleteImages(List<String> imagePaths) async {}
+
+  @override
+  Future<Uint8List> downloadImagesZip(List<String> imagePaths) async {
+    return Uint8List.fromList(const [80, 75, 3, 4]);
+  }
 
   @override
   Future<StudioFavorite> favoriteImage({

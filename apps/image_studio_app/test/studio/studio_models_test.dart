@@ -47,4 +47,40 @@ void main() {
       'http://localhost:8000/images/cat.png',
     );
   });
+
+  test('parses library asset response with searchable studio metadata', () {
+    final asset = StudioAsset.fromJson(<String, Object?>{
+      'path': '2026/05/19/orange.png',
+      'name': 'orange.png',
+      'date': '2026-05-19',
+      'size': 4096,
+      'created_at': '2026-05-19 09:30:00',
+      'url': 'http://localhost:8000/images/2026/05/19/orange.png',
+      'thumbnail_url':
+          'http://localhost:8000/image-thumbnails/2026/05/19/orange.png',
+      'width': 1024,
+      'height': 1792,
+      'tags': <Object?>['海报', '已修图'],
+      'prompt': 'orange product photo',
+      'revised_prompt': 'studio orange product photo',
+      'model': 'gpt-image-2',
+      'project_id': 'project-1',
+      'project_name': 'Spring Campaign',
+      'conversation_id': 'conversation-1',
+      'conversation_title': 'Hero images',
+      'turn_id': 'turn-1',
+      'mode': 'generate',
+      'size_label': '1024x1792',
+    });
+
+    expect(asset.path, '2026/05/19/orange.png');
+    expect(asset.createdAt, DateTime(2026, 5, 19, 9, 30));
+    expect(asset.width, 1024);
+    expect(asset.height, 1792);
+    expect(asset.tags, ['海报', '已修图']);
+    expect(asset.prompt, 'orange product photo');
+    expect(asset.projectName, 'Spring Campaign');
+    expect(asset.searchText, contains('gpt-image-2'));
+    expect(asset.searchText, contains('海报'));
+  });
 }
