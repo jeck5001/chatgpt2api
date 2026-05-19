@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../app/accent.dart';
 import '../app/tokens.dart';
 import '../app/typography.dart';
 import '../shared/components/name_prompt_dialog.dart';
@@ -17,6 +18,7 @@ import 'studio_models.dart';
 import 'studio_repository.dart';
 import 'studio_result_viewer.dart';
 import 'turn_card.dart';
+import 'turn_detail_screen.dart';
 
 const List<String> _kSupportedModels = ['gpt-image-2', 'gpt-image-1'];
 const List<String> _kSupportedSizes = ['1024x1024', '1024x1792', '1792x1024'];
@@ -437,6 +439,24 @@ class _CreateScreenState extends State<CreateScreen> {
     );
   }
 
+  void _openTurnDetail(StudioTurn turn) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TurnDetailScreen(
+          turn: turn,
+          isFavoriteImage: widget.controller?.isFavoriteImage,
+          onRetry: () => _retry(turn),
+          onEditPrompt: () => _editPrompt(turn),
+          onVariation: () => _variation(turn),
+          onSave: turn.resultImages.isEmpty
+              ? null
+              : () => _saveImage(turn.resultImages.first),
+          onOpenImage: (image) => _openImage(turn, image),
+        ),
+      ),
+    );
+  }
+
   Future<void> _pickModel() async {
     final picked = await _showOptionSheet(
       title: '选择模型',
@@ -608,6 +628,11 @@ class _CreateScreenState extends State<CreateScreen> {
     final hasPrompt = _promptController.text.trim().isNotEmpty;
     final canSubmit = hasPrompt && _activeConversationId != null;
     final turns = widget.controller?.state.turns ?? const <StudioTurn>[];
+    final palette = KilnThemeScope.of(context);
+    final successTurns = turns
+        .where((turn) => turn.resultImages.isNotEmpty)
+        .toList(growable: false);
+    final latestSuccessful = successTurns.isEmpty ? null : successTurns.last;
 
     return Scaffold(
       body: SafeArea(
@@ -628,36 +653,55 @@ class _CreateScreenState extends State<CreateScreen> {
               child: turns.isEmpty
                   ? const _EmptyStudio()
                   : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(
-                        KilnSpacing.md,
-                        KilnSpacing.md,
-                        KilnSpacing.md,
-                        140,
-                      ),
-                      itemCount: turns.length,
+                      padding: const EdgeInsets.fromLTRB(0, 0, 0, 140),
+                      itemCount:
+                          turns.length + (latestSuccessful == null ? 0 : 1),
                       separatorBuilder: (_, _) =>
                           const SizedBox(height: KilnSpacing.md),
                       itemBuilder: (context, index) {
-                        final turn = turns[index];
-                        return TurnCard(
-                          turn: turn,
-                          onImageTap: (image, _) => _openImage(turn, image),
-                          onRetry: () => _retry(turn),
-                          onEditPrompt: () => _editPrompt(turn),
-                          onFavorite: () => _toggleFavorite(turn),
-                          onVariation: () => _variation(turn),
-                          onEdit: () => _editPrompt(turn),
-                          onLongPress: () => _confirmDeleteTurn(turn),
-                          onSave: turn.resultImages.isEmpty
-                              ? null
-                              : () => _saveImage(turn.resultImages.first),
-                          onShare: turn.resultImages.isEmpty
-                              ? null
-                              : () => _shareImage(turn.resultImages.first),
-                          isFavoriteImage: widget.controller?.isFavoriteImage,
-                          runningElapsed: turn.isRunning
-                              ? _formatElapsed(turn.updatedAt)
-                              : null,
+                        if (latestSuccessful != null && index == 0) {
+                          return _StudioHero(
+                            turn: latestSuccessful,
+                            onOpen: () => _openImage(
+                              latestSuccessful,
+                              latestSuccessful.resultImages.first,
+                            ),
+                            onVariation: () => _variation(latestSuccessful),
+                            onDetail: () => _openTurnDetail(latestSuccessful),
+                            palette: palette,
+                          );
+                        }
+                        final turnIndex = latestSuccessful == null
+                            ? index
+                            : index - 1;
+                        final turn = turns[turnIndex];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: KilnSpacing.md,
+                          ),
+                          child: TurnCard(
+                            turn: turn,
+                            onImageTap: (image, _) => _openImage(turn, image),
+                            onRetry: () => _retry(turn),
+                            onEditPrompt: () => _editPrompt(turn),
+                            onFavorite: () => _toggleFavorite(turn),
+                            onVariation: () => _variation(turn),
+                            onEdit: () => _editPrompt(turn),
+                            onLongPress: () => _confirmDeleteTurn(turn),
+                            onSave: turn.resultImages.isEmpty
+                                ? null
+                                : () => _saveImage(turn.resultImages.first),
+                            onShare: turn.resultImages.isEmpty
+                                ? null
+                                : () => _shareImage(turn.resultImages.first),
+                            onOpenDetail: turn.resultImages.isEmpty
+                                ? null
+                                : () => _openTurnDetail(turn),
+                            isFavoriteImage: widget.controller?.isFavoriteImage,
+                            runningElapsed: turn.isRunning
+                                ? _formatElapsed(turn.updatedAt)
+                                : null,
+                          ),
                         );
                       },
                     ),
@@ -833,13 +877,18 @@ class _StudioTopBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(
         KilnSpacing.lg,
-        KilnSpacing.sm,
+        KilnSpacing.md,
         KilnSpacing.sm,
         KilnSpacing.sm + 2,
       ),
-      decoration: const BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: KilnColors.hairline, width: 1),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            KilnColors.ink950,
+            KilnColors.ink950.withValues(alpha: 0.88),
+          ],
         ),
       ),
       child: LayoutBuilder(
@@ -856,16 +905,30 @@ class _StudioTopBar extends StatelessWidget {
                     child: Row(
                       children: [
                         Flexible(
-                          child: Text(
-                            sessionTitle,
-                            style: KilnTypography.display(
-                              size: 17,
-                              weight: FontWeight.w500,
-                              height: 1.3,
-                              letterSpacing: -0.1,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'STUDIO',
+                                style: KilnTypography.mono(
+                                  size: 10,
+                                  color: KilnColors.ember400,
+                                  letterSpacing: 2.2,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                sessionTitle,
+                                style: KilnTypography.display(
+                                  size: 17,
+                                  weight: FontWeight.w500,
+                                  height: 1.3,
+                                  letterSpacing: -0.1,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(width: 4),
@@ -920,10 +983,200 @@ class _EmptyStudio extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 160),
       child: EmptyState(
-        title: '今天想',
-        accent: '画点什么？',
-        message: '从一句 prompt 开始。每张图都会留在这段对话里。',
+        title: '从第一句',
+        accent: '想象开始',
+        message: '写下 prompt，连续迭代，结果会沉淀在这段创作会话里。',
         icon: Icons.auto_awesome_outlined,
+      ),
+    );
+  }
+}
+
+class _StudioHero extends StatelessWidget {
+  const _StudioHero({
+    required this.turn,
+    required this.onOpen,
+    required this.onVariation,
+    required this.onDetail,
+    required this.palette,
+  });
+
+  final StudioTurn turn;
+  final VoidCallback onOpen;
+  final VoidCallback onVariation;
+  final VoidCallback onDetail;
+  final KilnAccentPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final image = turn.resultImages.first;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        KilnSpacing.md,
+        0,
+        KilnSpacing.md,
+        KilnSpacing.sm,
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(KilnRadii.xl),
+          border: Border.all(color: palette.shade500.withValues(alpha: 0.24)),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0x10FFFFFF), Color(0x22000000)],
+          ),
+        ),
+        padding: const EdgeInsets.all(KilnSpacing.sm),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableWidth = constraints.maxWidth.isFinite
+                ? constraints.maxWidth
+                : MediaQuery.sizeOf(context).width;
+            final imageHeight = (availableWidth / 1.22)
+                .clamp(180.0, 280.0)
+                .toDouble();
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: onOpen,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(KilnRadii.card),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: imageHeight,
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Image.network(
+                            image.url.toString(),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Container(
+                              color: KilnColors.ink850,
+                              alignment: Alignment.center,
+                              child: const Icon(
+                                Icons.broken_image_outlined,
+                                color: KilnColors.ink500,
+                              ),
+                            ),
+                          ),
+                          IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withValues(alpha: 0.16),
+                                    Colors.black.withValues(alpha: 0.70),
+                                  ],
+                                  stops: const [0.0, 0.55, 1.0],
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            left: KilnSpacing.md,
+                            right: KilnSpacing.md,
+                            bottom: KilnSpacing.md,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  turn.prompt,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: KilnTypography.display(
+                                    size: 19,
+                                    weight: FontWeight.w500,
+                                    color: Colors.white,
+                                    height: 1.2,
+                                  ),
+                                ),
+                                const SizedBox(height: KilnSpacing.xs),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    _HeroChip(label: turn.model),
+                                    if ((turn.size ?? '').isNotEmpty)
+                                      _HeroChip(
+                                        label: turn.size!.replaceAll('x', '×'),
+                                      ),
+                                    _HeroChip(
+                                      label: '${turn.resultImages.length} 张',
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: KilnSpacing.sm),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: onOpen,
+                        icon: const Icon(Icons.open_in_full_rounded, size: 18),
+                        label: const Text('查看作品'),
+                      ),
+                    ),
+                    const SizedBox(width: KilnSpacing.sm),
+                    Expanded(
+                      child: FilledButton.icon(
+                        onPressed: onVariation,
+                        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                        label: const Text('生成变体'),
+                      ),
+                    ),
+                    const SizedBox(width: KilnSpacing.sm),
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: onDetail,
+                        icon: const Icon(Icons.tune_rounded, size: 18),
+                        label: const Text('详情'),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroChip extends StatelessWidget {
+  const _HeroChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: KilnSpacing.sm,
+        vertical: 6,
+      ),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(KilnRadii.chip),
+        border: Border.all(color: const Color(0x1FF4ECDD)),
+      ),
+      child: Text(
+        label,
+        style: KilnTypography.chipMono.copyWith(color: Colors.white),
       ),
     );
   }

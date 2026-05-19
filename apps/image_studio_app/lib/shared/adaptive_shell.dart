@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../app/tokens.dart';
 import '../app/responsive.dart';
 
 class AdaptiveShell extends StatelessWidget {
@@ -34,31 +35,45 @@ class AdaptiveShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pages = [create, library, projects, settings];
+    final pages = [projects, create, library, settings];
     return switch (windowClassOf(context)) {
       WindowClass.compact => Scaffold(
         body: _crossFadePage(pages[selectedIndex]),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: selectedIndex,
-          onDestinationSelected: onDestinationSelected,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.auto_awesome),
-              label: 'Create',
+        bottomNavigationBar: DecoratedBox(
+          decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: KilnColors.hairline)),
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [KilnColors.ink900, KilnColors.ink950],
             ),
-            NavigationDestination(
-              icon: Icon(Icons.photo_library_outlined),
-              label: 'Library',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.folder_outlined),
-              label: 'Projects',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.settings_outlined),
-              label: 'Settings',
-            ),
-          ],
+          ),
+          child: NavigationBar(
+            selectedIndex: selectedIndex,
+            onDestinationSelected: onDestinationSelected,
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.folder_outlined),
+                selectedIcon: Icon(Icons.folder_copy_outlined),
+                label: 'Projects',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.auto_awesome_outlined),
+                selectedIcon: Icon(Icons.auto_awesome),
+                label: 'Studio',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.photo_library_outlined),
+                selectedIcon: Icon(Icons.photo_library),
+                label: 'Library',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.tune_outlined),
+                selectedIcon: Icon(Icons.tune),
+                label: 'Settings',
+              ),
+            ],
+          ),
         ),
       ),
       WindowClass.medium => Row(
@@ -68,19 +83,19 @@ class AdaptiveShell extends StatelessWidget {
             onDestinationSelected: onDestinationSelected,
             destinations: const [
               NavigationRailDestination(
-                icon: Icon(Icons.auto_awesome),
-                label: Text('Create'),
+                icon: Icon(Icons.folder_outlined),
+                label: Text('Projects'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.auto_awesome_outlined),
+                label: Text('Studio'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.photo_library_outlined),
                 label: Text('Library'),
               ),
               NavigationRailDestination(
-                icon: Icon(Icons.folder_outlined),
-                label: Text('Projects'),
-              ),
-              NavigationRailDestination(
-                icon: Icon(Icons.settings_outlined),
+                icon: Icon(Icons.tune_outlined),
                 label: Text('Settings'),
               ),
             ],

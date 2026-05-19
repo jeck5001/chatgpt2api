@@ -52,7 +52,7 @@ Widget _host({required double width}) {
     home: MediaQuery(
       data: MediaQueryData(size: Size(width, 900)),
       child: const AdaptiveShell(
-        selectedIndex: 0,
+        selectedIndex: 1,
         onDestinationSelected: _ignore,
         create: Text('Create'),
         library: Text('Library'),
@@ -74,7 +74,7 @@ class _StatefulHost extends StatefulWidget {
 }
 
 class _StatefulHostState extends State<_StatefulHost> {
-  int _index = 0;
+  int _index = 1;
 
   @override
   Widget build(BuildContext context) {

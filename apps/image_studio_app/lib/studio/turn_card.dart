@@ -33,6 +33,7 @@ class TurnCard extends StatelessWidget {
     this.onLongPress,
     this.isFavoriteImage,
     this.runningElapsed,
+    this.onOpenDetail,
   });
 
   final StudioTurn turn;
@@ -48,6 +49,7 @@ class TurnCard extends StatelessWidget {
   final VoidCallback? onLongPress;
   final bool Function(StudioResultImage image)? isFavoriteImage;
   final String? runningElapsed;
+  final VoidCallback? onOpenDetail;
 
   bool get _isError => turn.status == StudioTurnStatus.error;
 
@@ -62,6 +64,15 @@ class TurnCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (turn.resultImages.isNotEmpty)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onOpenDetail,
+                icon: const Icon(Icons.open_in_full_rounded, size: 16),
+                label: const Text('详情'),
+              ),
+            ),
           _PromptBlock(turn: turn),
           const SizedBox(height: KilnSpacing.sm),
           _MetaRow(turn: turn),
