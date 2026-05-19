@@ -213,6 +213,45 @@ void main() {
   );
 
   test(
+    'saveRecipeFromAsset prepends a reusable recipe for the asset',
+    () async {
+      final repository = FakeStudioRepository()
+        ..libraryAssets = [
+          StudioAsset(
+            path: '2026/05/19/orange.png',
+            name: 'orange.png',
+            date: '2026-05-19',
+            sizeBytes: 4096,
+            createdAt: DateTime(2026, 5, 19, 9, 30),
+            url: Uri.parse(
+              'http://localhost:8000/images/2026/05/19/orange.png',
+            ),
+            thumbnailUrl: Uri.parse(
+              'http://localhost:8000/image-thumbnails/2026/05/19/orange.png',
+            ),
+            prompt: 'orange product photo',
+            model: 'gpt-image-2',
+            sizeLabel: '1024x1792',
+            projectId: 'project-1',
+            projectName: 'Spring Campaign',
+            turnId: 'turn-1',
+          ),
+        ];
+      final controller = StudioController(repository);
+      await controller.loadWorkspace();
+
+      final created = await controller.saveRecipeFromAsset(
+        repository.libraryAssets.single,
+        name: 'Orange recipe',
+      );
+
+      expect(created.name, 'Orange recipe');
+      expect(repository.createdRecipes.single.name, 'Orange recipe');
+      expect(controller.state.recipes.single.id, created.id);
+    },
+  );
+
+  test(
     'load workspace keeps available project and conversation lists',
     () async {
       final repository = FakeStudioRepository()
@@ -589,6 +628,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
   final List<String> deletedConversations = [];
   final List<String> deletedTurns = [];
   final List<String> deletedImages = [];
+  final List<StudioRecipe> createdRecipes = [];
 
   @override
   Future<List<StudioProject>> fetchProjects() async {
@@ -759,6 +799,44 @@ class FakeStudioRepository implements StudioRepositoryContract {
   @override
   Future<Uint8List> downloadImagesZip(List<String> imagePaths) async {
     return Uint8List.fromList(const [80, 75, 3, 4]);
+  }
+
+  @override
+  Future<List<StudioRecipe>> fetchRecipes() async {
+    return createdRecipes;
+  }
+
+  @override
+  Future<StudioRecipe> createRecipe({
+    required String name,
+    required String prompt,
+    required String model,
+    String? size,
+    String sourceImagePath = '',
+    String sourceTurnId = '',
+    String projectId = '',
+    List<String> tags = const [],
+  }) async {
+    final recipe = StudioRecipe(
+      id: 'recipe-${createdRecipes.length + 1}',
+      name: name,
+      prompt: prompt,
+      model: model,
+      size: size,
+      sourceImagePath: sourceImagePath,
+      sourceTurnId: sourceTurnId,
+      projectId: projectId,
+      tags: tags,
+      createdAt: DateTime.utc(2026, 5, 19, 9, 30),
+      updatedAt: DateTime.utc(2026, 5, 19, 9, 30),
+    );
+    createdRecipes.add(recipe);
+    return recipe;
+  }
+
+  @override
+  Future<void> deleteRecipe(String recipeId) async {
+    createdRecipes.removeWhere((recipe) => recipe.id == recipeId);
   }
 
   @override

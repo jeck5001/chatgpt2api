@@ -59,6 +59,7 @@ Future<void> _pumpAssetLibrary(
   ValueChanged<StudioAsset>? onGenerateVariant,
   ValueChanged<StudioAsset>? onDownloadAsset,
   ValueChanged<StudioAsset>? onShareAsset,
+  ValueChanged<StudioAsset>? onSaveRecipeAsset,
   ValueChanged<List<StudioAsset>>? onBatchDownload,
   ValueChanged<List<StudioAsset>>? onBatchTag,
   ValueChanged<List<StudioAsset>>? onBatchDelete,
@@ -72,6 +73,7 @@ Future<void> _pumpAssetLibrary(
         onGenerateVariant: onGenerateVariant,
         onDownloadAsset: onDownloadAsset,
         onShareAsset: onShareAsset,
+        onSaveRecipeAsset: onSaveRecipeAsset,
         onBatchDownload: onBatchDownload,
         onBatchTag: onBatchTag,
         onBatchDelete: onBatchDelete,
@@ -260,6 +262,24 @@ void main() {
       ]);
     },
   );
+
+  testWidgets('asset tile save recipe button calls the recipe callback', (
+    tester,
+  ) async {
+    final asset = _asset('2026/05/19/orange.png', 'orange product photo');
+    final actions = <String>[];
+
+    await _pumpAssetLibrary(
+      tester,
+      assets: [asset],
+      onSaveRecipeAsset: (asset) => actions.add('recipe:${asset.path}'),
+    );
+
+    await tester.tap(find.byTooltip('保存配方'));
+    await tester.pump();
+
+    expect(actions, ['recipe:2026/05/19/orange.png']);
+  });
 
   testWidgets('batch mode selects assets and invokes bulk actions', (
     tester,

@@ -122,6 +122,34 @@ class StudioServiceTests(unittest.TestCase):
         self.assertEqual(prompt_map["2026/05/orange.png"], "orange product photo")
         self.assertEqual(prompt_map["2026/05/orphan.png"], "")
 
+    def test_recipe_lifecycle_is_user_scoped_and_keeps_generation_settings(self):
+        service, _storage, _path = self.make_service()
+
+        recipe = service.create_recipe(
+            OWNER,
+            name="Orange product recipe",
+            prompt="orange product photo",
+            model="gpt-image-2",
+            size="1024x1792",
+            source_image_path="2026/05/orange.png",
+            source_turn_id="turn-1",
+            project_id="project-1",
+            tags=["商业", "海报", "商业"],
+        )
+
+        listed = service.list_recipes(OWNER)
+
+        self.assertEqual(listed[0]["id"], recipe["id"])
+        self.assertEqual(listed[0]["prompt"], "orange product photo")
+        self.assertEqual(listed[0]["model"], "gpt-image-2")
+        self.assertEqual(listed[0]["size"], "1024x1792")
+        self.assertEqual(listed[0]["source_image_path"], "2026/05/orange.png")
+        self.assertEqual(listed[0]["tags"], ["商业", "海报"])
+        self.assertEqual(service.list_recipes(OTHER_OWNER), [])
+
+        self.assertTrue(service.delete_recipe(OWNER, recipe["id"]))
+        self.assertEqual(service.list_recipes(OWNER), [])
+
     def test_image_asset_metadata_index_joins_turn_project_and_prompt_by_path(self):
         service, _storage, _path = self.make_service()
         project = service.create_project(OWNER, "Spring Campaign")

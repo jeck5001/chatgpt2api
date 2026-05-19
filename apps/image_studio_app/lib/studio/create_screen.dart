@@ -301,6 +301,7 @@ class _CreateScreenState extends State<CreateScreen> {
     final controller = widget.controller;
     if (controller == null) return;
     final templates = controller.state.templates;
+    final recipes = controller.state.recipes;
     final action = await showModalBottomSheet<_TemplateSheetAction>(
       context: context,
       backgroundColor: KilnColors.ink900,
@@ -311,6 +312,7 @@ class _CreateScreenState extends State<CreateScreen> {
       builder: (sheetContext) {
         return _TemplateSheet(
           templates: templates,
+          recipes: recipes,
           currentPrompt: _promptController.text,
           onDelete: (template) async {
             try {
@@ -329,6 +331,20 @@ class _CreateScreenState extends State<CreateScreen> {
         _promptController.selection = TextSelection.fromPosition(
           TextPosition(offset: template.content.length),
         );
+      case _TemplateSheetApplyRecipe(:final recipe):
+        _promptController.text = recipe.prompt;
+        _promptController.selection = TextSelection.fromPosition(
+          TextPosition(offset: recipe.prompt.length),
+        );
+        final size = recipe.size;
+        setState(() {
+          if (_kSupportedModels.contains(recipe.model)) {
+            _selectedModel = recipe.model;
+          }
+          if (size != null && _kSupportedSizes.contains(size)) {
+            _selectedSize = size;
+          }
+        });
       case _TemplateSheetSaveCurrent():
         await _saveCurrentPromptAsTemplate();
     }
@@ -958,7 +974,7 @@ class _StudioTopBar extends StatelessWidget {
                     ),
                   ),
                   alignment: Alignment.center,
-                  child: Text(model, style: KilnTypography.chipMono),
+                  child: Text('模型 · $model', style: KilnTypography.chipMono),
                 ),
               ],
               const SizedBox(width: KilnSpacing.xs),
@@ -1197,6 +1213,11 @@ class _TemplateSheetApply extends _TemplateSheetAction {
   final StudioPromptTemplate template;
 }
 
+class _TemplateSheetApplyRecipe extends _TemplateSheetAction {
+  const _TemplateSheetApplyRecipe(this.recipe);
+  final StudioRecipe recipe;
+}
+
 class _TemplateSheetSaveCurrent extends _TemplateSheetAction {
   const _TemplateSheetSaveCurrent();
 }
@@ -1204,11 +1225,13 @@ class _TemplateSheetSaveCurrent extends _TemplateSheetAction {
 class _TemplateSheet extends StatelessWidget {
   const _TemplateSheet({
     required this.templates,
+    required this.recipes,
     required this.currentPrompt,
     required this.onDelete,
   });
 
   final List<StudioPromptTemplate> templates;
+  final List<StudioRecipe> recipes;
   final String currentPrompt;
   final Future<void> Function(StudioPromptTemplate) onDelete;
 
@@ -1260,11 +1283,11 @@ class _TemplateSheet extends StatelessWidget {
               ),
             ),
             const Divider(color: KilnColors.hairline, height: 1),
-            if (templates.isEmpty)
+            if (templates.isEmpty && recipes.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(KilnSpacing.xl),
                 child: Text(
-                  '还没有模板。把常用的 prompt 保存下来下次直接复用。',
+                  '还没有模板或配方。把常用的 prompt 和生成参数保存下来下次直接复用。',
                   textAlign: TextAlign.center,
                   style: KilnTypography.mono(
                     size: 12,
@@ -1278,6 +1301,31 @@ class _TemplateSheet extends StatelessWidget {
                   shrinkWrap: true,
                   padding: const EdgeInsets.only(bottom: KilnSpacing.sm),
                   children: [
+                    if (recipes.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          KilnSpacing.lg,
+                          KilnSpacing.sm + 2,
+                          KilnSpacing.lg,
+                          KilnSpacing.xs,
+                        ),
+                        child: Text(
+                          '配方',
+                          style: KilnTypography.mono(
+                            size: 10,
+                            color: KilnColors.ember400,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                      ),
+                      for (final recipe in recipes)
+                        _RecipeRow(
+                          recipe: recipe,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(_TemplateSheetApplyRecipe(recipe)),
+                        ),
+                    ],
                     for (final category in categories) ...[
                       Padding(
                         padding: const EdgeInsets.fromLTRB(
@@ -1308,6 +1356,40 @@ class _TemplateSheet extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RecipeRow extends StatelessWidget {
+  const _RecipeRow({required this.recipe, required this.onTap});
+
+  final StudioRecipe recipe;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = [
+      recipe.model,
+      if ((recipe.size ?? '').isNotEmpty) recipe.size!.replaceAll('x', '×'),
+      ...recipe.tags.take(2),
+    ].where((value) => value.trim().isNotEmpty).join(' · ');
+    return ListTile(
+      onTap: onTap,
+      leading: const Icon(
+        Icons.auto_awesome_motion_outlined,
+        size: 18,
+        color: KilnColors.ember400,
+      ),
+      title: Text(
+        recipe.displayName,
+        style: KilnTypography.ui(size: 14, weight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        meta.isEmpty ? recipe.prompt : '$meta\n${recipe.prompt}',
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: KilnTypography.mono(size: 11, color: KilnColors.ink400),
       ),
     );
   }

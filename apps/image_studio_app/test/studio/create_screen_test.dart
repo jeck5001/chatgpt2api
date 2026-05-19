@@ -152,6 +152,50 @@ void main() {
     expect(find.text('详情'), findsOneWidget);
   });
 
+  testWidgets(
+    'prompt templates sheet shows reusable recipes and applies them',
+    (tester) async {
+      final controller = StudioController(FakeStudioRepository());
+      controller.replaceRecipes([
+        StudioRecipe(
+          id: 'recipe-1',
+          name: 'Orange recipe',
+          prompt: 'orange product photo',
+          model: 'gpt-image-2',
+          size: '1024x1792',
+          sourceImagePath: '2026/05/orange.png',
+          sourceTurnId: 'turn-1',
+          projectId: 'project-1',
+          tags: const ['海报'],
+          createdAt: DateTime.utc(2026, 5, 19),
+          updatedAt: DateTime.utc(2026, 5, 19),
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: CreateScreen(
+            controller: controller,
+            activeConversationId: 'conversation-1',
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('模板'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('配方'), findsOneWidget);
+      expect(find.text('Orange recipe'), findsOneWidget);
+
+      await tester.tap(find.text('Orange recipe'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('orange product photo'), findsOneWidget);
+      expect(find.text('gpt-image-2'), findsOneWidget);
+      expect(find.text('1024×1792'), findsOneWidget);
+    },
+  );
+
   testWidgets('renders shimmer placeholders for running turns', (tester) async {
     final controller = StudioController(FakeStudioRepository());
     controller.replaceTurns([
@@ -331,6 +375,26 @@ class FakeStudioRepository implements StudioRepositoryContract {
   Future<Uint8List> downloadImagesZip(List<String> imagePaths) async {
     return Uint8List.fromList(const [80, 75, 3, 4]);
   }
+
+  @override
+  Future<List<StudioRecipe>> fetchRecipes() async => const [];
+
+  @override
+  Future<StudioRecipe> createRecipe({
+    required String name,
+    required String prompt,
+    required String model,
+    String? size,
+    String sourceImagePath = '',
+    String sourceTurnId = '',
+    String projectId = '',
+    List<String> tags = const [],
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteRecipe(String recipeId) async {}
 
   @override
   Future<StudioFavorite> favoriteImage({

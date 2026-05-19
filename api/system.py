@@ -79,6 +79,7 @@ def create_router(app_version: str) -> APIRouter:
                 "image_edit",
                 "prompt_templates",
                 "favorites",
+                "recipes",
             ],
             "auth_modes": ["bearer_key"],
         }

@@ -163,6 +163,7 @@ class StudioService:
             "turns": [],
             "prompt_templates": [],
             "favorites": [],
+            "recipes": [],
         }
         for key in state:
             values = source.get(key)
@@ -641,6 +642,69 @@ class StudioService:
                 )
             ]
             changed = len(self._state["prompt_templates"]) != before
+            if changed:
+                self._rollback_save_locked(before_state)
+            return changed
+
+    def list_recipes(self, identity: dict[str, object]) -> list[dict[str, Any]]:
+        with self._lock:
+            return sorted(
+                self._visible(identity, self._state["recipes"]),
+                key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""),
+                reverse=True,
+            )
+
+    def create_recipe(
+        self,
+        identity: dict[str, object],
+        *,
+        name: str,
+        prompt: str,
+        model: str,
+        size: str | None = "",
+        source_image_path: str = "",
+        source_turn_id: str = "",
+        project_id: str = "",
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        normalized_prompt = _clean(prompt)
+        if not normalized_prompt:
+            raise ValueError("recipe prompt is required")
+        cleaned_tags = list(dict.fromkeys(_clean(tag) for tag in (tags or []) if _clean(tag)))
+        now = _now_iso()
+        with self._lock:
+            before = deepcopy(self._state)
+            item = {
+                "id": _id("recipe"),
+                "owner_id": _owner_id(identity),
+                "name": _clean(name) or normalized_prompt[:32] or "未命名配方",
+                "prompt": normalized_prompt,
+                "model": _clean(model) or "gpt-image-2",
+                "size": _clean(size),
+                "source_image_path": _clean(source_image_path).lstrip("/"),
+                "source_turn_id": _clean(source_turn_id),
+                "project_id": _clean(project_id),
+                "tags": cleaned_tags,
+                "created_at": now,
+                "updated_at": now,
+            }
+            self._state["recipes"].append(item)
+            self._rollback_save_locked(before)
+            return _public(item)
+
+    def delete_recipe(self, identity: dict[str, object], recipe_id: str) -> bool:
+        with self._lock:
+            before_state = deepcopy(self._state)
+            before = len(self._state["recipes"])
+            self._state["recipes"] = [
+                item
+                for item in self._state["recipes"]
+                if not (
+                    item.get("id") == recipe_id
+                    and (_is_admin(identity) or item.get("owner_id") == _owner_id(identity))
+                )
+            ]
+            changed = len(self._state["recipes"]) != before
             if changed:
                 self._rollback_save_locked(before_state)
             return changed

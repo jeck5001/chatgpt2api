@@ -16,6 +16,7 @@ class StudioState {
     this.turns = const [],
     this.favorites = const [],
     this.libraryAssets = const [],
+    this.recipes = const [],
     this.templates = const [],
     this.preferences = const StudioPreferences(),
     this.promptDraft = '',
@@ -30,6 +31,7 @@ class StudioState {
   final List<StudioTurn> turns;
   final List<StudioFavorite> favorites;
   final List<StudioAsset> libraryAssets;
+  final List<StudioRecipe> recipes;
   final List<StudioPromptTemplate> templates;
   final StudioPreferences preferences;
   final String promptDraft;
@@ -44,6 +46,7 @@ class StudioState {
     List<StudioTurn>? turns,
     List<StudioFavorite>? favorites,
     List<StudioAsset>? libraryAssets,
+    List<StudioRecipe>? recipes,
     List<StudioPromptTemplate>? templates,
     StudioPreferences? preferences,
     String? promptDraft,
@@ -59,6 +62,7 @@ class StudioState {
       turns: turns ?? this.turns,
       favorites: favorites ?? this.favorites,
       libraryAssets: libraryAssets ?? this.libraryAssets,
+      recipes: recipes ?? this.recipes,
       templates: templates ?? this.templates,
       preferences: preferences ?? this.preferences,
       promptDraft: promptDraft ?? this.promptDraft,
@@ -128,6 +132,11 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void replaceRecipes(List<StudioRecipe> recipes) {
+    _state = _state.copyWith(recipes: recipes);
+    notifyListeners();
+  }
+
   Future<void> loadWorkspace() async {
     StudioPreferences? loadedPreferences;
     if (_preferencesStore != null) {
@@ -163,6 +172,12 @@ class StudioController extends ChangeNotifier {
     } catch (_) {
       libraryAssets = const [];
     }
+    List<StudioRecipe> recipes;
+    try {
+      recipes = await _repository.fetchRecipes();
+    } catch (_) {
+      recipes = const [];
+    }
     List<StudioPromptTemplate> templates;
     try {
       templates = await _repository.fetchPromptTemplates();
@@ -177,6 +192,7 @@ class StudioController extends ChangeNotifier {
       turns: turns,
       favorites: favorites,
       libraryAssets: libraryAssets,
+      recipes: recipes,
       templates: templates,
       preferences: loadedPreferences,
     );
@@ -368,6 +384,50 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<StudioRecipe> saveRecipeFromAsset(
+    StudioAsset asset, {
+    String name = '',
+  }) async {
+    final prompt = [asset.prompt, asset.revisedPrompt, asset.name]
+        .map((value) => value.trim())
+        .firstWhere((value) => value.isNotEmpty, orElse: () => '');
+    if (prompt.isEmpty) {
+      throw StateError('这张图没有可复用的 prompt');
+    }
+    final fallbackName =
+        [asset.projectName, asset.prompt, asset.revisedPrompt, asset.name]
+            .map((value) => value.trim())
+            .firstWhere((value) => value.isNotEmpty, orElse: () => '未命名配方');
+    final created = await _repository.createRecipe(
+      name: name.trim().isNotEmpty ? name.trim() : fallbackName,
+      prompt: prompt,
+      model: asset.model.trim().isNotEmpty ? asset.model.trim() : 'gpt-image-2',
+      size: asset.sizeLabel.trim().isEmpty ? null : asset.sizeLabel.trim(),
+      sourceImagePath: asset.path,
+      sourceTurnId: asset.turnId,
+      projectId: asset.projectId,
+      tags: asset.tags,
+    );
+    _state = _state.copyWith(
+      recipes: [
+        created,
+        ..._state.recipes.where((recipe) => recipe.id != created.id),
+      ],
+    );
+    notifyListeners();
+    return created;
+  }
+
+  Future<void> deleteRecipe(String recipeId) async {
+    await _repository.deleteRecipe(recipeId);
+    _state = _state.copyWith(
+      recipes: _state.recipes
+          .where((recipe) => recipe.id != recipeId)
+          .toList(growable: false),
+    );
+    notifyListeners();
+  }
+
   Future<void> toggleFavoriteAsset(StudioAsset asset) async {
     final existing = _state.favorites
         .where((favorite) => favorite.imagePath == asset.path)
@@ -412,6 +472,7 @@ class StudioController extends ChangeNotifier {
       turns: nextTurns,
       favorites: _state.favorites,
       libraryAssets: _state.libraryAssets,
+      recipes: _state.recipes,
       templates: _state.templates,
       preferences: _state.preferences,
       promptDraft: _state.promptDraft,

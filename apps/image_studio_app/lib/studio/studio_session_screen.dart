@@ -232,6 +232,25 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
     }
   }
 
+  Future<void> _saveRecipeFromAsset(StudioAsset asset) async {
+    final suggested =
+        [asset.projectName, asset.prompt, asset.revisedPrompt, asset.name]
+            .map((value) => value.trim())
+            .firstWhere((value) => value.isNotEmpty, orElse: () => '未命名配方');
+    final name = await _promptForName(
+      title: '保存配方',
+      hint: suggested,
+      confirmLabel: '保存',
+    );
+    if (name == null) return;
+    try {
+      await widget.controller.saveRecipeFromAsset(asset, name: name);
+      _toast('已保存配方');
+    } catch (error) {
+      _toast('保存配方失败：$error');
+    }
+  }
+
   Future<void> _downloadAsset(StudioAsset asset) async {
     try {
       final file = await _imageSaver.saveImage(
@@ -489,6 +508,7 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
                 onGenerateVariant: _generateVariantFromAsset,
                 onDownloadAsset: _downloadAsset,
                 onShareAsset: _shareAsset,
+                onSaveRecipeAsset: _saveRecipeFromAsset,
                 onBatchDownload: _downloadAssetZip,
                 onBatchTag: _tagAssets,
                 onBatchDelete: _deleteAssets,

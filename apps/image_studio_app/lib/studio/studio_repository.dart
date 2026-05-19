@@ -91,6 +91,21 @@ abstract interface class StudioRepositoryContract {
 
   Future<Uint8List> downloadImagesZip(List<String> imagePaths);
 
+  Future<List<StudioRecipe>> fetchRecipes();
+
+  Future<StudioRecipe> createRecipe({
+    required String name,
+    required String prompt,
+    required String model,
+    String? size,
+    String sourceImagePath = '',
+    String sourceTurnId = '',
+    String projectId = '',
+    List<String> tags = const [],
+  });
+
+  Future<void> deleteRecipe(String recipeId);
+
   Future<List<StudioPromptTemplate>> fetchPromptTemplates();
 
   Future<StudioPromptTemplate> createPromptTemplate({
@@ -341,6 +356,44 @@ class StudioRepository implements StudioRepositoryContract {
       '/api/images/download',
       body: <String, Object?>{'paths': imagePaths},
     );
+  }
+
+  @override
+  Future<List<StudioRecipe>> fetchRecipes() async {
+    final payload = await _client.getJson('/api/image-recipes');
+    return _items(payload).map(StudioRecipe.fromJson).toList();
+  }
+
+  @override
+  Future<StudioRecipe> createRecipe({
+    required String name,
+    required String prompt,
+    required String model,
+    String? size,
+    String sourceImagePath = '',
+    String sourceTurnId = '',
+    String projectId = '',
+    List<String> tags = const [],
+  }) async {
+    final payload = await _client.postJson(
+      '/api/image-recipes',
+      body: <String, Object?>{
+        'name': name,
+        'prompt': prompt,
+        'model': model,
+        'size': size,
+        'source_image_path': sourceImagePath,
+        'source_turn_id': sourceTurnId,
+        'project_id': projectId,
+        'tags': tags,
+      },
+    );
+    return StudioRecipe.fromJson(payload['item']! as Map<String, Object?>);
+  }
+
+  @override
+  Future<void> deleteRecipe(String recipeId) async {
+    await _client.deleteJson('/api/image-recipes/$recipeId');
   }
 
   @override

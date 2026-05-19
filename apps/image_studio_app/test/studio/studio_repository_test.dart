@@ -101,6 +101,87 @@ void main() {
       });
     },
   );
+
+  test('fetchRecipes reads reusable image recipes', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{
+        'items': <Object?>[
+          <String, Object?>{
+            'id': 'recipe-1',
+            'name': 'Orange recipe',
+            'prompt': 'orange product photo',
+            'model': 'gpt-image-2',
+            'size': '1024x1792',
+            'source_image_path': '2026/05/19/orange.png',
+            'tags': <Object?>['海报'],
+            'created_at': '2026-05-19T09:30:00Z',
+            'updated_at': '2026-05-19T09:30:00Z',
+          },
+        ],
+      }),
+    ]);
+    final repository = _repository(adapter);
+
+    final recipes = await repository.fetchRecipes();
+
+    expect(adapter.requests.single.path, '/api/image-recipes');
+    expect(recipes.single.name, 'Orange recipe');
+    expect(recipes.single.sourceImagePath, '2026/05/19/orange.png');
+  });
+
+  test('createRecipe posts generation settings from an asset', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{
+        'item': <String, Object?>{
+          'id': 'recipe-1',
+          'name': 'Orange recipe',
+          'prompt': 'orange product photo',
+          'model': 'gpt-image-2',
+          'size': '1024x1792',
+          'source_image_path': '2026/05/19/orange.png',
+          'tags': <Object?>['海报'],
+          'created_at': '2026-05-19T09:30:00Z',
+          'updated_at': '2026-05-19T09:30:00Z',
+        },
+      }),
+    ]);
+    final repository = _repository(adapter);
+
+    final recipe = await repository.createRecipe(
+      name: 'Orange recipe',
+      prompt: 'orange product photo',
+      model: 'gpt-image-2',
+      size: '1024x1792',
+      sourceImagePath: '2026/05/19/orange.png',
+      sourceTurnId: 'turn-1',
+      projectId: 'project-1',
+      tags: const ['海报'],
+    );
+
+    expect(adapter.requests.single.path, '/api/image-recipes');
+    expect(adapter.requests.single.body, <String, Object?>{
+      'name': 'Orange recipe',
+      'prompt': 'orange product photo',
+      'model': 'gpt-image-2',
+      'size': '1024x1792',
+      'source_image_path': '2026/05/19/orange.png',
+      'source_turn_id': 'turn-1',
+      'project_id': 'project-1',
+      'tags': <String>['海报'],
+    });
+    expect(recipe.id, 'recipe-1');
+  });
+
+  test('deleteRecipe deletes the selected recipe endpoint', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{'ok': true}),
+    ]);
+    final repository = _repository(adapter);
+
+    await repository.deleteRecipe('recipe-1');
+
+    expect(adapter.requests.single.path, '/api/image-recipes/recipe-1');
+  });
 }
 
 StudioRepository _repository(HttpClientAdapter adapter) {

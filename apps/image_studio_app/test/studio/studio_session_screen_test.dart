@@ -250,6 +250,26 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<List<StudioRecipe>> fetchRecipes() async => const [];
+
+  @override
+  Future<StudioRecipe> createRecipe({
+    required String name,
+    required String prompt,
+    required String model,
+    String? size,
+    String sourceImagePath = '',
+    String sourceTurnId = '',
+    String projectId = '',
+    List<String> tags = const [],
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteRecipe(String recipeId) async {}
+
+  @override
   Future<StudioFavorite> favoriteImage({
     required String imagePath,
     String sourceTurnId = '',

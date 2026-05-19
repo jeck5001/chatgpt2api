@@ -54,6 +54,17 @@ class TemplateUpdateRequest(BaseModel):
     content: str | None = None
 
 
+class RecipeCreateRequest(BaseModel):
+    name: str = ""
+    prompt: str = Field(..., min_length=1)
+    model: str = "gpt-image-2"
+    size: str | None = None
+    source_image_path: str = ""
+    source_turn_id: str = ""
+    project_id: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+
 def _identity(authorization: str | None) -> dict[str, object]:
     return require_identity(authorization)
 
@@ -329,6 +340,37 @@ def create_router() -> APIRouter:
         identity = _identity(authorization)
         if not studio_service.delete_prompt_template(identity, template_id):
             raise _not_found("template not found")
+        return {"ok": True}
+
+    @router.get("/api/image-recipes")
+    async def list_image_recipes(authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        return {"items": studio_service.list_recipes(identity)}
+
+    @router.post("/api/image-recipes")
+    async def create_image_recipe(body: RecipeCreateRequest, authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        try:
+            item = studio_service.create_recipe(
+                identity,
+                name=body.name,
+                prompt=body.prompt,
+                model=body.model,
+                size=body.size,
+                source_image_path=body.source_image_path,
+                source_turn_id=body.source_turn_id,
+                project_id=body.project_id,
+                tags=body.tags,
+            )
+        except ValueError as exc:
+            raise _bad_request(exc) from exc
+        return {"item": item}
+
+    @router.delete("/api/image-recipes/{recipe_id}")
+    async def delete_image_recipe(recipe_id: str, authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        if not studio_service.delete_recipe(identity, recipe_id):
+            raise _not_found("recipe not found")
         return {"ok": True}
 
     @router.post("/api/image-favorites")

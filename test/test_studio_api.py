@@ -16,6 +16,7 @@ class FakeStudioService:
     def __init__(self):
         self.projects = []
         self.favorites = []
+        self.recipes = []
         self.turns = [
             {
                 "id": "turn-1",
@@ -61,6 +62,42 @@ class FakeStudioService:
     def update_prompt_template(self, identity, template_id, updates):
         self.template_updates.append((identity, template_id, updates))
         return {"id": template_id, "name": "Template", "category": "Custom", "content": "product photo", "owner_id": identity["id"]}
+
+    def list_recipes(self, identity):
+        return self.recipes
+
+    def create_recipe(
+        self,
+        identity,
+        *,
+        name,
+        prompt,
+        model,
+        size=None,
+        source_image_path="",
+        source_turn_id="",
+        project_id="",
+        tags=None,
+    ):
+        item = {
+            "id": f"recipe-{len(self.recipes) + 1}",
+            "owner_id": identity["id"],
+            "name": name,
+            "prompt": prompt,
+            "model": model,
+            "size": size,
+            "source_image_path": source_image_path,
+            "source_turn_id": source_turn_id,
+            "project_id": project_id,
+            "tags": tags or [],
+        }
+        self.recipes.append(item)
+        return item
+
+    def delete_recipe(self, identity, recipe_id):
+        before = len(self.recipes)
+        self.recipes = [item for item in self.recipes if item["id"] != recipe_id]
+        return len(self.recipes) != before
 
     def add_favorite(self, identity, image_path, source_turn_id="", note=""):
         item = {"id": "favorite-1", "owner_id": identity["id"], "image_path": image_path, "source_turn_id": source_turn_id, "note": note}
@@ -258,6 +295,36 @@ class StudioApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual(response.json()["item"]["name"], "")
+
+    def test_image_recipe_endpoints_preserve_generation_settings(self):
+        create_response = self.client.post(
+            "/api/image-recipes",
+            headers=AUTH_HEADERS,
+            json={
+                "name": "Orange recipe",
+                "prompt": "orange product photo",
+                "model": "gpt-image-2",
+                "size": "1024x1792",
+                "source_image_path": "2026/05/orange.png",
+                "source_turn_id": "turn-1",
+                "project_id": "project-1",
+                "tags": ["海报"],
+            },
+        )
+
+        self.assertEqual(create_response.status_code, 200, create_response.text)
+        created = create_response.json()["item"]
+        self.assertEqual(created["model"], "gpt-image-2")
+        self.assertEqual(created["size"], "1024x1792")
+        self.assertEqual(created["source_image_path"], "2026/05/orange.png")
+
+        list_response = self.client.get("/api/image-recipes", headers=AUTH_HEADERS)
+        self.assertEqual(list_response.status_code, 200, list_response.text)
+        self.assertEqual(list_response.json()["items"][0]["id"], created["id"])
+
+        delete_response = self.client.delete(f"/api/image-recipes/{created['id']}", headers=AUTH_HEADERS)
+        self.assertEqual(delete_response.status_code, 200, delete_response.text)
+        self.assertEqual(self.fake_service.recipes, [])
 
     def test_update_prompt_template_ignores_null_content(self):
         response = self.client.patch("/api/prompt-templates/template-1", headers=AUTH_HEADERS, json={"content": None})

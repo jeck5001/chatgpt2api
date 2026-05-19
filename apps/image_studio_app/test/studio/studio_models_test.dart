@@ -83,4 +83,29 @@ void main() {
     expect(asset.searchText, contains('gpt-image-2'));
     expect(asset.searchText, contains('海报'));
   });
+
+  test('parses recipe response with reusable generation settings', () {
+    final recipe = StudioRecipe.fromJson(<String, Object?>{
+      'id': 'recipe-1',
+      'name': 'Orange recipe',
+      'prompt': 'orange product photo',
+      'model': 'gpt-image-2',
+      'size': '1024x1792',
+      'source_image_path': '2026/05/orange.png',
+      'source_turn_id': 'turn-1',
+      'project_id': 'project-1',
+      'tags': <Object?>['商业', '海报'],
+      'created_at': '2026-05-19T09:30:00Z',
+      'updated_at': '2026-05-19T09:35:00Z',
+    });
+
+    expect(recipe.id, 'recipe-1');
+    expect(recipe.name, 'Orange recipe');
+    expect(recipe.prompt, 'orange product photo');
+    expect(recipe.model, 'gpt-image-2');
+    expect(recipe.size, '1024x1792');
+    expect(recipe.sourceImagePath, '2026/05/orange.png');
+    expect(recipe.tags, ['商业', '海报']);
+    expect(recipe.updatedAt, DateTime.parse('2026-05-19T09:35:00Z'));
+  });
 }

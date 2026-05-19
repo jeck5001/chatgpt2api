@@ -283,6 +283,60 @@ class StudioAsset {
   }
 }
 
+class StudioRecipe {
+  const StudioRecipe({
+    required this.id,
+    required this.name,
+    required this.prompt,
+    required this.model,
+    required this.size,
+    required this.sourceImagePath,
+    required this.sourceTurnId,
+    required this.projectId,
+    required this.tags,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String name;
+  final String prompt;
+  final String model;
+  final String? size;
+  final String sourceImagePath;
+  final String sourceTurnId;
+  final String projectId;
+  final List<String> tags;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  String get displayName {
+    if (name.trim().isNotEmpty) return name;
+    return prompt.length > 24 ? '${prompt.substring(0, 24)}…' : prompt;
+  }
+
+  factory StudioRecipe.fromJson(Map<String, Object?> json) {
+    return StudioRecipe(
+      id: json['id'].toString(),
+      name: (json['name'] ?? '').toString(),
+      prompt: (json['prompt'] ?? '').toString(),
+      model: (json['model'] ?? 'gpt-image-2').toString(),
+      size: (json['size'] ?? '').toString().trim().isEmpty
+          ? null
+          : json['size'].toString(),
+      sourceImagePath: (json['source_image_path'] ?? '').toString(),
+      sourceTurnId: (json['source_turn_id'] ?? '').toString(),
+      projectId: (json['project_id'] ?? '').toString(),
+      tags: ((json['tags'] ?? <Object?>[]) as List)
+          .map((tag) => tag.toString())
+          .where((tag) => tag.trim().isNotEmpty)
+          .toList(growable: false),
+      createdAt: StudioAsset._dateTimeValue(json['created_at']),
+      updatedAt: StudioAsset._dateTimeValue(json['updated_at']),
+    );
+  }
+}
+
 class StudioFavorite {
   const StudioFavorite({
     required this.id,

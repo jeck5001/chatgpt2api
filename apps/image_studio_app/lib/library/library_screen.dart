@@ -24,6 +24,7 @@ class LibraryScreen extends StatefulWidget {
     this.onGenerateVariant,
     this.onDownloadAsset,
     this.onShareAsset,
+    this.onSaveRecipeAsset,
     this.onBatchDownload,
     this.onBatchTag,
     this.onBatchDelete,
@@ -41,6 +42,7 @@ class LibraryScreen extends StatefulWidget {
   final ValueChanged<StudioAsset>? onGenerateVariant;
   final ValueChanged<StudioAsset>? onDownloadAsset;
   final ValueChanged<StudioAsset>? onShareAsset;
+  final ValueChanged<StudioAsset>? onSaveRecipeAsset;
   final ValueChanged<List<StudioAsset>>? onBatchDownload;
   final ValueChanged<List<StudioAsset>>? onBatchTag;
   final ValueChanged<List<StudioAsset>>? onBatchDelete;
@@ -309,6 +311,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       onGenerateVariant: widget.onGenerateVariant,
                       onDownload: widget.onDownloadAsset,
                       onShare: widget.onShareAsset,
+                      onSaveRecipe: widget.onSaveRecipeAsset,
                     ),
             ),
             if (_batchMode)
@@ -447,6 +450,7 @@ class _AssetMasonry extends StatelessWidget {
     this.onGenerateVariant,
     this.onDownload,
     this.onShare,
+    this.onSaveRecipe,
   });
 
   final List<StudioAsset> items;
@@ -459,6 +463,7 @@ class _AssetMasonry extends StatelessWidget {
   final ValueChanged<StudioAsset>? onGenerateVariant;
   final ValueChanged<StudioAsset>? onDownload;
   final ValueChanged<StudioAsset>? onShare;
+  final ValueChanged<StudioAsset>? onSaveRecipe;
 
   @override
   Widget build(BuildContext context) {
@@ -497,6 +502,9 @@ class _AssetMasonry extends StatelessWidget {
                   : () => onGenerateVariant!(asset),
               onDownload: onDownload == null ? null : () => onDownload!(asset),
               onShare: onShare == null ? null : () => onShare!(asset),
+              onSaveRecipe: onSaveRecipe == null
+                  ? null
+                  : () => onSaveRecipe!(asset),
             );
           },
         );
@@ -526,6 +534,7 @@ class _GalleryTile extends StatelessWidget {
     this.onGenerateVariant,
     this.onDownload,
     this.onShare,
+    this.onSaveRecipe,
   });
 
   final StudioAsset asset;
@@ -539,6 +548,7 @@ class _GalleryTile extends StatelessWidget {
   final VoidCallback? onGenerateVariant;
   final VoidCallback? onDownload;
   final VoidCallback? onShare;
+  final VoidCallback? onSaveRecipe;
 
   @override
   Widget build(BuildContext context) {
@@ -610,6 +620,7 @@ class _GalleryTile extends StatelessWidget {
                             onGenerateVariant: onGenerateVariant,
                             onDownload: onDownload,
                             onShare: onShare,
+                            onSaveRecipe: onSaveRecipe,
                           ),
                   ),
                 ),
@@ -685,12 +696,14 @@ class _ActionStrip extends StatelessWidget {
     this.onGenerateVariant,
     this.onDownload,
     this.onShare,
+    this.onSaveRecipe,
   });
 
   final VoidCallback onContinueEdit;
   final VoidCallback? onGenerateVariant;
   final VoidCallback? onDownload;
   final VoidCallback? onShare;
+  final VoidCallback? onSaveRecipe;
 
   @override
   Widget build(BuildContext context) {
@@ -722,6 +735,11 @@ class _ActionStrip extends StatelessWidget {
             tooltip: '分享',
             icon: Icons.ios_share_outlined,
             onPressed: onShare,
+          ),
+          _TileAction(
+            tooltip: '保存配方',
+            icon: Icons.bookmark_add_outlined,
+            onPressed: onSaveRecipe,
           ),
         ],
       ),
