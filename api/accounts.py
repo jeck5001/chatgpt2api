@@ -142,9 +142,22 @@ def create_router() -> APIRouter:
         return {"items": auth_service.list_keys(role="user")}
 
     @router.get("/api/accounts")
-    async def get_accounts(authorization: str | None = Header(default=None)):
+    async def get_accounts(
+        page: int = 1,
+        page_size: int = 50,
+        q: str = "",
+        status: str = "",
+        type: str = "",
+        authorization: str | None = Header(default=None),
+    ):
         require_admin(authorization)
-        return {"items": account_service.list_accounts()}
+        return account_service.list_accounts_page(
+            page=page,
+            page_size=page_size,
+            q=q.strip(),
+            status=status.strip(),
+            type=type.strip(),
+        )
 
     @router.post("/api/accounts")
     async def create_accounts(body: AccountCreateRequest, authorization: str | None = Header(default=None)):
@@ -158,7 +171,6 @@ def create_router() -> APIRouter:
             **result,
             "refreshed": refresh_result.get("refreshed", 0),
             "errors": refresh_result.get("errors", []),
-            "items": refresh_result.get("items", result.get("items", [])),
         }
 
     @router.delete("/api/accounts")
@@ -191,7 +203,7 @@ def create_router() -> APIRouter:
         account = account_service.update_account(access_token, updates)
         if account is None:
             raise HTTPException(status_code=404, detail={"error": "account not found"})
-        return {"item": account, "items": account_service.list_accounts()}
+        return {"item": account}
 
     @router.get("/api/cpa/pools")
     async def list_cpa_pools(authorization: str | None = Header(default=None)):

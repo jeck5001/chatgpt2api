@@ -1,10 +1,15 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../admin/logs_controller.dart';
+import '../admin/logs_repository.dart';
+import '../admin/logs_screen.dart';
 import '../app/accent.dart';
 import '../app/theme.dart';
 import '../auth/auth_models.dart';
+import '../core/api/api_client.dart';
 import '../library/library_screen.dart';
 import '../settings/settings_screen.dart';
 import '../shared/adaptive_shell.dart';
@@ -218,6 +223,26 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
     await _launch(Uri.parse(widget.feedbackUrl));
   }
 
+  Future<void> _openServerLogs(AuthSession session) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final repository = SystemLogsRepository(
+      ApiClient(
+        dio: Dio(BaseOptions(baseUrl: session.baseUrl.toString())),
+        tokenProvider: () async => session.token,
+      ),
+    );
+    final controller = SystemLogsController(repository);
+    try {
+      await navigator.push(
+        MaterialPageRoute<void>(
+          builder: (_) => LogsScreen(controller: controller),
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
   Future<void> _launch(Uri uri) async {
     final launcher = widget.urlLauncher ?? _defaultLaunch;
     final ok = await launcher(uri);
@@ -317,6 +342,10 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
                 userName: widget.session?.identity.name,
                 serverUrl: widget.session?.baseUrl.authority,
                 keyActive: widget.session != null,
+                isAdmin: widget.session?.identity.role == AuthRole.admin,
+                onOpenServerLogs: widget.session == null
+                    ? null
+                    : () => _openServerLogs(widget.session!),
               ),
             ),
           ),

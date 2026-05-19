@@ -39,6 +39,11 @@ class ImageTagsRequest(BaseModel):
 
 class LogDeleteRequest(BaseModel):
     ids: list[str] = []
+    type: str = ""
+    start_date: str = ""
+    end_date: str = ""
+    q: str = ""
+    all_matching: bool = False
 class BackupDeleteRequest(BaseModel):
     key: str = ""
 
@@ -121,14 +126,38 @@ def create_router(app_version: str) -> APIRouter:
         return get_image_download_response(image_path)
 
     @router.get("/api/logs")
-    async def get_logs(type: str = "", start_date: str = "", end_date: str = "", authorization: str | None = Header(default=None)):
+    async def get_logs(
+        type: str = "",
+        start_date: str = "",
+        end_date: str = "",
+        q: str = "",
+        page: int = 1,
+        page_size: int = 50,
+        authorization: str | None = Header(default=None),
+    ):
         require_admin(authorization)
-        return {"items": log_service.list(type=type.strip(), start_date=start_date.strip(), end_date=end_date.strip())}
+        return log_service.list_page(
+            page=page,
+            page_size=page_size,
+            type=type.strip(),
+            start_date=start_date.strip(),
+            end_date=end_date.strip(),
+            q=q.strip(),
+        )
 
     @router.post("/api/logs/delete")
     async def delete_logs(body: LogDeleteRequest, authorization: str | None = Header(default=None)):
         require_admin(authorization)
-        return log_service.delete(body.ids)
+        if body.all_matching:
+            return log_service.delete_by_filter(
+                type=body.type.strip(),
+                start_date=body.start_date.strip(),
+                end_date=body.end_date.strip(),
+                q=body.q.strip(),
+            )
+        if body.ids:
+            return log_service.delete(body.ids)
+        raise HTTPException(status_code=400, detail={"error": "ids or all_matching is required"})
 
     @router.post("/api/proxy/test")
     async def test_proxy_endpoint(body: ProxyTestRequest, authorization: str | None = Header(default=None)):

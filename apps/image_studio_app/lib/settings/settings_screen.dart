@@ -28,6 +28,8 @@ class SettingsScreen extends StatefulWidget {
     this.cacheBudgetBytes = 1024 * 1024 * 1024,
     this.preferences = const StudioPreferences(),
     this.onPreferencesChanged,
+    this.isAdmin = false,
+    this.onOpenServerLogs,
   });
 
   final Future<void> Function()? onSignOut;
@@ -40,6 +42,8 @@ class SettingsScreen extends StatefulWidget {
   final int cacheBudgetBytes;
   final StudioPreferences preferences;
   final ValueChanged<StudioPreferences>? onPreferencesChanged;
+  final bool isAdmin;
+  final Future<void> Function()? onOpenServerLogs;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -309,6 +313,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     keyActive: widget.keyActive,
                     onSignOut: widget.onSignOut,
                   ),
+                  if (widget.isAdmin && widget.onOpenServerLogs != null) ...[
+                    const SizedBox(height: KilnSpacing.sm + 2),
+                    _AdminCard(
+                      onOpenServerLogs: widget.onOpenServerLogs!,
+                    ),
+                  ],
                   const SizedBox(height: KilnSpacing.sm + 2),
                   _DefaultsCard(
                     autoFavorite: _prefs.autoFavorite,
@@ -569,6 +579,34 @@ class _AccountCard extends StatelessWidget {
             child: const Text('退出登录'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AdminCard extends StatelessWidget {
+  const _AdminCard({required this.onOpenServerLogs});
+
+  final Future<void> Function() onOpenServerLogs;
+
+  @override
+  Widget build(BuildContext context) {
+    return _MeCard(
+      title: '管理',
+      child: _RowToggle(
+        label: '服务器调用日志',
+        sub: '查看后端日志，可批量删除',
+        value: '查看',
+        onTap: () async {
+          final messenger = ScaffoldMessenger.maybeOf(context);
+          try {
+            await onOpenServerLogs();
+          } catch (error) {
+            messenger?.showSnackBar(
+              SnackBar(content: Text('打开失败：$error')),
+            );
+          }
+        },
       ),
     );
   }

@@ -183,6 +183,98 @@ class AccountService:
         with self._lock:
             return [dict(item) for item in self._accounts.values()]
 
+    _UNLIMITED_IMAGE_QUOTA_TYPES = {"pro", "prolite"}
+
+    @classmethod
+    def _matches_account_filters(
+        cls,
+        account: dict,
+        *,
+        q: str = "",
+        status: str = "",
+        type: str = "",
+    ) -> bool:
+        if status and account.get("status") != status:
+            return False
+        if type and account.get("type") != type:
+            return False
+        if q:
+            needle = q.lower()
+            email = (account.get("email") or "").lower()
+            token = (account.get("access_token") or "").lower()
+            if needle not in email and needle not in token:
+                return False
+        return True
+
+    @classmethod
+    def _compute_summary(cls, accounts: list[dict]) -> dict:
+        summary = {
+            "total": len(accounts),
+            "active": 0,
+            "limited": 0,
+            "abnormal": 0,
+            "disabled": 0,
+        }
+        quota_value = 0
+        has_unlimited = False
+        has_unknown = False
+        for item in accounts:
+            status = item.get("status") or ""
+            if status == "正常":
+                summary["active"] += 1
+                if item.get("type") in cls._UNLIMITED_IMAGE_QUOTA_TYPES:
+                    has_unlimited = True
+                elif bool(item.get("image_quota_unknown")):
+                    has_unknown = True
+                else:
+                    quota_value += max(0, int(item.get("quota") or 0))
+            elif status == "限流":
+                summary["limited"] += 1
+            elif status == "异常":
+                summary["abnormal"] += 1
+            elif status == "禁用":
+                summary["disabled"] += 1
+        summary["quota"] = {
+            "value": quota_value,
+            "has_unlimited": has_unlimited,
+            "has_unknown": has_unknown,
+        }
+        return summary
+
+    def list_accounts_page(
+        self,
+        page: int = 1,
+        page_size: int = 50,
+        q: str = "",
+        status: str = "",
+        type: str = "",
+    ) -> dict:
+        page = max(1, int(page or 1))
+        page_size = max(1, min(200, int(page_size or 50)))
+        with self._lock:
+            all_accounts = [dict(item) for item in self._accounts.values()]
+        summary = self._compute_summary(all_accounts)
+        filtered = [
+            item
+            for item in all_accounts
+            if self._matches_account_filters(item, q=q, status=status, type=type)
+        ]
+        # Stable sort: newest last_used_at first, then by access_token ascending.
+        # Empty last_used_at goes to the end (reverse=True puts smallest last).
+        filtered.sort(key=lambda a: a.get("access_token") or "")
+        filtered.sort(key=lambda a: a.get("last_used_at") or "", reverse=True)
+        total = len(filtered)
+        start = (page - 1) * page_size
+        end = start + page_size
+        return {
+            "items": filtered[start:end],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "has_more": end < total,
+            "summary": summary,
+        }
+
     def list_limited_tokens(self) -> list[str]:
         with self._lock:
             return [
@@ -195,7 +287,7 @@ class AccountService:
     def add_accounts(self, tokens: list[str]) -> dict:
         tokens = list(dict.fromkeys(token for token in tokens if token))
         if not tokens:
-            return {"added": 0, "skipped": 0, "items": self.list_accounts()}
+            return {"added": 0, "skipped": 0}
 
         with self._lock:
             added = 0
@@ -217,15 +309,14 @@ class AccountService:
                 if account is not None:
                     self._accounts[access_token] = account
             self._save_accounts()
-            items = [dict(item) for item in self._accounts.values()]
             log_service.add(LOG_TYPE_ACCOUNT, f"新增 {added} 个账号，跳过 {skipped} 个",
                             {"added": added, "skipped": skipped})
-        return {"added": added, "skipped": skipped, "items": items}
+        return {"added": added, "skipped": skipped}
 
     def delete_accounts(self, tokens: list[str]) -> dict:
         target_set = set(token for token in tokens if token)
         if not target_set:
-            return {"removed": 0, "items": self.list_accounts()}
+            return {"removed": 0}
         with self._lock:
             removed = sum(self._accounts.pop(token, None) is not None for token in target_set)
             for token in target_set:
@@ -237,8 +328,7 @@ class AccountService:
                     self._index = 0
                 self._save_accounts()
                 log_service.add(LOG_TYPE_ACCOUNT, f"删除 {removed} 个账号", {"removed": removed})
-            items = [dict(item) for item in self._accounts.values()]
-        return {"removed": removed, "items": items}
+        return {"removed": removed}
 
     def update_account(self, access_token: str, updates: dict) -> dict | None:
         if not access_token:
@@ -312,7 +402,7 @@ class AccountService:
     def refresh_accounts(self, access_tokens: list[str]) -> dict[str, Any]:
         access_tokens = list(dict.fromkeys(token for token in access_tokens if token))
         if not access_tokens:
-            return {"refreshed": 0, "errors": [], "items": self.list_accounts()}
+            return {"refreshed": 0, "errors": []}
 
         refreshed = 0
         errors = []
@@ -335,7 +425,6 @@ class AccountService:
         return {
             "refreshed": refreshed,
             "errors": errors,
-            "items": self.list_accounts(),
         }
 
 

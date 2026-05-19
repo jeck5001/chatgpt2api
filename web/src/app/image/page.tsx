@@ -22,7 +22,6 @@ import {
   createImageGenerationTask,
   fetchAccounts,
   fetchImageTasks,
-  type Account,
   type ImageTask,
 } from "@/lib/api";
 import { useAuthGuard } from "@/lib/use-auth-guard";
@@ -72,9 +71,10 @@ function formatConversationTime(value: string) {
   }).format(date);
 }
 
-function formatAvailableQuota(accounts: Account[]) {
-  const availableAccounts = accounts.filter((account) => account.status !== "禁用");
-  return String(availableAccounts.reduce((sum, account) => sum + Math.max(0, account.quota), 0));
+function formatAvailableQuota(summary: { quota: { value: number; has_unlimited: boolean; has_unknown: boolean } }) {
+  if (summary.quota.has_unlimited) return "∞";
+  if (summary.quota.has_unknown) return "未知";
+  return String(summary.quota.value);
 }
 
 function createId() {
@@ -450,8 +450,8 @@ function ImagePageContent({ isAdmin }: { isAdmin: boolean }) {
       return;
     }
     try {
-      const data = await fetchAccounts();
-      setAvailableQuota(formatAvailableQuota(data.items));
+      const data = await fetchAccounts({ page: 1, page_size: 1 });
+      setAvailableQuota(formatAvailableQuota(data.summary));
     } catch {
       setAvailableQuota((prev) => (prev === "加载中..." ? "--" : prev));
     }

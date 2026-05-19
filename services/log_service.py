@@ -85,6 +85,67 @@ class LogService:
                 break
         return items
 
+    def list_page(
+        self,
+        page: int = 1,
+        page_size: int = 50,
+        type: str = "",
+        start_date: str = "",
+        end_date: str = "",
+        q: str = "",
+    ) -> dict[str, Any]:
+        page = max(1, int(page or 1))
+        page_size = max(1, min(200, int(page_size or 50)))
+        if not self.path.exists():
+            return {
+                "items": [],
+                "total": 0,
+                "page": page,
+                "page_size": page_size,
+                "has_more": False,
+            }
+        lines = self.path.read_text(encoding="utf-8").splitlines()
+        matched: list[dict[str, Any]] = []
+        for line_number in range(len(lines) - 1, -1, -1):
+            item = self._parse_line(lines[line_number], line_number)
+            if item is None:
+                continue
+            if not self._matches_filters(item, type=type, start_date=start_date, end_date=end_date):
+                continue
+            if q and not self._matches_query(item, q):
+                continue
+            matched.append(item)
+        total = len(matched)
+        start = (page - 1) * page_size
+        end = start + page_size
+        return {
+            "items": matched[start:end],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "has_more": end < total,
+        }
+
+    @staticmethod
+    def _matches_query(item: dict[str, Any], q: str) -> bool:
+        if not q:
+            return True
+        needle = q.lower()
+        summary = str(item.get("summary") or "").lower()
+        if needle in summary:
+            return True
+        detail = item.get("detail")
+        if detail is None:
+            return False
+        if isinstance(detail, (dict, list)):
+            try:
+                detail_text = json.dumps(detail, ensure_ascii=False)
+            except Exception:
+                detail_text = str(detail)
+        else:
+            detail_text = str(detail)
+        return needle in detail_text.lower()
+
     def delete(self, ids: list[str]) -> dict[str, int]:
         target_ids = {str(item or "").strip() for item in ids if str(item or "").strip()}
         if not self.path.exists() or not target_ids:
@@ -101,6 +162,36 @@ class LogService:
                 removed += 1
                 continue
             kept_lines.append(self._serialize_item(item))
+        content = "\n".join(kept_lines)
+        if content:
+            content += "\n"
+        self.path.write_text(content, encoding="utf-8")
+        return {"removed": removed}
+
+    def delete_by_filter(
+        self,
+        type: str = "",
+        start_date: str = "",
+        end_date: str = "",
+        q: str = "",
+    ) -> dict[str, int]:
+        if not self.path.exists():
+            return {"removed": 0}
+        lines = self.path.read_text(encoding="utf-8").splitlines()
+        kept_lines: list[str] = []
+        removed = 0
+        for line_number, raw_line in enumerate(lines):
+            item = self._parse_line(raw_line, line_number)
+            if item is None:
+                kept_lines.append(raw_line)
+                continue
+            if not self._matches_filters(item, type=type, start_date=start_date, end_date=end_date):
+                kept_lines.append(self._serialize_item(item))
+                continue
+            if q and not self._matches_query(item, q):
+                kept_lines.append(self._serialize_item(item))
+                continue
+            removed += 1
         content = "\n".join(kept_lines)
         if content:
             content += "\n"

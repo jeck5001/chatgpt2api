@@ -25,12 +25,37 @@ export type Account = {
   last_used_at?: string | null;
 };
 
-type AccountListResponse = {
+export type AccountSummary = {
+  total: number;
+  active: number;
+  limited: number;
+  abnormal: number;
+  disabled: number;
+  quota: {
+    value: number;
+    has_unlimited: boolean;
+    has_unknown: boolean;
+  };
+};
+
+export type AccountListResponse = {
   items: Account[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+  summary: AccountSummary;
+};
+
+export type AccountListParams = {
+  page?: number;
+  page_size?: number;
+  q?: string;
+  status?: AccountStatus | "";
+  type?: AccountType | "";
 };
 
 type AccountMutationResponse = {
-  items: Account[];
   added?: number;
   skipped?: number;
   removed?: number;
@@ -39,14 +64,12 @@ type AccountMutationResponse = {
 };
 
 type AccountRefreshResponse = {
-  items: Account[];
   refreshed: number;
   errors: Array<{ access_token: string; error: string }>;
 };
 
 type AccountUpdateResponse = {
   item: Account;
-  items: Account[];
 };
 
 export type SettingsConfig = {
@@ -250,8 +273,14 @@ export async function login(authKey: string) {
   });
 }
 
-export async function fetchAccounts() {
-  return httpRequest<AccountListResponse>("/api/accounts");
+export async function fetchAccounts(params: AccountListParams = {}) {
+  const search = new URLSearchParams();
+  search.set("page", String(params.page ?? 1));
+  search.set("page_size", String(params.page_size ?? 50));
+  if (params.q) search.set("q", params.q);
+  if (params.status) search.set("status", params.status);
+  if (params.type) search.set("type", params.type);
+  return httpRequest<AccountListResponse>(`/api/accounts?${search.toString()}`);
 }
 
 export async function createAccounts(tokens: string[]) {
@@ -485,12 +514,32 @@ export async function deleteImageTag(tag: string) {
   });
 }
 
-export async function fetchSystemLogs(filters: { type?: string; start_date?: string; end_date?: string }) {
-  const params = new URLSearchParams();
-  if (filters.type) params.set("type", filters.type);
-  if (filters.start_date) params.set("start_date", filters.start_date);
-  if (filters.end_date) params.set("end_date", filters.end_date);
-  return httpRequest<{ items: SystemLog[] }>(`/api/logs${params.toString() ? `?${params.toString()}` : ""}`);
+export type SystemLogListResponse = {
+  items: SystemLog[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+};
+
+export type SystemLogListParams = {
+  page?: number;
+  page_size?: number;
+  type?: string;
+  start_date?: string;
+  end_date?: string;
+  q?: string;
+};
+
+export async function fetchSystemLogs(params: SystemLogListParams = {}) {
+  const search = new URLSearchParams();
+  search.set("page", String(params.page ?? 1));
+  search.set("page_size", String(params.page_size ?? 50));
+  if (params.type) search.set("type", params.type);
+  if (params.start_date) search.set("start_date", params.start_date);
+  if (params.end_date) search.set("end_date", params.end_date);
+  if (params.q) search.set("q", params.q);
+  return httpRequest<SystemLogListResponse>(`/api/logs?${search.toString()}`);
 }
 
 export async function deleteSystemLogs(ids: string[]) {
