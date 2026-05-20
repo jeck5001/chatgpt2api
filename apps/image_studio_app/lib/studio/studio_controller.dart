@@ -708,6 +708,25 @@ class StudioController extends ChangeNotifier {
     }
   }
 
+  Future<String> optimizePrompt(String prompt) async {
+    final cleaned = prompt.trim();
+    if (cleaned.isEmpty) {
+      throw ArgumentError('optimizePrompt requires a prompt');
+    }
+    _state = _state.copyWith(promptDraft: cleaned, clearError: true);
+    notifyListeners();
+    try {
+      final optimized = await _repository.optimizePrompt(cleaned);
+      _state = _state.copyWith(promptDraft: optimized);
+      notifyListeners();
+      return optimized;
+    } catch (error) {
+      _state = _state.copyWith(errorMessage: error.toString());
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   Future<void> submitGeneration({
     required String conversationId,
     required String prompt,

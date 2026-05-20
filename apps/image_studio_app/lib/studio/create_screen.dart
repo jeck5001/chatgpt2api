@@ -53,6 +53,7 @@ class _CreateScreenState extends State<CreateScreen> {
   late String _selectedModel;
   late String _selectedSize;
   bool _draftingPrompt = false;
+  bool _optimizingPrompt = false;
 
   @override
   void initState() {
@@ -203,6 +204,27 @@ class _CreateScreenState extends State<CreateScreen> {
       _showSnack('识图失败：$error');
     } finally {
       if (mounted) setState(() => _draftingPrompt = false);
+    }
+  }
+
+  Future<void> _optimizePrompt() async {
+    final controller = widget.controller;
+    final prompt = _promptController.text.trim();
+    if (controller == null || _optimizingPrompt || prompt.isEmpty) return;
+    try {
+      setState(() => _optimizingPrompt = true);
+      final optimized = await controller.optimizePrompt(prompt);
+      if (!mounted) return;
+      _promptController.text = optimized;
+      _promptController.selection = TextSelection.fromPosition(
+        TextPosition(offset: optimized.length),
+      );
+      _showSnack('已美化 prompt');
+    } catch (error) {
+      if (!mounted) return;
+      _showSnack('美化失败：$error');
+    } finally {
+      if (mounted) setState(() => _optimizingPrompt = false);
     }
   }
 
@@ -873,6 +895,15 @@ class _CreateScreenState extends State<CreateScreen> {
                       onTap: widget.controller == null || _draftingPrompt
                           ? null
                           : _draftPromptFromImage,
+                    ),
+                    ComposerChipData(
+                      label: _optimizingPrompt ? '美化中...' : '美化',
+                      active: _optimizingPrompt,
+                      onTap: widget.controller == null ||
+                              _optimizingPrompt ||
+                              !hasPrompt
+                          ? null
+                          : _optimizePrompt,
                     ),
                     ComposerChipData(
                       label: _selectedModel,

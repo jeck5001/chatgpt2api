@@ -742,6 +742,18 @@ void main() {
     expect(controller.state.promptDraft, prompt);
     expect(repository.lastDraftPromptImages, 1);
   });
+
+  test('optimizePrompt stores the optimized prompt draft', () async {
+    final repository = FakeStudioRepository()
+      ..optimizedPrompt = 'A cinematic cyberpunk cat with neon rim light';
+    final controller = StudioController(repository);
+
+    final prompt = await controller.optimizePrompt('一只赛博朋克的猫');
+
+    expect(prompt, 'A cinematic cyberpunk cat with neon rim light');
+    expect(controller.state.promptDraft, prompt);
+    expect(repository.optimizedPromptInputs, ['一只赛博朋克的猫']);
+  });
 }
 
 class FakeStudioRepository implements StudioRepositoryContract {
@@ -750,6 +762,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
   int? lastEditImages;
   int? lastDraftPromptImages;
   String draftPrompt = 'draft prompt';
+  String optimizedPrompt = 'optimized prompt';
   int _generationCounter = 0;
   List<StudioProject> projects = [];
   List<StudioAsset> libraryAssets = [];
@@ -763,6 +776,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
   final List<String> createdPrompts = [];
   final List<String?> createdSizes = [];
   final List<String> retriedTurns = [];
+  final List<String> optimizedPromptInputs = [];
 
   @override
   Future<List<StudioProject>> fetchProjects() async {
@@ -879,6 +893,12 @@ class FakeStudioRepository implements StudioRepositoryContract {
   }) async {
     lastDraftPromptImages = images.length;
     return draftPrompt;
+  }
+
+  @override
+  Future<String> optimizePrompt(String prompt) async {
+    optimizedPromptInputs.add(prompt);
+    return optimizedPrompt;
   }
 
   @override

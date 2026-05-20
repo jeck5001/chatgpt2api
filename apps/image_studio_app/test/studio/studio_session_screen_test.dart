@@ -223,6 +223,11 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<String> optimizePrompt(String prompt) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<StudioTurn> retryTurn({
     required String turnId,
     required String clientTaskId,

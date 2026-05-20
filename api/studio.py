@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from api.support import require_identity, resolve_image_base_url
 from services.image_task_service import image_task_service
+from services.prompt_optimizer_service import optimize_image_prompt
 from services.studio_service import studio_service
 from services.vision_prompt_service import draft_prompt_from_images
 
@@ -64,6 +65,18 @@ class RecipeCreateRequest(BaseModel):
     source_turn_id: str = ""
     project_id: str = ""
     tags: list[str] = Field(default_factory=list)
+
+
+class PromptOptimizationRequest(BaseModel):
+    prompt: str = Field(..., min_length=1)
+
+    @field_validator("prompt")
+    @classmethod
+    def prompt_must_not_be_blank(cls, value: str) -> str:
+        prompt = value.strip()
+        if not prompt:
+            raise ValueError("prompt is required")
+        return prompt
 
 
 def _identity(authorization: str | None) -> dict[str, object]:
@@ -401,6 +414,23 @@ def create_router() -> APIRouter:
         except Exception as exc:
             raise _bad_gateway(exc) from exc
         return {"item": {"draft_prompt": draft_prompt}}
+
+    @router.post("/api/prompt-optimizations")
+    async def create_prompt_optimization(
+        body: PromptOptimizationRequest,
+        authorization: str | None = Header(default=None),
+    ):
+        _identity(authorization)
+        try:
+            optimized_prompt = await run_in_threadpool(
+                optimize_image_prompt,
+                body.prompt,
+            )
+        except ValueError as exc:
+            raise _bad_request(exc) from exc
+        except Exception as exc:
+            raise _bad_gateway(exc) from exc
+        return {"item": {"optimized_prompt": optimized_prompt}}
 
     @router.post("/api/image-favorites")
     async def add_image_favorite(body: FavoriteCreateRequest, authorization: str | None = Header(default=None)):

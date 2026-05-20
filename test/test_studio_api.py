@@ -355,6 +355,35 @@ class StudioApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400, response.text)
 
+    def test_prompt_optimization_endpoint_returns_polished_prompt(self):
+        with mock.patch.object(
+            studio_module,
+            "optimize_image_prompt",
+            create=True,
+            return_value="A cinematic cyberpunk cat portrait with neon rim light",
+        ) as optimize_prompt:
+            response = self.client.post(
+                "/api/prompt-optimizations",
+                headers=AUTH_HEADERS,
+                json={"prompt": "一只赛博朋克的猫"},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            response.json()["item"]["optimized_prompt"],
+            "A cinematic cyberpunk cat portrait with neon rim light",
+        )
+        optimize_prompt.assert_called_once_with("一只赛博朋克的猫")
+
+    def test_prompt_optimization_endpoint_requires_prompt(self):
+        response = self.client.post(
+            "/api/prompt-optimizations",
+            headers=AUTH_HEADERS,
+            json={"prompt": "   "},
+        )
+
+        self.assertEqual(response.status_code, 422, response.text)
+
     def test_update_prompt_template_ignores_null_content(self):
         response = self.client.patch("/api/prompt-templates/template-1", headers=AUTH_HEADERS, json={"content": None})
 

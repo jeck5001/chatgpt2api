@@ -59,6 +59,8 @@ abstract interface class StudioRepositoryContract {
 
   Future<String> draftPromptFromImage({required List<StudioEditImage> images});
 
+  Future<String> optimizePrompt(String prompt);
+
   Future<StudioTurn> retryTurn({
     required String turnId,
     required String clientTaskId,
@@ -274,6 +276,20 @@ class StudioRepository implements StudioRepositoryContract {
     );
     final item = payload['item']! as Map<String, Object?>;
     return (item['draft_prompt'] ?? '').toString();
+  }
+
+  @override
+  Future<String> optimizePrompt(String prompt) async {
+    final cleaned = prompt.trim();
+    if (cleaned.isEmpty) {
+      throw ArgumentError('optimizePrompt requires a prompt');
+    }
+    final payload = await _client.postJson(
+      '/api/prompt-optimizations',
+      body: <String, Object?>{'prompt': cleaned},
+    );
+    final item = payload['item']! as Map<String, Object?>;
+    return (item['optimized_prompt'] ?? '').toString();
   }
 
   @override

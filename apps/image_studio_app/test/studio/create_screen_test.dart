@@ -64,6 +64,21 @@ void main() {
     expect(find.text('识图'), findsOneWidget);
   });
 
+  testWidgets('composer exposes a prompt optimizer entry point', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: StudioController(FakeStudioRepository()),
+          activeConversationId: 'conversation-1',
+        ),
+      ),
+    );
+
+    expect(find.text('美化'), findsOneWidget);
+  });
+
   testWidgets('renders result image previews for successful turns', (
     tester,
   ) async {
@@ -493,6 +508,11 @@ class FakeStudioRepository implements StudioRepositoryContract {
     required List<StudioEditImage> images,
   }) async {
     return 'cinematic product photo, warm rim light';
+  }
+
+  @override
+  Future<String> optimizePrompt(String prompt) async {
+    return 'A cinematic cyberpunk cat with neon rim light';
   }
 
   @override
