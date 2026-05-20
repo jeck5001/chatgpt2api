@@ -33,6 +33,7 @@ class TurnCard extends StatelessWidget {
     this.onLongPress,
     this.isFavoriteImage,
     this.runningElapsed,
+    this.runningProgress,
     this.onOpenDetail,
   });
 
@@ -49,6 +50,7 @@ class TurnCard extends StatelessWidget {
   final VoidCallback? onLongPress;
   final bool Function(StudioResultImage image)? isFavoriteImage;
   final String? runningElapsed;
+  final int? runningProgress;
   final VoidCallback? onOpenDetail;
 
   bool get _isError => turn.status == StudioTurnStatus.error;
@@ -109,7 +111,14 @@ class TurnCard extends StatelessWidget {
             count: turn.resultImages.isEmpty ? 2 : turn.resultImages.length,
           ),
           const SizedBox(height: KilnSpacing.sm),
-          _RunningStatusLine(elapsed: runningElapsed),
+          _RunningStatusLine(
+            elapsed: runningElapsed,
+            progress: runningProgress,
+          ),
+          if (runningProgress != null) ...[
+            const SizedBox(height: KilnSpacing.xs),
+            _RunningProgressBar(progress: runningProgress!),
+          ],
           if (onCancel != null) ...[
             const SizedBox(height: KilnSpacing.sm),
             _CancelButton(onPressed: onCancel),
@@ -300,8 +309,9 @@ class _RunningGrid extends StatelessWidget {
 }
 
 class _RunningStatusLine extends StatefulWidget {
-  const _RunningStatusLine({this.elapsed});
+  const _RunningStatusLine({this.elapsed, this.progress});
   final String? elapsed;
+  final int? progress;
 
   @override
   State<_RunningStatusLine> createState() => _RunningStatusLineState();
@@ -339,7 +349,11 @@ class _RunningStatusLineState extends State<_RunningStatusLine> {
   @override
   Widget build(BuildContext context) {
     final phase = _phases[_phaseIndex];
-    final label = widget.elapsed == null ? phase : '$phase · ${widget.elapsed}';
+    final details = [
+      if (widget.elapsed != null) widget.elapsed!,
+      if (widget.progress != null) '${widget.progress}%',
+    ];
+    final label = details.isEmpty ? phase : '$phase · ${details.join(' · ')}';
     return Row(
       children: [
         const EmberPulseDot(),
@@ -374,6 +388,38 @@ class _RunningStatusLineState extends State<_RunningStatusLine> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _RunningProgressBar extends StatelessWidget {
+  const _RunningProgressBar({required this.progress});
+
+  final int progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = progress.clamp(0, 100);
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: Container(
+        height: 4,
+        color: KilnColors.ink700,
+        alignment: Alignment.centerLeft,
+        child: FractionallySizedBox(
+          widthFactor: clamped / 100,
+          alignment: Alignment.centerLeft,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutCubic,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [KilnColors.ember500, KilnColors.ember300],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

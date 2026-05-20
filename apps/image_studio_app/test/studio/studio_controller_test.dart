@@ -297,6 +297,65 @@ void main() {
     expect(controller.state.promptDraft, prompt);
   });
 
+  test(
+    'active consistency profiles are automatically added to generation prompts',
+    () async {
+      final repository = FakeStudioRepository();
+      final controller = StudioController(repository);
+      final character = StudioConsistencyProfile(
+        id: 'profile-character',
+        name: 'Luna',
+        kind: StudioConsistencyProfileKind.character,
+        guidance: 'A silver-haired botanist with a teal jacket.',
+        referenceImagePath: '2026/05/luna.png',
+        tags: const ['角色'],
+      );
+      final style = StudioConsistencyProfile(
+        id: 'profile-style',
+        name: 'Watercolor',
+        kind: StudioConsistencyProfileKind.style,
+        guidance: 'Soft botanical watercolor, paper grain, muted pigments.',
+        referenceImagePath: '',
+        tags: const ['风格'],
+      );
+      controller.replaceConsistencyProfiles([character, style]);
+
+      controller.toggleConsistencyProfile(character);
+      controller.toggleConsistencyProfile(style);
+      await controller.submitGeneration(
+        conversationId: 'conversation-1',
+        prompt: 'standing in a greenhouse',
+      );
+
+      final prompt = repository.createdPrompts.single;
+      expect(prompt, contains('Consistency profile: Luna'));
+      expect(prompt, contains('Reference image path: 2026/05/luna.png'));
+      expect(prompt, contains('Consistency profile: Watercolor'));
+      expect(prompt, contains('User prompt:\nstanding in a greenhouse'));
+      expect(controller.state.activeConsistencyProfileIds, [
+        'profile-character',
+        'profile-style',
+      ]);
+    },
+  );
+
+  test('running turns expose a simulated progress percentage', () {
+    final turn = fakeTurn(
+      status: StudioTurnStatus.running,
+      updatedAt: DateTime.utc(2026, 5, 20, 10),
+    );
+
+    expect(
+      turn.simulatedProgress(DateTime.utc(2026, 5, 20, 10, 0, 20)),
+      inInclusiveRange(30, 99),
+    );
+    expect(
+      turn.simulatedProgress(DateTime.utc(2026, 5, 20, 10, 4)),
+      lessThan(95),
+    );
+    expect(fakeTurn(status: StudioTurnStatus.success).simulatedProgress(), 100);
+  });
+
   test('toggleRecipeSharing promotes recipes into the hub list', () async {
     final repository = FakeStudioRepository();
     repository.createdRecipes.add(
@@ -1351,6 +1410,7 @@ StudioTurn fakeTurn({
   String model = 'gpt-image-2',
   String? size = '1024x1024',
   StudioTurnMode mode = StudioTurnMode.generate,
+  DateTime? updatedAt,
 }) {
   return StudioTurn(
     id: id,
@@ -1364,6 +1424,6 @@ StudioTurn fakeTurn({
     resultImages: const [],
     status: status,
     error: '',
-    updatedAt: DateTime.utc(2026, 5, 12),
+    updatedAt: updatedAt ?? DateTime.utc(2026, 5, 12),
   );
 }

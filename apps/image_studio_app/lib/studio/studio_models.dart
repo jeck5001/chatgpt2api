@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 enum StudioTurnStatus { queued, running, success, error }
 
 enum StudioTurnMode { generate, edit, inpaint }
@@ -107,6 +109,16 @@ class StudioTurn {
   bool get isRunning {
     return status == StudioTurnStatus.queued ||
         status == StudioTurnStatus.running;
+  }
+
+  int simulatedProgress([DateTime? now]) {
+    if (status == StudioTurnStatus.success) return 100;
+    if (status == StudioTurnStatus.error) return 0;
+    final elapsed = (now ?? DateTime.now()).difference(updatedAt);
+    final seconds = math.max(0, elapsed.inSeconds);
+    final base = status == StudioTurnStatus.queued ? 8 : 18;
+    final eased = (1 - math.exp(-seconds / 70)) * 78;
+    return math.min(94, base + eased.round());
   }
 
   factory StudioTurn.fromJson(Map<String, Object?> json) {

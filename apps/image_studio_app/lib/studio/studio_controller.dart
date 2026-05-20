@@ -18,6 +18,7 @@ class StudioState {
     this.libraryAssets = const [],
     this.recipes = const [],
     this.consistencyProfiles = const [],
+    this.activeConsistencyProfileIds = const [],
     this.batchRuns = const [],
     this.templates = const [],
     this.hubRecipes = const [],
@@ -36,6 +37,7 @@ class StudioState {
   final List<StudioAsset> libraryAssets;
   final List<StudioRecipe> recipes;
   final List<StudioConsistencyProfile> consistencyProfiles;
+  final List<String> activeConsistencyProfileIds;
   final List<StudioBatchRun> batchRuns;
   final List<StudioPromptTemplate> templates;
   final List<StudioRecipe> hubRecipes;
@@ -54,6 +56,7 @@ class StudioState {
     List<StudioAsset>? libraryAssets,
     List<StudioRecipe>? recipes,
     List<StudioConsistencyProfile>? consistencyProfiles,
+    List<String>? activeConsistencyProfileIds,
     List<StudioBatchRun>? batchRuns,
     List<StudioPromptTemplate>? templates,
     List<StudioRecipe>? hubRecipes,
@@ -73,6 +76,8 @@ class StudioState {
       libraryAssets: libraryAssets ?? this.libraryAssets,
       recipes: recipes ?? this.recipes,
       consistencyProfiles: consistencyProfiles ?? this.consistencyProfiles,
+      activeConsistencyProfileIds:
+          activeConsistencyProfileIds ?? this.activeConsistencyProfileIds,
       batchRuns: batchRuns ?? this.batchRuns,
       templates: templates ?? this.templates,
       hubRecipes: hubRecipes ?? this.hubRecipes,
@@ -81,6 +86,19 @@ class StudioState {
       submitting: submitting ?? this.submitting,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
     );
+  }
+
+  List<StudioConsistencyProfile> get activeConsistencyProfiles {
+    if (activeConsistencyProfileIds.isEmpty || consistencyProfiles.isEmpty) {
+      return const [];
+    }
+    final byId = <String, StudioConsistencyProfile>{
+      for (final profile in consistencyProfiles) profile.id: profile,
+    };
+    return [
+      for (final id in activeConsistencyProfileIds)
+        if (byId[id] != null) byId[id]!,
+    ];
   }
 }
 
@@ -155,8 +173,23 @@ class StudioController extends ChangeNotifier {
   }
 
   void replaceConsistencyProfiles(List<StudioConsistencyProfile> profiles) {
-    _state = _state.copyWith(consistencyProfiles: profiles);
+    _state = _state.copyWith(
+      consistencyProfiles: profiles,
+      activeConsistencyProfileIds: _retainActiveProfileIds(profiles),
+    );
     notifyListeners();
+  }
+
+  List<String> _retainActiveProfileIds(
+    List<StudioConsistencyProfile> profiles,
+  ) {
+    if (profiles.isEmpty || _state.activeConsistencyProfileIds.isEmpty) {
+      return const [];
+    }
+    final availableIds = profiles.map((profile) => profile.id).toSet();
+    return _state.activeConsistencyProfileIds
+        .where(availableIds.contains)
+        .toList(growable: false);
   }
 
   Future<void> loadWorkspace() async {
@@ -228,6 +261,7 @@ class StudioController extends ChangeNotifier {
       libraryAssets: libraryAssets,
       recipes: recipes,
       consistencyProfiles: consistencyProfiles,
+      activeConsistencyProfileIds: _retainActiveProfileIds(consistencyProfiles),
       hubRecipes: hubRecipes,
       templates: templates,
       preferences: loadedPreferences,
@@ -530,6 +564,23 @@ class StudioController extends ChangeNotifier {
       consistencyProfiles: _state.consistencyProfiles
           .where((item) => item.id != profile.id)
           .toList(growable: false),
+      activeConsistencyProfileIds: _state.activeConsistencyProfileIds
+          .where((id) => id != profile.id)
+          .toList(growable: false),
+    );
+    notifyListeners();
+  }
+
+  void toggleConsistencyProfile(StudioConsistencyProfile profile) {
+    final ids = [..._state.activeConsistencyProfileIds];
+    if (ids.contains(profile.id)) {
+      ids.remove(profile.id);
+    } else {
+      ids.add(profile.id);
+    }
+    _state = _state.copyWith(
+      activeConsistencyProfileIds: ids,
+      clearError: true,
     );
     notifyListeners();
   }
@@ -539,8 +590,7 @@ class StudioController extends ChangeNotifier {
     required String currentPrompt,
   }) {
     final blocks = <String>[
-      'Consistency profile: ${profile.displayName} (${profile.kind.wireName})',
-      profile.guidance.trim(),
+      _consistencyPromptBlock(profile),
       if (currentPrompt.trim().isNotEmpty)
         'User prompt:\n${currentPrompt.trim()}',
     ];
@@ -550,6 +600,25 @@ class StudioController extends ChangeNotifier {
     _state = _state.copyWith(promptDraft: prompt, clearError: true);
     notifyListeners();
     return prompt;
+  }
+
+  String _applyActiveConsistencyProfiles(String prompt) {
+    final activeProfiles = _state.activeConsistencyProfiles;
+    if (activeProfiles.isEmpty) return prompt;
+    final blocks = <String>[
+      for (final profile in activeProfiles) _consistencyPromptBlock(profile),
+      if (prompt.trim().isNotEmpty) 'User prompt:\n${prompt.trim()}',
+    ];
+    return blocks.where((block) => block.trim().isNotEmpty).join('\n\n');
+  }
+
+  String _consistencyPromptBlock(StudioConsistencyProfile profile) {
+    return <String>[
+      'Consistency profile: ${profile.displayName} (${profile.kind.wireName})',
+      profile.guidance.trim(),
+      if (profile.referenceImagePath.trim().isNotEmpty)
+        'Reference image path: ${profile.referenceImagePath.trim()}',
+    ].where((block) => block.trim().isNotEmpty).join('\n');
   }
 
   void _upsertRecipe(StudioRecipe updated) {
@@ -598,7 +667,9 @@ class StudioController extends ChangeNotifier {
         final turn = await _repository.createGenerationTurn(
           conversationId: conversationId,
           clientTaskId: _uuid.v4(),
-          prompt: _expandRecipePrompt(recipe.prompt, input),
+          prompt: _applyActiveConsistencyProfiles(
+            _expandRecipePrompt(recipe.prompt, input),
+          ),
           model: model,
           size: size,
         );
@@ -763,10 +834,13 @@ class StudioController extends ChangeNotifier {
       favorites: _state.favorites,
       libraryAssets: _state.libraryAssets,
       recipes: _state.recipes,
+      consistencyProfiles: _state.consistencyProfiles,
+      activeConsistencyProfileIds: _state.activeConsistencyProfileIds,
       batchRuns: _state.batchRuns
           .where((run) => run.conversationId != conversationId)
           .toList(growable: false),
       templates: _state.templates,
+      hubRecipes: _state.hubRecipes,
       preferences: _state.preferences,
       promptDraft: _state.promptDraft,
       submitting: _state.submitting,
@@ -879,11 +953,12 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
     final created = <StudioTurn>[];
     try {
+      final submittedPrompt = _applyActiveConsistencyProfiles(prompt);
       for (var i = 0; i < n; i++) {
         final turn = await _repository.createGenerationTurn(
           conversationId: conversationId,
           clientTaskId: _uuid.v4(),
-          prompt: prompt,
+          prompt: submittedPrompt,
           model: model,
           size: size,
         );
@@ -937,10 +1012,11 @@ class StudioController extends ChangeNotifier {
     );
     notifyListeners();
     try {
+      final submittedPrompt = _applyActiveConsistencyProfiles(prompt);
       final turn = await _repository.createEditTurn(
         conversationId: conversationId,
         clientTaskId: _uuid.v4(),
-        prompt: prompt,
+        prompt: submittedPrompt,
         model: model,
         size: size,
         images: images,
@@ -980,10 +1056,11 @@ class StudioController extends ChangeNotifier {
     );
     notifyListeners();
     try {
+      final submittedPrompt = _applyActiveConsistencyProfiles(prompt);
       final turn = await _repository.createInpaintTurn(
         conversationId: conversationId,
         clientTaskId: _uuid.v4(),
-        prompt: prompt,
+        prompt: submittedPrompt,
         model: model,
         size: size,
         image: image,

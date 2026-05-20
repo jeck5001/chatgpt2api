@@ -36,6 +36,8 @@ class StudioInpaintScreen extends StatefulWidget {
   State<StudioInpaintScreen> createState() => _StudioInpaintScreenState();
 }
 
+enum _InpaintTool { brush, eraser }
+
 class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
   final _promptController = TextEditingController();
   final GlobalKey _canvasKey = GlobalKey();
@@ -43,6 +45,8 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
   _Stroke? _activeStroke;
   late final Future<Uint8List> _sourceBytesFuture;
   late final Future<Size> _sourceSizeFuture;
+  _InpaintTool _tool = _InpaintTool.brush;
+  double _brushSize = 28;
   bool _submitting = false;
 
   @override
@@ -50,7 +54,9 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
     super.initState();
     _promptController.text = widget.prompt;
     _promptController.addListener(_onPromptChanged);
-    _sourceBytesFuture = widget.imageSaver.loadImageBytes(widget.sourceImage.url);
+    _sourceBytesFuture = widget.imageSaver.loadImageBytes(
+      widget.sourceImage.url,
+    );
     _sourceSizeFuture = _sourceBytesFuture.then(_decodeSize);
   }
 
@@ -68,15 +74,16 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
   Future<Size> _decodeSize(Uint8List bytes) async {
     final codec = await ui.instantiateImageCodec(bytes);
     final frame = await codec.getNextFrame();
-    return Size(
-      frame.image.width.toDouble(),
-      frame.image.height.toDouble(),
-    );
+    return Size(frame.image.width.toDouble(), frame.image.height.toDouble());
   }
 
   void _startStroke(Offset localPosition) {
     setState(() {
-      _activeStroke = _Stroke([localPosition]);
+      _activeStroke = _Stroke(
+        points: [localPosition],
+        size: _brushSize,
+        erasing: _tool == _InpaintTool.eraser,
+      );
     });
   }
 
@@ -100,13 +107,17 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
   }
 
   bool get _hasMask {
-    return _strokes.any((stroke) => stroke.points.isNotEmpty) ||
-        (_activeStroke?.points.isNotEmpty ?? false);
+    return _strokes.any(
+          (stroke) => !stroke.erasing && stroke.points.isNotEmpty,
+        ) ||
+        (_activeStroke != null &&
+            !_activeStroke!.erasing &&
+            _activeStroke!.points.isNotEmpty);
   }
 
   Future<Uint8List> _captureMask(Size sourceSize) async {
-    final boundary = _canvasKey.currentContext?.findRenderObject()
-        as RenderRepaintBoundary?;
+    final boundary =
+        _canvasKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
     if (boundary == null) {
       throw StateError('mask canvas is not ready');
     }
@@ -178,6 +189,16 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
     });
   }
 
+  void _undoStroke() {
+    setState(() {
+      if (_activeStroke != null) {
+        _activeStroke = null;
+      } else if (_strokes.isNotEmpty) {
+        _strokes.removeLast();
+      }
+    });
+  }
+
   void _showSnack(String message) {
     final messenger = ScaffoldMessenger.maybeOf(context);
     if (messenger == null) return;
@@ -208,9 +229,7 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
                 future: _sourceSizeFuture,
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                    return const Center(child: CircularProgressIndicator());
                   }
                   final size = snapshot.data!;
                   return Padding(
@@ -262,9 +281,7 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
                                       strokes: _strokes,
                                       activeStroke: _activeStroke,
                                     ),
-                                    child: Container(
-                                      color: Colors.transparent,
-                                    ),
+                                    child: Container(color: Colors.transparent),
                                   ),
                                 ),
                               ),
@@ -279,7 +296,9 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
                                         vertical: KilnSpacing.sm,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Colors.black.withValues(alpha: 0.36),
+                                        color: Colors.black.withValues(
+                                          alpha: 0.36,
+                                        ),
                                         borderRadius: BorderRadius.circular(
                                           KilnRadii.chip,
                                         ),
@@ -310,18 +329,74 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
                 KilnSpacing.md,
                 KilnSpacing.xs,
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  TextButton.icon(
-                    onPressed: _clearMask,
-                    icon: const Icon(Icons.clear_all_rounded),
-                    label: const Text('清空涂抹'),
+                  Wrap(
+                    spacing: KilnSpacing.xs,
+                    runSpacing: KilnSpacing.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => setState(() {
+                          _tool = _InpaintTool.brush;
+                        }),
+                        icon: const Icon(Icons.brush_outlined),
+                        label: Text('画笔 ${_brushSize.round()}'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: _tool == _InpaintTool.brush
+                              ? KilnColors.ember300
+                              : KilnColors.ink300,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => setState(() {
+                          _tool = _InpaintTool.eraser;
+                        }),
+                        icon: const Icon(Icons.auto_fix_off_outlined),
+                        label: const Text('橡皮擦'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: _tool == _InpaintTool.eraser
+                              ? KilnColors.ember300
+                              : KilnColors.ink300,
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _strokes.isEmpty && _activeStroke == null
+                            ? null
+                            : _undoStroke,
+                        icon: const Icon(Icons.undo_rounded),
+                        label: const Text('撤销'),
+                      ),
+                      IconButton(
+                        onPressed: _clearMask,
+                        icon: const Icon(Icons.clear_all_rounded),
+                        tooltip: '清空涂抹',
+                      ),
+                      Text(
+                        _hasMask ? '已标记区域' : '未标记',
+                        style: KilnTypography.chipMono.copyWith(
+                          color: _hasMask
+                              ? KilnColors.ember300
+                              : KilnColors.ink500,
+                        ),
+                      ),
+                    ],
                   ),
-                  const Spacer(),
-                  Text(
-                    _hasMask ? '已标记区域' : '未标记',
-                    style: KilnTypography.chipMono.copyWith(
-                      color: _hasMask ? KilnColors.ember300 : KilnColors.ink500,
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: KilnColors.ember400,
+                      inactiveTrackColor: KilnColors.ink700,
+                      thumbColor: KilnColors.ember300,
+                    ),
+                    child: Slider(
+                      value: _brushSize,
+                      min: 8,
+                      max: 72,
+                      divisions: 16,
+                      label: '画笔 ${_brushSize.round()}',
+                      onChanged: (value) => setState(() {
+                        _brushSize = value;
+                      }),
                     ),
                   ),
                 ],
@@ -343,12 +418,11 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
                   onSubmit: _submit,
                   hint: '输入要对涂抹区域做什么',
                   params: [
-                    ComposerChipData(
-                      label: widget.model,
-                      active: true,
-                    ),
+                    ComposerChipData(label: widget.model, active: true),
                     if (widget.size != null && widget.size!.isNotEmpty)
-                      ComposerChipData(label: widget.size!.replaceAll('x', '×')),
+                      ComposerChipData(
+                        label: widget.size!.replaceAll('x', '×'),
+                      ),
                     ComposerChipData(
                       label: _submitting ? '处理中...' : '局部重绘',
                       active: _submitting,
@@ -365,8 +439,11 @@ class _StudioInpaintScreenState extends State<StudioInpaintScreen> {
 }
 
 class _Stroke {
-  _Stroke(this.points);
+  _Stroke({required this.points, required this.size, required this.erasing});
+
   final List<Offset> points;
+  final double size;
+  final bool erasing;
 }
 
 class _MaskPainter extends CustomPainter {
@@ -377,14 +454,16 @@ class _MaskPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.95)
-      ..strokeWidth = 28
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round
-      ..style = PaintingStyle.stroke;
-    for (final stroke in [...strokes, if (activeStroke != null) activeStroke!]) {
+    canvas.saveLayer(Offset.zero & size, Paint());
+    for (final stroke in [...strokes, ?activeStroke]) {
       if (stroke.points.isEmpty) continue;
+      final paint = Paint()
+        ..color = Colors.white.withValues(alpha: 0.95)
+        ..strokeWidth = stroke.size
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke
+        ..blendMode = stroke.erasing ? BlendMode.clear : BlendMode.srcOver;
       if (stroke.points.length == 1) {
         canvas.drawCircle(stroke.points.single, paint.strokeWidth / 2, paint);
         continue;
@@ -393,21 +472,17 @@ class _MaskPainter extends CustomPainter {
         canvas.drawLine(stroke.points[i], stroke.points[i + 1], paint);
       }
     }
+    canvas.restore();
   }
 
   @override
   bool shouldRepaint(covariant _MaskPainter oldDelegate) {
-    return oldDelegate.strokes != strokes ||
-        oldDelegate.activeStroke != activeStroke;
+    return true;
   }
 }
 
 class _InpaintTopBar extends StatelessWidget {
-  const _InpaintTopBar({
-    required this.prompt,
-    this.onBack,
-    this.onClear,
-  });
+  const _InpaintTopBar({required this.prompt, this.onBack, this.onClear});
 
   final String prompt;
   final VoidCallback? onBack;
@@ -426,10 +501,7 @@ class _InpaintTopBar extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.9),
-            Colors.transparent,
-          ],
+          colors: [Colors.black.withValues(alpha: 0.9), Colors.transparent],
         ),
       ),
       child: Row(
@@ -456,18 +528,12 @@ class _InpaintTopBar extends StatelessWidget {
                   prompt,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: KilnTypography.ui(
-                    size: 12,
-                    color: Colors.white70,
-                  ),
+                  style: KilnTypography.ui(size: 12, color: Colors.white70),
                 ),
               ],
             ),
           ),
-          TextButton(
-            onPressed: onClear,
-            child: const Text('清空'),
-          ),
+          TextButton(onPressed: onClear, child: const Text('清空')),
         ],
       ),
     );

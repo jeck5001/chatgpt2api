@@ -458,6 +458,8 @@ class _CreateScreenState extends State<CreateScreen> {
               recipes: controller.state.recipes,
               hubRecipes: controller.state.hubRecipes,
               consistencyProfiles: controller.state.consistencyProfiles,
+              activeConsistencyProfileIds:
+                  controller.state.activeConsistencyProfileIds,
               currentPrompt: _promptController.text,
               onDelete: (template) async {
                 try {
@@ -477,6 +479,7 @@ class _CreateScreenState extends State<CreateScreen> {
                   if (mounted) _showSnack('分享失败：$error');
                 }
               },
+              onToggleProfile: controller.toggleConsistencyProfile,
             );
           },
         );
@@ -992,6 +995,9 @@ class _CreateScreenState extends State<CreateScreen> {
                             isFavoriteImage: widget.controller?.isFavoriteImage,
                             runningElapsed: turn.isRunning
                                 ? _formatElapsed(turn.updatedAt)
+                                : null,
+                            runningProgress: turn.isRunning
+                                ? turn.simulatedProgress()
                                 : null,
                           ),
                         );
@@ -1676,18 +1682,22 @@ class _TemplateSheet extends StatelessWidget {
     required this.recipes,
     required this.hubRecipes,
     required this.consistencyProfiles,
+    required this.activeConsistencyProfileIds,
     required this.currentPrompt,
     required this.onDelete,
     required this.onToggleShare,
+    required this.onToggleProfile,
   });
 
   final List<StudioPromptTemplate> templates;
   final List<StudioRecipe> recipes;
   final List<StudioRecipe> hubRecipes;
   final List<StudioConsistencyProfile> consistencyProfiles;
+  final List<String> activeConsistencyProfileIds;
   final String currentPrompt;
   final Future<void> Function(StudioPromptTemplate) onDelete;
   final Future<void> Function(StudioRecipe) onToggleShare;
+  final void Function(StudioConsistencyProfile) onToggleProfile;
 
   @override
   Widget build(BuildContext context) {
@@ -1832,9 +1842,13 @@ class _TemplateSheet extends StatelessWidget {
                       for (final profile in consistencyProfiles)
                         _ProfileRow(
                           profile: profile,
+                          active: activeConsistencyProfileIds.contains(
+                            profile.id,
+                          ),
                           onTap: () => Navigator.of(
                             context,
                           ).pop(_TemplateSheetApplyProfile(profile)),
+                          onToggleDefault: () => onToggleProfile(profile),
                         ),
                     ],
                     if (recipes.isNotEmpty) ...[
@@ -2050,10 +2064,17 @@ class _ProfileSaveRow extends StatelessWidget {
 }
 
 class _ProfileRow extends StatelessWidget {
-  const _ProfileRow({required this.profile, required this.onTap});
+  const _ProfileRow({
+    required this.profile,
+    required this.active,
+    required this.onTap,
+    required this.onToggleDefault,
+  });
 
   final StudioConsistencyProfile profile;
+  final bool active;
   final VoidCallback onTap;
+  final VoidCallback onToggleDefault;
 
   @override
   Widget build(BuildContext context) {
@@ -2080,6 +2101,10 @@ class _ProfileRow extends StatelessWidget {
         maxLines: 3,
         overflow: TextOverflow.ellipsis,
         style: KilnTypography.mono(size: 11, color: KilnColors.ink400),
+      ),
+      trailing: TextButton(
+        onPressed: onToggleDefault,
+        child: Text(active ? '已默认' : '默认'),
       ),
     );
   }
