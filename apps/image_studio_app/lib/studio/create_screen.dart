@@ -16,12 +16,27 @@ import 'studio_controller.dart';
 import 'studio_image_saver.dart';
 import 'studio_models.dart';
 import 'studio_repository.dart';
+import 'studio_inpaint_screen.dart';
 import 'studio_result_viewer.dart';
 import 'turn_card.dart';
 import 'turn_detail_screen.dart';
 
 const List<String> _kSupportedModels = ['gpt-image-2', 'gpt-image-1'];
 const List<String> _kSupportedSizes = ['1024x1024', '1024x1792', '1792x1024'];
+
+class StudioComposerSeed {
+  const StudioComposerSeed({
+    required this.id,
+    required this.prompt,
+    required this.model,
+    this.size,
+  });
+
+  final String id;
+  final String prompt;
+  final String model;
+  final String? size;
+}
 
 /// Studio main page — a conversation timeline of turns plus a sticky
 /// composer bar at the bottom.
@@ -34,11 +49,13 @@ class CreateScreen extends StatefulWidget {
     this.controller,
     this.activeConversationId,
     this.imageSaver,
+    this.composerSeed,
   });
 
   final StudioController? controller;
   final String? activeConversationId;
   final StudioImageSaver? imageSaver;
+  final StudioComposerSeed? composerSeed;
 
   @override
   State<CreateScreen> createState() => _CreateScreenState();
@@ -62,7 +79,12 @@ class _CreateScreenState extends State<CreateScreen> {
     final prefs = widget.controller?.state.preferences;
     _selectedModel = _resolveModel(prefs?.defaultModel);
     _selectedSize = _resolveSize(prefs?.defaultSize);
+    final seed = widget.composerSeed;
+    if (seed != null) {
+      _applyComposerSeed(seed);
+    }
     _promptController.addListener(_onPromptChanged);
+    widget.controller?.addListener(_onControllerChanged);
   }
 
   String _resolveModel(String? candidate) {
@@ -80,7 +102,17 @@ class _CreateScreenState extends State<CreateScreen> {
   }
 
   @override
+  void didUpdateWidget(covariant CreateScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final seed = widget.composerSeed;
+    if (seed != null && seed.id != oldWidget.composerSeed?.id) {
+      setState(() => _applyComposerSeed(seed));
+    }
+  }
+
+  @override
   void dispose() {
+    widget.controller?.removeListener(_onControllerChanged);
     _promptController
       ..removeListener(_onPromptChanged)
       ..dispose();
@@ -89,6 +121,19 @@ class _CreateScreenState extends State<CreateScreen> {
 
   void _onPromptChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _applyComposerSeed(StudioComposerSeed seed) {
+    _promptController.text = seed.prompt;
+    _promptController.selection = TextSelection.fromPosition(
+      TextPosition(offset: seed.prompt.length),
+    );
+    _selectedModel = _resolveModel(seed.model);
+    _selectedSize = _resolveSize(seed.size);
   }
 
   String? get _activeConversationId {
@@ -239,7 +284,7 @@ class _CreateScreenState extends State<CreateScreen> {
   void _retry(StudioTurn turn) {
     final controller = widget.controller;
     if (controller == null) return;
-    if (turn.mode == StudioTurnMode.edit) {
+    if (turn.mode != StudioTurnMode.generate) {
       _editPrompt(turn);
       if (_kSupportedModels.contains(turn.model)) {
         setState(() => _selectedModel = turn.model);
@@ -248,7 +293,7 @@ class _CreateScreenState extends State<CreateScreen> {
       if (size != null && _kSupportedSizes.contains(size)) {
         setState(() => _selectedSize = size);
       }
-      _showSnack('已复制 prompt 与参数，请重新添加参考图。');
+      _showSnack('已复制 prompt 与参数，请重新打开重绘并重新标注。');
       return;
     }
     unawaited(
@@ -341,6 +386,28 @@ class _CreateScreenState extends State<CreateScreen> {
     }
   }
 
+  Future<void> _openInpaint(StudioTurn turn, StudioResultImage image) async {
+    final controller = widget.controller;
+    final conversationId = _activeConversationId;
+    if (controller == null || conversationId == null) {
+      _showSnack('请先创建一个会话');
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StudioInpaintScreen(
+          controller: controller,
+          conversationId: conversationId,
+          sourceImage: image,
+          prompt: turn.prompt,
+          model: turn.model,
+          size: turn.size,
+          imageSaver: _imageSaver,
+        ),
+      ),
+    );
+  }
+
   Future<void> _confirmDeleteTurn(StudioTurn turn) async {
     final controller = widget.controller;
     if (controller == null) return;
@@ -375,8 +442,6 @@ class _CreateScreenState extends State<CreateScreen> {
   Future<void> _openTemplates() async {
     final controller = widget.controller;
     if (controller == null) return;
-    final templates = controller.state.templates;
-    final recipes = controller.state.recipes;
     final action = await showModalBottomSheet<_TemplateSheetAction>(
       context: context,
       backgroundColor: KilnColors.ink900,
@@ -385,16 +450,34 @@ class _CreateScreenState extends State<CreateScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
-        return _TemplateSheet(
-          templates: templates,
-          recipes: recipes,
-          currentPrompt: _promptController.text,
-          onDelete: (template) async {
-            try {
-              await controller.deletePromptTemplate(template.id);
-            } catch (error) {
-              if (mounted) _showSnack('删除失败：$error');
-            }
+        return AnimatedBuilder(
+          animation: Listenable.merge([controller, _promptController]),
+          builder: (context, _) {
+            return _TemplateSheet(
+              templates: controller.state.templates,
+              recipes: controller.state.recipes,
+              hubRecipes: controller.state.hubRecipes,
+              consistencyProfiles: controller.state.consistencyProfiles,
+              currentPrompt: _promptController.text,
+              onDelete: (template) async {
+                try {
+                  await controller.deletePromptTemplate(template.id);
+                } catch (error) {
+                  if (mounted) _showSnack('删除失败：$error');
+                }
+              },
+              onToggleShare: (recipe) async {
+                try {
+                  final nextShared = !recipe.shared;
+                  await controller.toggleRecipeSharing(recipe);
+                  if (mounted) {
+                    _showSnack(nextShared ? '已分享到社区' : '已取消公开');
+                  }
+                } catch (error) {
+                  if (mounted) _showSnack('分享失败：$error');
+                }
+              },
+            );
           },
         );
       },
@@ -407,24 +490,47 @@ class _CreateScreenState extends State<CreateScreen> {
           TextPosition(offset: template.content.length),
         );
       case _TemplateSheetApplyRecipe(:final recipe):
-        _promptController.text = recipe.prompt;
-        _promptController.selection = TextSelection.fromPosition(
-          TextPosition(offset: recipe.prompt.length),
-        );
-        final size = recipe.size;
-        setState(() {
-          if (_kSupportedModels.contains(recipe.model)) {
-            _selectedModel = recipe.model;
-          }
-          if (size != null && _kSupportedSizes.contains(size)) {
-            _selectedSize = size;
-          }
-        });
+        _applyRecipeToComposer(recipe);
+      case _TemplateSheetCloneHubRecipe(:final recipe):
+        try {
+          final cloned = await controller.clonePromptHubRecipe(recipe);
+          _applyRecipeToComposer(cloned);
+          _showSnack('已克隆到我的配方');
+        } catch (error) {
+          _showSnack('克隆失败：$error');
+        }
       case _TemplateSheetBatchRecipe(:final recipe):
         await _openRecipeBatch(recipe);
+      case _TemplateSheetApplyProfile(:final profile):
+        final prompt = controller.applyConsistencyProfile(
+          profile,
+          currentPrompt: _promptController.text,
+        );
+        _promptController.text = prompt;
+        _promptController.selection = TextSelection.fromPosition(
+          TextPosition(offset: prompt.length),
+        );
+      case _TemplateSheetSaveProfile(:final kind):
+        await _saveCurrentPromptAsConsistencyProfile(kind);
       case _TemplateSheetSaveCurrent():
         await _saveCurrentPromptAsTemplate();
     }
+  }
+
+  void _applyRecipeToComposer(StudioRecipe recipe) {
+    _promptController.text = recipe.prompt;
+    _promptController.selection = TextSelection.fromPosition(
+      TextPosition(offset: recipe.prompt.length),
+    );
+    final size = recipe.size;
+    setState(() {
+      if (_kSupportedModels.contains(recipe.model)) {
+        _selectedModel = recipe.model;
+      }
+      if (size != null && _kSupportedSizes.contains(size)) {
+        _selectedSize = size;
+      }
+    });
   }
 
   Future<void> _openRecipeBatch(StudioRecipe recipe) async {
@@ -484,6 +590,36 @@ class _CreateScreenState extends State<CreateScreen> {
       if (mounted) {
         _showSnack('已保存模板「${form.name.isEmpty ? '未命名' : form.name}」');
       }
+    } catch (error) {
+      if (mounted) _showSnack('保存失败：$error');
+    }
+  }
+
+  Future<void> _saveCurrentPromptAsConsistencyProfile(
+    StudioConsistencyProfileKind kind,
+  ) async {
+    final controller = widget.controller;
+    final guidance = _promptController.text.trim();
+    if (controller == null) return;
+    if (guidance.isEmpty) {
+      _showSnack('请先在输入框写好角色或风格指引');
+      return;
+    }
+    final label = kind.label;
+    final name = await showNamePromptDialog(
+      context,
+      title: '保存$label档案',
+      hint: '$label档案名称（可留空）',
+    );
+    if (name == null) return;
+    try {
+      await controller.saveConsistencyProfile(
+        name: name,
+        kind: kind,
+        guidance: guidance,
+        tags: [label],
+      );
+      if (mounted) _showSnack('已保存$label档案');
     } catch (error) {
       if (mounted) _showSnack('保存失败：$error');
     }
@@ -566,6 +702,7 @@ class _CreateScreenState extends State<CreateScreen> {
       initialFavorited: widget.controller?.isFavoriteImage(image) ?? false,
       onFavorite: () => _toggleFavorite(turn),
       onVariation: () => _variation(turn),
+      onInpaint: () => _openInpaint(turn, image),
       imageSaver: _imageSaver,
     );
   }
@@ -579,6 +716,9 @@ class _CreateScreenState extends State<CreateScreen> {
           onRetry: () => _retry(turn),
           onEditPrompt: () => _editPrompt(turn),
           onVariation: () => _variation(turn),
+          onInpaint: turn.resultImages.isEmpty
+              ? null
+              : () => _openInpaint(turn, turn.resultImages.first),
           onSave: turn.resultImages.isEmpty
               ? null
               : () => _saveImage(turn.resultImages.first),
@@ -1511,6 +1651,21 @@ class _TemplateSheetBatchRecipe extends _TemplateSheetAction {
   final StudioRecipe recipe;
 }
 
+class _TemplateSheetCloneHubRecipe extends _TemplateSheetAction {
+  const _TemplateSheetCloneHubRecipe(this.recipe);
+  final StudioRecipe recipe;
+}
+
+class _TemplateSheetApplyProfile extends _TemplateSheetAction {
+  const _TemplateSheetApplyProfile(this.profile);
+  final StudioConsistencyProfile profile;
+}
+
+class _TemplateSheetSaveProfile extends _TemplateSheetAction {
+  const _TemplateSheetSaveProfile(this.kind);
+  final StudioConsistencyProfileKind kind;
+}
+
 class _TemplateSheetSaveCurrent extends _TemplateSheetAction {
   const _TemplateSheetSaveCurrent();
 }
@@ -1519,14 +1674,20 @@ class _TemplateSheet extends StatelessWidget {
   const _TemplateSheet({
     required this.templates,
     required this.recipes,
+    required this.hubRecipes,
+    required this.consistencyProfiles,
     required this.currentPrompt,
     required this.onDelete,
+    required this.onToggleShare,
   });
 
   final List<StudioPromptTemplate> templates;
   final List<StudioRecipe> recipes;
+  final List<StudioRecipe> hubRecipes;
+  final List<StudioConsistencyProfile> consistencyProfiles;
   final String currentPrompt;
   final Future<void> Function(StudioPromptTemplate) onDelete;
+  final Future<void> Function(StudioRecipe) onToggleShare;
 
   @override
   Widget build(BuildContext context) {
@@ -1576,16 +1737,43 @@ class _TemplateSheet extends StatelessWidget {
               ),
             ),
             const Divider(color: KilnColors.hairline, height: 1),
-            if (templates.isEmpty && recipes.isEmpty)
+            if (templates.isEmpty &&
+                recipes.isEmpty &&
+                hubRecipes.isEmpty &&
+                consistencyProfiles.isEmpty &&
+                !hasCurrent)
               Padding(
                 padding: const EdgeInsets.all(KilnSpacing.xl),
-                child: Text(
-                  '还没有模板或配方。把常用的 prompt 和生成参数保存下来下次直接复用。',
-                  textAlign: TextAlign.center,
-                  style: KilnTypography.mono(
-                    size: 12,
-                    color: KilnColors.ink500,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '还没有模板或配方。把常用的 prompt 和生成参数保存下来下次直接复用。',
+                      textAlign: TextAlign.center,
+                      style: KilnTypography.mono(
+                        size: 12,
+                        color: KilnColors.ink500,
+                      ),
+                    ),
+                    const SizedBox(height: KilnSpacing.lg),
+                    Text(
+                      '社区',
+                      style: KilnTypography.mono(
+                        size: 10,
+                        color: KilnColors.ember400,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: KilnSpacing.xs),
+                    Text(
+                      '还没有公开配方。把常用配方分享到社区，别人就能一键克隆。',
+                      textAlign: TextAlign.center,
+                      style: KilnTypography.mono(
+                        size: 11,
+                        color: KilnColors.ink500,
+                      ),
+                    ),
+                  ],
                 ),
               )
             else
@@ -1594,6 +1782,61 @@ class _TemplateSheet extends StatelessWidget {
                   shrinkWrap: true,
                   padding: const EdgeInsets.only(bottom: KilnSpacing.sm),
                   children: [
+                    if (hasCurrent) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          KilnSpacing.lg,
+                          KilnSpacing.sm + 2,
+                          KilnSpacing.lg,
+                          KilnSpacing.xs,
+                        ),
+                        child: Text(
+                          '创建档案',
+                          style: KilnTypography.mono(
+                            size: 10,
+                            color: KilnColors.ember400,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                      ),
+                      _ProfileSaveRow(
+                        onSaveCharacter: () => Navigator.of(context).pop(
+                          const _TemplateSheetSaveProfile(
+                            StudioConsistencyProfileKind.character,
+                          ),
+                        ),
+                        onSaveStyle: () => Navigator.of(context).pop(
+                          const _TemplateSheetSaveProfile(
+                            StudioConsistencyProfileKind.style,
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (consistencyProfiles.isNotEmpty) ...[
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          KilnSpacing.lg,
+                          KilnSpacing.sm + 2,
+                          KilnSpacing.lg,
+                          KilnSpacing.xs,
+                        ),
+                        child: Text(
+                          '角色/风格档案',
+                          style: KilnTypography.mono(
+                            size: 10,
+                            color: KilnColors.ember400,
+                            letterSpacing: 1.4,
+                          ),
+                        ),
+                      ),
+                      for (final profile in consistencyProfiles)
+                        _ProfileRow(
+                          profile: profile,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(_TemplateSheetApplyProfile(profile)),
+                        ),
+                    ],
                     if (recipes.isNotEmpty) ...[
                       Padding(
                         padding: const EdgeInsets.fromLTRB(
@@ -1620,8 +1863,49 @@ class _TemplateSheet extends StatelessWidget {
                           onBatch: () => Navigator.of(
                             context,
                           ).pop(_TemplateSheetBatchRecipe(recipe)),
+                          onToggleShare: () => onToggleShare(recipe),
                         ),
                     ],
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        KilnSpacing.lg,
+                        KilnSpacing.sm + 2,
+                        KilnSpacing.lg,
+                        KilnSpacing.xs,
+                      ),
+                      child: Text(
+                        '社区',
+                        style: KilnTypography.mono(
+                          size: 10,
+                          color: KilnColors.ember400,
+                          letterSpacing: 1.4,
+                        ),
+                      ),
+                    ),
+                    if (hubRecipes.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          KilnSpacing.lg,
+                          0,
+                          KilnSpacing.lg,
+                          KilnSpacing.md,
+                        ),
+                        child: Text(
+                          '还没有公开配方。把常用配方分享到社区，别人就能一键克隆。',
+                          style: KilnTypography.mono(
+                            size: 11,
+                            color: KilnColors.ink500,
+                          ),
+                        ),
+                      )
+                    else
+                      for (final recipe in hubRecipes)
+                        _HubRecipeRow(
+                          recipe: recipe,
+                          onTap: () => Navigator.of(
+                            context,
+                          ).pop(_TemplateSheetCloneHubRecipe(recipe)),
+                        ),
                     for (final category in categories) ...[
                       Padding(
                         padding: const EdgeInsets.fromLTRB(
@@ -1662,11 +1946,13 @@ class _RecipeRow extends StatelessWidget {
     required this.recipe,
     required this.onTap,
     required this.onBatch,
+    required this.onToggleShare,
   });
 
   final StudioRecipe recipe;
   final VoidCallback onTap;
   final VoidCallback onBatch;
+  final VoidCallback onToggleShare;
 
   @override
   Widget build(BuildContext context) {
@@ -1692,15 +1978,144 @@ class _RecipeRow extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: KilnTypography.mono(size: 11, color: KilnColors.ink400),
       ),
-      trailing: IconButton(
-        tooltip: '批量生成 ${recipe.displayName}',
-        icon: const Icon(
-          Icons.playlist_add_check_circle_outlined,
-          size: 18,
-          color: KilnColors.ink400,
-        ),
-        onPressed: onBatch,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: recipe.shared ? '取消公开' : '分享到社区',
+            icon: Icon(
+              recipe.shared ? Icons.public_rounded : Icons.public_off_outlined,
+              size: 18,
+              color: recipe.shared ? KilnColors.ember400 : KilnColors.ink500,
+            ),
+            onPressed: onToggleShare,
+          ),
+          IconButton(
+            tooltip: '批量生成 ${recipe.displayName}',
+            icon: const Icon(
+              Icons.playlist_add_check_circle_outlined,
+              size: 18,
+              color: KilnColors.ink400,
+            ),
+            onPressed: onBatch,
+          ),
+        ],
       ),
+    );
+  }
+}
+
+class _ProfileSaveRow extends StatelessWidget {
+  const _ProfileSaveRow({
+    required this.onSaveCharacter,
+    required this.onSaveStyle,
+  });
+
+  final VoidCallback onSaveCharacter;
+  final VoidCallback onSaveStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        KilnSpacing.lg,
+        0,
+        KilnSpacing.lg,
+        KilnSpacing.sm,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: onSaveCharacter,
+              icon: const Icon(
+                Icons.face_retouching_natural_outlined,
+                size: 16,
+              ),
+              label: const Text('保存为角色档案'),
+            ),
+          ),
+          const SizedBox(width: KilnSpacing.sm),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: onSaveStyle,
+              icon: const Icon(Icons.palette_outlined, size: 16),
+              label: const Text('保存为风格档案'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProfileRow extends StatelessWidget {
+  const _ProfileRow({required this.profile, required this.onTap});
+
+  final StudioConsistencyProfile profile;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = [
+      profile.kind.label,
+      ...profile.tags.take(2),
+      if (profile.referenceImagePath.isNotEmpty) '参考图',
+    ].where((value) => value.trim().isNotEmpty).join(' · ');
+    return ListTile(
+      onTap: onTap,
+      leading: Icon(
+        profile.kind == StudioConsistencyProfileKind.character
+            ? Icons.face_retouching_natural_outlined
+            : Icons.palette_outlined,
+        size: 18,
+        color: KilnColors.ember400,
+      ),
+      title: Text(
+        profile.displayName,
+        style: KilnTypography.ui(size: 14, weight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        meta.isEmpty ? profile.guidance : '$meta\n${profile.guidance}',
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: KilnTypography.mono(size: 11, color: KilnColors.ink400),
+      ),
+    );
+  }
+}
+
+class _HubRecipeRow extends StatelessWidget {
+  const _HubRecipeRow({required this.recipe, required this.onTap});
+
+  final StudioRecipe recipe;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = [
+      recipe.model,
+      if ((recipe.size ?? '').isNotEmpty) recipe.size!.replaceAll('x', '×'),
+      ...recipe.tags.take(2),
+    ].where((value) => value.trim().isNotEmpty).join(' · ');
+    return ListTile(
+      onTap: onTap,
+      leading: const Icon(
+        Icons.public_rounded,
+        size: 18,
+        color: KilnColors.ember400,
+      ),
+      title: Text(
+        recipe.displayName,
+        style: KilnTypography.ui(size: 14, weight: FontWeight.w500),
+      ),
+      subtitle: Text(
+        meta.isEmpty ? recipe.prompt : '$meta\n${recipe.prompt}',
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: KilnTypography.mono(size: 11, color: KilnColors.ink400),
+      ),
+      trailing: TextButton(onPressed: onTap, child: const Text('克隆')),
     );
   }
 }

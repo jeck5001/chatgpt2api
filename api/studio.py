@@ -67,6 +67,27 @@ class RecipeCreateRequest(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class RecipeUpdateRequest(BaseModel):
+    name: str | None = None
+    shared: bool | None = None
+
+
+class ConsistencyProfileCreateRequest(BaseModel):
+    name: str = ""
+    kind: str = "character"
+    guidance: str = Field(..., min_length=1)
+    reference_image_path: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+
+class ConsistencyProfileUpdateRequest(BaseModel):
+    name: str | None = None
+    kind: str | None = None
+    guidance: str | None = None
+    reference_image_path: str | None = None
+    tags: list[str] | None = None
+
+
 class PromptOptimizationRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
 
@@ -93,6 +114,17 @@ def _bad_request(exc: ValueError) -> HTTPException:
 
 def _bad_gateway(exc: Exception) -> HTTPException:
     return HTTPException(status_code=502, detail={"error": str(exc) or "image task submit failed"})
+
+
+async def _read_required_upload(upload: UploadFile | None, label: str) -> tuple[bytes, str, str]:
+    if upload is None:
+        raise HTTPException(status_code=400, detail={"error": f"{label} file is required"})
+    image_data = await upload.read()
+    if not image_data:
+        raise HTTPException(status_code=400, detail={"error": f"{label} file is empty"})
+    filename = upload.filename or f"{label}.png"
+    content_type = upload.content_type or "image/png"
+    return image_data, filename, content_type
 
 
 def _turn_task_identity(identity: dict[str, object], turn: dict[str, object]) -> dict[str, object]:
@@ -270,6 +302,69 @@ def create_router() -> APIRouter:
             raise _not_found("turn not found")
         return {"item": item}
 
+    @router.post("/api/image-turns/inpaint")
+    async def create_inpaint_turn(
+        request: Request,
+        authorization: str | None = Header(default=None),
+        image: UploadFile | None = File(default=None),
+        mask: UploadFile | None = File(default=None),
+        conversation_id: str = Form(...),
+        client_task_id: str = Form(...),
+        prompt: str = Form(...),
+        model: str = Form(default="gpt-image-2"),
+        size: str | None = Form(default=None),
+    ):
+        identity = _identity(authorization)
+        source_image = await _read_required_upload(image, "image")
+        mask_image = await _read_required_upload(mask, "mask")
+        try:
+            turn = studio_service.create_queued_turn(
+                identity,
+                conversation_id,
+                client_task_id=client_task_id,
+                task_id=client_task_id,
+                mode="inpaint",
+                prompt=prompt,
+                model=model,
+                size=size,
+                reference_images=[
+                    {
+                        "kind": "source",
+                        "filename": source_image[1],
+                        "content_type": source_image[2],
+                    },
+                    {
+                        "kind": "mask",
+                        "filename": mask_image[1],
+                        "content_type": mask_image[2],
+                    },
+                ],
+            )
+            try:
+                task = await run_in_threadpool(
+                    image_task_service.submit_inpaint,
+                    identity,
+                    client_task_id=client_task_id,
+                    prompt=prompt,
+                    model=model,
+                    size=size,
+                    base_url=resolve_image_base_url(request),
+                    image=source_image,
+                    mask=mask_image,
+                )
+            except ValueError as exc:
+                studio_service.mark_turn_error(identity, turn["id"], str(exc), task_id=client_task_id)
+                raise
+            except Exception as exc:
+                studio_service.mark_turn_error(identity, turn["id"], str(exc), task_id=client_task_id)
+                raise _bad_gateway(exc) from exc
+            item = studio_service.sync_turn_from_task(identity, turn["id"], task)
+        except ValueError as exc:
+            raise _bad_request(exc) from exc
+        if item is None:
+            raise _not_found("turn not found")
+        return {"item": item}
+
     @router.post("/api/image-turns/{turn_id}/sync")
     async def sync_image_turn(turn_id: str, authorization: str | None = Header(default=None)):
         identity = _identity(authorization)
@@ -385,6 +480,89 @@ def create_router() -> APIRouter:
         identity = _identity(authorization)
         if not studio_service.delete_recipe(identity, recipe_id):
             raise _not_found("recipe not found")
+        return {"ok": True}
+
+    @router.patch("/api/image-recipes/{recipe_id}")
+    async def update_image_recipe(
+        recipe_id: str,
+        body: RecipeUpdateRequest,
+        authorization: str | None = Header(default=None),
+    ):
+        identity = _identity(authorization)
+        try:
+            item = studio_service.update_recipe(
+                identity,
+                recipe_id,
+                body.model_dump(exclude_unset=True, exclude_none=True),
+            )
+        except ValueError as exc:
+            raise _bad_request(exc) from exc
+        if item is None:
+            raise _not_found("recipe not found")
+        return {"item": item}
+
+    @router.get("/api/prompt-hub")
+    async def list_prompt_hub(authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        return {"items": studio_service.list_prompt_hub(identity)}
+
+    @router.post("/api/prompt-hub/{recipe_id}/clone")
+    async def clone_prompt_hub_recipe(recipe_id: str, authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        try:
+            item = studio_service.clone_recipe(identity, recipe_id)
+        except ValueError as exc:
+            raise _bad_request(exc) from exc
+        return {"item": item}
+
+    @router.get("/api/consistency-profiles")
+    async def list_consistency_profiles(authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        return {"items": studio_service.list_consistency_profiles(identity)}
+
+    @router.post("/api/consistency-profiles")
+    async def create_consistency_profile(
+        body: ConsistencyProfileCreateRequest,
+        authorization: str | None = Header(default=None),
+    ):
+        identity = _identity(authorization)
+        try:
+            item = studio_service.create_consistency_profile(
+                identity,
+                name=body.name,
+                kind=body.kind,
+                guidance=body.guidance,
+                reference_image_path=body.reference_image_path,
+                tags=body.tags,
+            )
+        except ValueError as exc:
+            raise _bad_request(exc) from exc
+        return {"item": item}
+
+    @router.patch("/api/consistency-profiles/{profile_id}")
+    async def update_consistency_profile(
+        profile_id: str,
+        body: ConsistencyProfileUpdateRequest,
+        authorization: str | None = Header(default=None),
+    ):
+        identity = _identity(authorization)
+        try:
+            item = studio_service.update_consistency_profile(
+                identity,
+                profile_id,
+                body.model_dump(exclude_unset=True, exclude_none=True),
+            )
+        except ValueError as exc:
+            raise _bad_request(exc) from exc
+        if item is None:
+            raise _not_found("profile not found")
+        return {"item": item}
+
+    @router.delete("/api/consistency-profiles/{profile_id}")
+    async def delete_consistency_profile(profile_id: str, authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        if not studio_service.delete_consistency_profile(identity, profile_id):
+            raise _not_found("profile not found")
         return {"ok": True}
 
     @router.post("/api/image-prompt-drafts")

@@ -15,7 +15,8 @@ STATUS_RUNNING = "running"
 STATUS_SUCCESS = "success"
 STATUS_ERROR = "error"
 TURN_STATUSES = {STATUS_QUEUED, STATUS_RUNNING, STATUS_SUCCESS, STATUS_ERROR}
-MODES = {"generate", "edit"}
+MODES = {"generate", "edit", "inpaint"}
+CONSISTENCY_PROFILE_KINDS = {"character", "style"}
 
 
 def _now_iso() -> str:
@@ -40,6 +41,13 @@ def _is_admin(identity: dict[str, object]) -> bool:
 
 def _public(item: dict[str, Any]) -> dict[str, Any]:
     return deepcopy(item)
+
+
+def _public_hub_recipe(item: dict[str, Any]) -> dict[str, Any]:
+    result = deepcopy(item)
+    result.pop("owner_id", None)
+    result.pop("source_recipe_id", None)
+    return result
 
 
 def _copy_list(value: object) -> list[Any]:
@@ -164,6 +172,7 @@ class StudioService:
             "prompt_templates": [],
             "favorites": [],
             "recipes": [],
+            "consistency_profiles": [],
         }
         for key in state:
             values = source.get(key)
@@ -508,8 +517,8 @@ class StudioService:
             task_id = _clean(client_task_id)
             if not task_id:
                 raise ValueError("client_task_id is required")
-            if item.get("mode") == "edit":
-                raise ValueError("edit retry is not supported because reference images are not persisted")
+            if item.get("mode") != "generate":
+                raise ValueError("only generation turns can be retried because reference images are not persisted")
             if item.get("status") != STATUS_ERROR:
                 raise ValueError("only error turns can be retried")
             if _clean(item.get("client_task_id")) == task_id:
@@ -666,6 +675,8 @@ class StudioService:
         source_turn_id: str = "",
         project_id: str = "",
         tags: list[str] | None = None,
+        shared: bool = False,
+        source_recipe_id: str = "",
     ) -> dict[str, Any]:
         normalized_prompt = _clean(prompt)
         if not normalized_prompt:
@@ -685,6 +696,81 @@ class StudioService:
                 "source_turn_id": _clean(source_turn_id),
                 "project_id": _clean(project_id),
                 "tags": cleaned_tags,
+                "shared": bool(shared),
+                "shared_at": now if shared else "",
+                "source_recipe_id": _clean(source_recipe_id),
+                "created_at": now,
+                "updated_at": now,
+            }
+            self._state["recipes"].append(item)
+            self._rollback_save_locked(before)
+            return _public(item)
+
+    def update_recipe(
+        self,
+        identity: dict[str, object],
+        recipe_id: str,
+        updates: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        with self._lock:
+            item = self._find_visible(identity, "recipes", recipe_id)
+            if item is None:
+                return None
+            before = deepcopy(self._state)
+            if "name" in updates:
+                item["name"] = _clean(updates.get("name")) or item.get("name") or "未命名配方"
+            if "shared" in updates:
+                shared = bool(updates.get("shared"))
+                item["shared"] = shared
+                item["shared_at"] = _now_iso() if shared else ""
+            item["updated_at"] = _now_iso()
+            self._rollback_save_locked(before)
+            return _public(item)
+
+    def list_prompt_hub(self, identity: dict[str, object]) -> list[dict[str, Any]]:
+        with self._lock:
+            items = [
+                _public_hub_recipe(item)
+                for item in self._state["recipes"]
+                if bool(item.get("shared"))
+            ]
+            return sorted(
+                items,
+                key=lambda item: str(item.get("shared_at") or item.get("updated_at") or item.get("created_at") or ""),
+                reverse=True,
+            )
+
+    def clone_recipe(
+        self,
+        identity: dict[str, object],
+        recipe_id: str,
+    ) -> dict[str, Any]:
+        with self._lock:
+            source = None
+            for item in self._state["recipes"]:
+                if item.get("id") != recipe_id:
+                    continue
+                if bool(item.get("shared")) or _is_admin(identity) or _clean(item.get("owner_id")) == _owner_id(identity):
+                    source = item
+                break
+            if source is None or not bool(source.get("shared")):
+                raise ValueError("shared recipe not found")
+            before = deepcopy(self._state)
+            now = _now_iso()
+            item = {
+                "id": _id("recipe"),
+                "owner_id": _owner_id(identity),
+                "name": _clean(source.get("name")) or _clean(source.get("prompt"))[:32] or "未命名配方",
+                "prompt": _clean(source.get("prompt")),
+                "model": _clean(source.get("model")) or "gpt-image-2",
+                "size": _clean(source.get("size")),
+                "source_image_path": _clean(source.get("source_image_path")).lstrip("/"),
+                "source_turn_id": _clean(source.get("source_turn_id")),
+                "project_id": _clean(source.get("project_id")),
+                "tags": _copy_list(source.get("tags")),
+                "shared": False,
+                "shared_at": "",
+                "source_recipe_id": _clean(source.get("id")),
                 "created_at": now,
                 "updated_at": now,
             }
@@ -705,6 +791,98 @@ class StudioService:
                 )
             ]
             changed = len(self._state["recipes"]) != before
+            if changed:
+                self._rollback_save_locked(before_state)
+            return changed
+
+    def list_consistency_profiles(self, identity: dict[str, object]) -> list[dict[str, Any]]:
+        with self._lock:
+            return sorted(
+                self._visible(identity, self._state["consistency_profiles"]),
+                key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""),
+                reverse=True,
+            )
+
+    def create_consistency_profile(
+        self,
+        identity: dict[str, object],
+        *,
+        name: str,
+        kind: str,
+        guidance: str,
+        reference_image_path: str = "",
+        tags: list[str] | None = None,
+    ) -> dict[str, Any]:
+        normalized_kind = _clean(kind).lower()
+        if normalized_kind not in CONSISTENCY_PROFILE_KINDS:
+            raise ValueError("profile kind must be character or style")
+        normalized_guidance = _clean(guidance)
+        if not normalized_guidance:
+            raise ValueError("profile guidance is required")
+        cleaned_tags = list(dict.fromkeys(_clean(tag) for tag in (tags or []) if _clean(tag)))
+        now = _now_iso()
+        with self._lock:
+            before = deepcopy(self._state)
+            item = {
+                "id": _id("profile"),
+                "owner_id": _owner_id(identity),
+                "name": _clean(name) or normalized_guidance[:32] or "未命名档案",
+                "kind": normalized_kind,
+                "guidance": normalized_guidance,
+                "reference_image_path": _clean(reference_image_path).lstrip("/"),
+                "tags": cleaned_tags,
+                "created_at": now,
+                "updated_at": now,
+            }
+            self._state["consistency_profiles"].append(item)
+            self._rollback_save_locked(before)
+            return _public(item)
+
+    def update_consistency_profile(
+        self,
+        identity: dict[str, object],
+        profile_id: str,
+        updates: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        with self._lock:
+            item = self._find_visible(identity, "consistency_profiles", profile_id)
+            if item is None:
+                return None
+            before = deepcopy(self._state)
+            if "name" in updates:
+                item["name"] = _clean(updates.get("name")) or item.get("name") or "未命名档案"
+            if "kind" in updates:
+                normalized_kind = _clean(updates.get("kind")).lower()
+                if normalized_kind not in CONSISTENCY_PROFILE_KINDS:
+                    raise ValueError("profile kind must be character or style")
+                item["kind"] = normalized_kind
+            if "guidance" in updates:
+                guidance = _clean(updates.get("guidance"))
+                if not guidance:
+                    raise ValueError("profile guidance is required")
+                item["guidance"] = guidance
+            if "reference_image_path" in updates:
+                item["reference_image_path"] = _clean(updates.get("reference_image_path")).lstrip("/")
+            if "tags" in updates:
+                tags = updates.get("tags")
+                item["tags"] = list(dict.fromkeys(_clean(tag) for tag in (tags or []) if _clean(tag))) if isinstance(tags, list) else []
+            item["updated_at"] = _now_iso()
+            self._rollback_save_locked(before)
+            return _public(item)
+
+    def delete_consistency_profile(self, identity: dict[str, object], profile_id: str) -> bool:
+        with self._lock:
+            before_state = deepcopy(self._state)
+            before = len(self._state["consistency_profiles"])
+            self._state["consistency_profiles"] = [
+                item
+                for item in self._state["consistency_profiles"]
+                if not (
+                    item.get("id") == profile_id
+                    and (_is_admin(identity) or item.get("owner_id") == _owner_id(identity))
+                )
+            ]
+            changed = len(self._state["consistency_profiles"]) != before
             if changed:
                 self._rollback_save_locked(before_state)
             return changed

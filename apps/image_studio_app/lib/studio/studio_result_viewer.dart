@@ -43,6 +43,7 @@ class StudioResultViewer extends StatefulWidget {
     ShareImageAction? onShareImage,
     this.onFavorite,
     this.onVariation,
+    this.onInpaint,
     this.onOpenSource,
   }) : imageSaver = imageSaver ?? StudioImageSaver(),
        onSaveImage = onSaveImage ?? _defaultSaveImage,
@@ -62,6 +63,7 @@ class StudioResultViewer extends StatefulWidget {
   final ShareImageAction onShareImage;
   final VoidCallback? onFavorite;
   final VoidCallback? onVariation;
+  final VoidCallback? onInpaint;
   final VoidCallback? onOpenSource;
 
   static Future<String> _defaultSaveImage(
@@ -228,6 +230,7 @@ class _StudioResultViewerState extends State<StudioResultViewer> {
               onSave: _save,
               onShare: _share,
               onVariation: widget.onVariation,
+              onInpaint: widget.onInpaint,
               onOpenSource: widget.onOpenSource,
             ),
           ),
@@ -368,6 +371,7 @@ class _ViewerDrawer extends StatelessWidget {
     this.onSave,
     this.onShare,
     this.onVariation,
+    this.onInpaint,
     this.onOpenSource,
   });
 
@@ -379,6 +383,7 @@ class _ViewerDrawer extends StatelessWidget {
   final VoidCallback? onSave;
   final VoidCallback? onShare;
   final VoidCallback? onVariation;
+  final VoidCallback? onInpaint;
   final VoidCallback? onOpenSource;
 
   @override
@@ -470,6 +475,13 @@ class _ViewerDrawer extends StatelessWidget {
                       icon: Icons.alt_route_rounded,
                       label: '变体',
                       onPressed: onVariation,
+                    ),
+                  ),
+                  Expanded(
+                    child: _DrawerAction(
+                      icon: Icons.brush_outlined,
+                      label: '重绘',
+                      onPressed: onInpaint,
                     ),
                   ),
                   Expanded(
@@ -583,6 +595,7 @@ Future<void> showStudioResultViewer(
   StudioImageSaver? imageSaver,
   VoidCallback? onFavorite,
   VoidCallback? onVariation,
+  VoidCallback? onInpaint,
   VoidCallback? onOpenSource,
 }) {
   final tag =
@@ -602,6 +615,7 @@ Future<void> showStudioResultViewer(
         imageSaver: imageSaver,
         onFavorite: onFavorite,
         onVariation: onVariation,
+        onInpaint: onInpaint,
         onOpenSource: onOpenSource,
       ),
       fullscreenDialog: true,

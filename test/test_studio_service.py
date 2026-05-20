@@ -150,6 +150,102 @@ class StudioServiceTests(unittest.TestCase):
         self.assertTrue(service.delete_recipe(OWNER, recipe["id"]))
         self.assertEqual(service.list_recipes(OWNER), [])
 
+    def test_consistency_profile_lifecycle_is_user_scoped(self):
+        service, _storage, _path = self.make_service()
+
+        profile = service.create_consistency_profile(
+            OWNER,
+            name="Luna",
+            kind="character",
+            guidance="A silver-haired botanist with a teal jacket.",
+            reference_image_path="/2026/05/luna.png",
+            tags=["角色", "主角", "角色"],
+        )
+
+        self.assertEqual(profile["name"], "Luna")
+        self.assertEqual(profile["kind"], "character")
+        self.assertEqual(profile["guidance"], "A silver-haired botanist with a teal jacket.")
+        self.assertEqual(profile["reference_image_path"], "2026/05/luna.png")
+        self.assertEqual(profile["tags"], ["角色", "主角"])
+        self.assertEqual(service.list_consistency_profiles(OWNER)[0]["id"], profile["id"])
+        self.assertEqual(service.list_consistency_profiles(OTHER_OWNER), [])
+
+        updated = service.update_consistency_profile(
+            OWNER,
+            profile["id"],
+            {"name": "Luna Prime", "kind": "style"},
+        )
+
+        self.assertIsNotNone(updated)
+        self.assertEqual(updated["name"], "Luna Prime")
+        self.assertEqual(updated["kind"], "style")
+        self.assertTrue(service.delete_consistency_profile(OWNER, profile["id"]))
+        self.assertEqual(service.list_consistency_profiles(OWNER), [])
+
+    def test_consistency_profile_rejects_invalid_kind_and_blank_guidance(self):
+        service, _storage, _path = self.make_service()
+
+        with self.assertRaisesRegex(ValueError, "profile guidance is required"):
+            service.create_consistency_profile(
+                OWNER,
+                name="Blank",
+                kind="character",
+                guidance="   ",
+            )
+
+        with self.assertRaisesRegex(ValueError, "profile kind must be character or style"):
+            service.create_consistency_profile(
+                OWNER,
+                name="Invalid",
+                kind="mood",
+                guidance="Keep a painterly look.",
+            )
+
+    def test_prompt_hub_lists_shared_recipes_without_owner_metadata(self):
+        service, _storage, _path = self.make_service()
+        private_recipe = service.create_recipe(
+            OWNER,
+            name="Private recipe",
+            prompt="private prompt",
+            model="gpt-image-2",
+            size="1024x1024",
+        )
+        shared_recipe = service.create_recipe(
+            OTHER_OWNER,
+            name="Shared recipe",
+            prompt="shared prompt",
+            model="gpt-image-2",
+            size="1024x1792",
+        )
+        service._state["recipes"][0]["shared"] = False
+        service._state["recipes"][1]["shared"] = True
+
+        hub = getattr(service, "list_prompt_hub")(OWNER)
+
+        self.assertEqual([item["id"] for item in hub], [shared_recipe["id"]])
+        self.assertNotIn("owner_id", hub[0])
+
+    def test_clone_prompt_hub_recipe_creates_a_private_copy(self):
+        service, _storage, _path = self.make_service()
+        shared_recipe = service.create_recipe(
+            OTHER_OWNER,
+            name="Shared recipe",
+            prompt="shared prompt",
+            model="gpt-image-2",
+            size="1024x1792",
+            tags=["海报"],
+        )
+        service._state["recipes"][0]["shared"] = True
+
+        cloned = getattr(service, "clone_recipe")(OWNER, shared_recipe["id"])
+
+        self.assertEqual(cloned["prompt"], "shared prompt")
+        self.assertEqual(cloned["model"], "gpt-image-2")
+        self.assertEqual(cloned["size"], "1024x1792")
+        self.assertFalse(cloned.get("shared", True))
+        self.assertEqual(len(service.list_recipes(OWNER)), 1)
+        self.assertEqual(service.list_recipes(OTHER_OWNER)[0]["id"], shared_recipe["id"])
+
     def test_image_asset_metadata_index_joins_turn_project_and_prompt_by_path(self):
         service, _storage, _path = self.make_service()
         project = service.create_project(OWNER, "Spring Campaign")

@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from services.image_task_service import ImageTaskService
+from services.image_worker_service import ImageWorkerService
 
 
 OWNER = {"id": "owner-1", "name": "Owner", "role": "admin"}
@@ -26,12 +27,13 @@ def wait_for_task(service: ImageTaskService, identity: dict[str, object], task_i
 
 
 class ImageTaskServiceTests(unittest.TestCase):
-    def make_service(self, path: Path, handler=None) -> ImageTaskService:
+    def make_service(self, path: Path, handler=None, worker_service=None) -> ImageTaskService:
         return ImageTaskService(
             path,
             generation_handler=handler or (lambda _payload: {"data": [{"url": "http://example.test/image.png"}]}),
             edit_handler=handler or (lambda _payload: {"data": [{"url": "http://example.test/edit.png"}]}),
             retention_days_getter=lambda: 30,
+            worker_service=worker_service,
         )
 
     def test_duplicate_submit_uses_existing_task(self):
@@ -224,6 +226,110 @@ class ImageTaskServiceTests(unittest.TestCase):
             reloaded = self.make_service(path)
             self.assertIsNone(reloaded.get_task(OWNER, "task-drop"))
             self.assertIsNotNone(reloaded.get_task(OTHER_OWNER, "task-drop"))
+
+    def test_submit_inpaint_sends_source_and_mask_to_edit_handler(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            captured_payloads = []
+
+            def handler(payload):
+                captured_payloads.append(payload)
+                return {"data": [{"url": "http://example.test/inpaint.png"}]}
+
+            service = self.make_service(Path(tmp_dir) / "image_tasks.json", handler)
+
+            task = service.submit_inpaint(
+                OWNER,
+                client_task_id="inpaint-task",
+                prompt="replace the sign with a neon logo",
+                model="gpt-image-2",
+                size="1024x1024",
+                base_url="http://local.test",
+                image=(b"source-bytes", "source.png", "image/png"),
+                mask=(b"mask-bytes", "mask.png", "image/png"),
+            )
+
+            self.assertEqual(task["mode"], "inpaint")
+            settled = wait_for_task(service, OWNER, "inpaint-task", "success")
+            self.assertEqual(settled["data"][0]["url"], "http://example.test/inpaint.png")
+            self.assertEqual([item[1] for item in captured_payloads[0]["images"]], ["source.png", "mask.png"])
+            self.assertIn("masked", captured_payloads[0]["prompt"].lower())
+
+    def test_generation_dispatches_to_healthy_worker(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            calls = 0
+
+            def handler(_payload):
+                nonlocal calls
+                calls += 1
+                return {"data": [{"url": "http://example.test/local.png"}]}
+
+            worker_service = ImageWorkerService(Path(tmp_dir) / "image_workers.json", heartbeat_timeout_secs=30)
+            worker_service.register_worker(worker_id="node-a", capacity=2, modes=["generate"])
+            worker_service.heartbeat("node-a")
+            service = self.make_service(
+                Path(tmp_dir) / "image_tasks.json",
+                handler,
+                worker_service=worker_service,
+            )
+
+            task = service.submit_generation(
+                OWNER,
+                client_task_id="remote-task",
+                prompt="cat",
+                model="gpt-image-2",
+                size="1024x1024",
+                base_url="http://local.test",
+            )
+
+            self.assertEqual(task["status"], "queued")
+            self.assertEqual(task["dispatch_mode"], "remote")
+            self.assertEqual(task["worker_id"], "node-a")
+            self.assertEqual(calls, 0)
+
+            claimed = service.claim_worker_task("node-a")
+            self.assertEqual(claimed["id"], "remote-task")
+            self.assertEqual(claimed["payload"]["prompt"], "cat")
+            self.assertEqual(service.get_task(OWNER, "remote-task")["status"], "running")
+
+            completed = service.complete_worker_task(
+                "node-a",
+                "remote-task",
+                data=[{"url": "http://node-a.test/image.png"}],
+            )
+
+            self.assertEqual(completed["status"], "success")
+            self.assertEqual(completed["data"][0]["url"], "http://node-a.test/image.png")
+
+    def test_generation_falls_back_to_local_when_no_healthy_worker(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            calls = 0
+
+            def handler(_payload):
+                nonlocal calls
+                calls += 1
+                return {"data": [{"url": "http://example.test/local.png"}]}
+
+            worker_service = ImageWorkerService(Path(tmp_dir) / "image_workers.json", heartbeat_timeout_secs=1)
+            worker_service.register_worker(worker_id="stale", capacity=2, modes=["generate"])
+            service = self.make_service(
+                Path(tmp_dir) / "image_tasks.json",
+                handler,
+                worker_service=worker_service,
+            )
+
+            task = service.submit_generation(
+                OWNER,
+                client_task_id="local-task",
+                prompt="cat",
+                model="gpt-image-2",
+                size=None,
+                base_url="http://local.test",
+            )
+
+            self.assertEqual(task["dispatch_mode"], "local")
+            settled = wait_for_task(service, OWNER, "local-task", "success")
+            self.assertEqual(settled.get("dispatch_mode"), "local")
+            self.assertEqual(calls, 1)
 
 
 if __name__ == "__main__":

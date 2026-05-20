@@ -17,8 +17,10 @@ class StudioState {
     this.favorites = const [],
     this.libraryAssets = const [],
     this.recipes = const [],
+    this.consistencyProfiles = const [],
     this.batchRuns = const [],
     this.templates = const [],
+    this.hubRecipes = const [],
     this.preferences = const StudioPreferences(),
     this.promptDraft = '',
     this.submitting = false,
@@ -33,8 +35,10 @@ class StudioState {
   final List<StudioFavorite> favorites;
   final List<StudioAsset> libraryAssets;
   final List<StudioRecipe> recipes;
+  final List<StudioConsistencyProfile> consistencyProfiles;
   final List<StudioBatchRun> batchRuns;
   final List<StudioPromptTemplate> templates;
+  final List<StudioRecipe> hubRecipes;
   final StudioPreferences preferences;
   final String promptDraft;
   final bool submitting;
@@ -49,8 +53,10 @@ class StudioState {
     List<StudioFavorite>? favorites,
     List<StudioAsset>? libraryAssets,
     List<StudioRecipe>? recipes,
+    List<StudioConsistencyProfile>? consistencyProfiles,
     List<StudioBatchRun>? batchRuns,
     List<StudioPromptTemplate>? templates,
+    List<StudioRecipe>? hubRecipes,
     StudioPreferences? preferences,
     String? promptDraft,
     bool? submitting,
@@ -66,8 +72,10 @@ class StudioState {
       favorites: favorites ?? this.favorites,
       libraryAssets: libraryAssets ?? this.libraryAssets,
       recipes: recipes ?? this.recipes,
+      consistencyProfiles: consistencyProfiles ?? this.consistencyProfiles,
       batchRuns: batchRuns ?? this.batchRuns,
       templates: templates ?? this.templates,
+      hubRecipes: hubRecipes ?? this.hubRecipes,
       preferences: preferences ?? this.preferences,
       promptDraft: promptDraft ?? this.promptDraft,
       submitting: submitting ?? this.submitting,
@@ -98,8 +106,8 @@ class StudioController extends ChangeNotifier {
   bool _polling = false;
 
   Future<void> retryTurn(StudioTurn turn) async {
-    if (turn.mode == StudioTurnMode.edit) {
-      throw StateError('edit turns cannot be retried');
+    if (turn.mode != StudioTurnMode.generate) {
+      throw StateError('only generation turns can be retried');
     }
     _state = _state.copyWith(clearError: true);
     try {
@@ -138,6 +146,16 @@ class StudioController extends ChangeNotifier {
 
   void replaceRecipes(List<StudioRecipe> recipes) {
     _state = _state.copyWith(recipes: recipes);
+    notifyListeners();
+  }
+
+  void replaceHubRecipes(List<StudioRecipe> recipes) {
+    _state = _state.copyWith(hubRecipes: recipes);
+    notifyListeners();
+  }
+
+  void replaceConsistencyProfiles(List<StudioConsistencyProfile> profiles) {
+    _state = _state.copyWith(consistencyProfiles: profiles);
     notifyListeners();
   }
 
@@ -182,6 +200,18 @@ class StudioController extends ChangeNotifier {
     } catch (_) {
       recipes = const [];
     }
+    List<StudioRecipe> hubRecipes;
+    try {
+      hubRecipes = await _repository.fetchPromptHubRecipes();
+    } catch (_) {
+      hubRecipes = const [];
+    }
+    List<StudioConsistencyProfile> consistencyProfiles;
+    try {
+      consistencyProfiles = await _repository.fetchConsistencyProfiles();
+    } catch (_) {
+      consistencyProfiles = const [];
+    }
     List<StudioPromptTemplate> templates;
     try {
       templates = await _repository.fetchPromptTemplates();
@@ -197,6 +227,8 @@ class StudioController extends ChangeNotifier {
       favorites: favorites,
       libraryAssets: libraryAssets,
       recipes: recipes,
+      consistencyProfiles: consistencyProfiles,
+      hubRecipes: hubRecipes,
       templates: templates,
       preferences: loadedPreferences,
     );
@@ -264,7 +296,11 @@ class StudioController extends ChangeNotifier {
     final conversation = await _repository.createConversation(
       projectId: project.id,
       title: title.isEmpty ? '新会话' : title,
-      mode: mode == StudioTurnMode.edit ? 'edit' : 'generate',
+      mode: switch (mode) {
+        StudioTurnMode.edit => 'edit',
+        StudioTurnMode.inpaint => 'inpaint',
+        StudioTurnMode.generate => 'generate',
+      },
     );
     _state = _state.copyWith(
       conversations: [conversation, ..._state.conversations],
@@ -428,7 +464,107 @@ class StudioController extends ChangeNotifier {
       recipes: _state.recipes
           .where((recipe) => recipe.id != recipeId)
           .toList(growable: false),
+      hubRecipes: _state.hubRecipes
+          .where((recipe) => recipe.id != recipeId)
+          .toList(growable: false),
     );
+    notifyListeners();
+  }
+
+  Future<StudioRecipe> toggleRecipeSharing(StudioRecipe recipe) async {
+    final updated = await _repository.updateRecipeSharing(
+      recipeId: recipe.id,
+      shared: !recipe.shared,
+    );
+    _upsertRecipe(updated);
+    return updated;
+  }
+
+  Future<StudioRecipe> clonePromptHubRecipe(StudioRecipe recipe) async {
+    final cloned = await _repository.clonePromptHubRecipe(recipe.id);
+    _state = _state.copyWith(
+      recipes: [
+        cloned,
+        ..._state.recipes.where((item) => item.id != cloned.id),
+      ],
+    );
+    notifyListeners();
+    return cloned;
+  }
+
+  Future<StudioConsistencyProfile> saveConsistencyProfile({
+    required String name,
+    required StudioConsistencyProfileKind kind,
+    required String guidance,
+    String referenceImagePath = '',
+    List<String> tags = const [],
+  }) async {
+    final cleaned = guidance.trim();
+    if (cleaned.isEmpty) {
+      throw ArgumentError('saveConsistencyProfile requires guidance');
+    }
+    final created = await _repository.createConsistencyProfile(
+      name: name,
+      kind: kind,
+      guidance: cleaned,
+      referenceImagePath: referenceImagePath,
+      tags: tags,
+    );
+    _state = _state.copyWith(
+      consistencyProfiles: <StudioConsistencyProfile>[
+        created,
+        ..._state.consistencyProfiles.where(
+          (profile) => profile.id != created.id,
+        ),
+      ],
+    );
+    notifyListeners();
+    return created;
+  }
+
+  Future<void> deleteConsistencyProfile(
+    StudioConsistencyProfile profile,
+  ) async {
+    await _repository.deleteConsistencyProfile(profile.id);
+    _state = _state.copyWith(
+      consistencyProfiles: _state.consistencyProfiles
+          .where((item) => item.id != profile.id)
+          .toList(growable: false),
+    );
+    notifyListeners();
+  }
+
+  String applyConsistencyProfile(
+    StudioConsistencyProfile profile, {
+    required String currentPrompt,
+  }) {
+    final blocks = <String>[
+      'Consistency profile: ${profile.displayName} (${profile.kind.wireName})',
+      profile.guidance.trim(),
+      if (currentPrompt.trim().isNotEmpty)
+        'User prompt:\n${currentPrompt.trim()}',
+    ];
+    final prompt = blocks
+        .where((block) => block.trim().isNotEmpty)
+        .join('\n\n');
+    _state = _state.copyWith(promptDraft: prompt, clearError: true);
+    notifyListeners();
+    return prompt;
+  }
+
+  void _upsertRecipe(StudioRecipe updated) {
+    final recipes = _state.recipes
+        .map((recipe) => recipe.id == updated.id ? updated : recipe)
+        .toList(growable: false);
+    final hubRecipes = updated.shared
+        ? [
+            updated,
+            ..._state.hubRecipes.where((recipe) => recipe.id != updated.id),
+          ]
+        : _state.hubRecipes
+              .where((recipe) => recipe.id != updated.id)
+              .toList(growable: false);
+    _state = _state.copyWith(recipes: recipes, hubRecipes: hubRecipes);
     notifyListeners();
   }
 
@@ -808,6 +944,50 @@ class StudioController extends ChangeNotifier {
         model: model,
         size: size,
         images: images,
+      );
+      _state = _state.copyWith(
+        turns: [turn, ..._state.turns],
+        promptDraft: '',
+        submitting: false,
+      );
+      notifyListeners();
+      if (turn.status == StudioTurnStatus.success) {
+        await _maybeAutoFavorite(turn);
+      }
+      _ensurePolling();
+    } catch (error) {
+      _state = _state.copyWith(
+        submitting: false,
+        errorMessage: error.toString(),
+      );
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  Future<void> submitInpaint({
+    required String conversationId,
+    required String prompt,
+    required StudioEditImage image,
+    required StudioEditImage mask,
+    String model = 'gpt-image-2',
+    String? size,
+  }) async {
+    _state = _state.copyWith(
+      promptDraft: prompt,
+      submitting: true,
+      clearError: true,
+    );
+    notifyListeners();
+    try {
+      final turn = await _repository.createInpaintTurn(
+        conversationId: conversationId,
+        clientTaskId: _uuid.v4(),
+        prompt: prompt,
+        model: model,
+        size: size,
+        image: image,
+        mask: mask,
       );
       _state = _state.copyWith(
         turns: [turn, ..._state.turns],

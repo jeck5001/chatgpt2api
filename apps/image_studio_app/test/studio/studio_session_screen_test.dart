@@ -57,9 +57,67 @@ void main() {
 
     expect(find.text('dog'), findsOneWidget);
   });
+
+  testWidgets('reusing a library asset fills the studio composer', (
+    tester,
+  ) async {
+    final repository = _FakeSessionRepository(
+      libraryAssets: [
+        StudioAsset(
+          path: '2026/05/19/orange.png',
+          name: 'orange.png',
+          date: '2026-05-19',
+          sizeBytes: 4096,
+          createdAt: DateTime.utc(2026, 5, 19),
+          url: Uri.parse('http://localhost:8000/images/orange.png'),
+          thumbnailUrl: Uri.parse(
+            'http://localhost:8000/image-thumbnails/orange.png',
+          ),
+          prompt: 'orange product photo',
+          model: 'gpt-image-1',
+          sizeLabel: '1792x1024',
+        ),
+      ],
+    );
+    final controller = StudioController(repository);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(size: Size(1280, 900)),
+          child: StudioSessionScreen(controller: controller),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('复用参数'));
+    await tester.pumpAndSettle();
+
+    final fieldTexts = tester
+        .widgetList<TextField>(find.byType(TextField))
+        .map((field) => field.controller?.text ?? '')
+        .toList(growable: false);
+    expect(fieldTexts, contains('orange product photo'));
+    expect(find.text('gpt-image-1'), findsAtLeastNWidgets(1));
+
+    await tester.tap(find.byKey(const ValueKey('composer-submit')));
+    await tester.pump();
+
+    expect(repository.lastGenerationPrompt, 'orange product photo');
+    expect(repository.lastGenerationModel, 'gpt-image-1');
+    expect(repository.lastGenerationSize, '1792x1024');
+  });
 }
 
 class _FakeSessionRepository implements StudioRepositoryContract {
+  _FakeSessionRepository({this.libraryAssets = const []});
+
+  final List<StudioAsset> libraryAssets;
+  String? lastGenerationPrompt;
+  String? lastGenerationModel;
+  String? lastGenerationSize;
+
   @override
   Future<List<StudioProject>> fetchProjects() async {
     return [
@@ -182,7 +240,23 @@ class _FakeSessionRepository implements StudioRepositoryContract {
     required String model,
     String? size,
   }) async {
-    throw UnimplementedError();
+    lastGenerationPrompt = prompt;
+    lastGenerationModel = model;
+    lastGenerationSize = size;
+    return StudioTurn(
+      id: 'turn-generated',
+      conversationId: conversationId,
+      clientTaskId: clientTaskId,
+      taskId: 'task-generated',
+      mode: StudioTurnMode.generate,
+      prompt: prompt,
+      model: model,
+      size: size,
+      resultImages: const [],
+      status: StudioTurnStatus.success,
+      error: '',
+      updatedAt: DateTime.utc(2026, 5, 20),
+    );
   }
 
   @override
@@ -216,6 +290,19 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<StudioTurn> createInpaintTurn({
+    required String conversationId,
+    required String clientTaskId,
+    required String prompt,
+    required String model,
+    String? size,
+    required StudioEditImage image,
+    required StudioEditImage mask,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<String> draftPromptFromImage({
     required List<StudioEditImage> images,
   }) async {
@@ -242,7 +329,7 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   Future<List<StudioAsset>> fetchLibraryAssets({
     String startDate = '',
     String endDate = '',
-  }) async => const [];
+  }) async => libraryAssets;
 
   @override
   Future<List<String>> fetchImageTags() async => const [];
@@ -265,6 +352,9 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   Future<List<StudioRecipe>> fetchRecipes() async => const [];
 
   @override
+  Future<List<StudioRecipe>> fetchPromptHubRecipes() async => const [];
+
+  @override
   Future<StudioRecipe> createRecipe({
     required String name,
     required String prompt,
@@ -279,7 +369,50 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<StudioRecipe> updateRecipeSharing({
+    required String recipeId,
+    required bool shared,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StudioRecipe> clonePromptHubRecipe(String recipeId) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<void> deleteRecipe(String recipeId) async {}
+
+  @override
+  Future<List<StudioConsistencyProfile>> fetchConsistencyProfiles() async =>
+      const [];
+
+  @override
+  Future<StudioConsistencyProfile> createConsistencyProfile({
+    required String name,
+    required StudioConsistencyProfileKind kind,
+    required String guidance,
+    String referenceImagePath = '',
+    List<String> tags = const [],
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StudioConsistencyProfile> updateConsistencyProfile({
+    required String profileId,
+    String? name,
+    StudioConsistencyProfileKind? kind,
+    String? guidance,
+    String? referenceImagePath,
+    List<String>? tags,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteConsistencyProfile(String profileId) async {}
 
   @override
   Future<StudioFavorite> favoriteImage({

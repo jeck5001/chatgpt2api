@@ -60,6 +60,7 @@ Future<void> _pumpAssetLibrary(
   ValueChanged<StudioAsset>? onDownloadAsset,
   ValueChanged<StudioAsset>? onShareAsset,
   ValueChanged<StudioAsset>? onSaveRecipeAsset,
+  ValueChanged<StudioAsset>? onReuseAssetParameters,
   ValueChanged<List<StudioAsset>>? onBatchDownload,
   ValueChanged<List<StudioAsset>>? onBatchTag,
   ValueChanged<List<StudioAsset>>? onBatchDelete,
@@ -74,6 +75,7 @@ Future<void> _pumpAssetLibrary(
         onDownloadAsset: onDownloadAsset,
         onShareAsset: onShareAsset,
         onSaveRecipeAsset: onSaveRecipeAsset,
+        onReuseAssetParameters: onReuseAssetParameters,
         onBatchDownload: onBatchDownload,
         onBatchTag: onBatchTag,
         onBatchDelete: onBatchDelete,
@@ -279,6 +281,24 @@ void main() {
     await tester.pump();
 
     expect(actions, ['recipe:2026/05/19/orange.png']);
+  });
+
+  testWidgets('asset tile reuse parameters button calls the reuse callback', (
+    tester,
+  ) async {
+    final asset = _asset('2026/05/19/orange.png', 'orange product photo');
+    final actions = <String>[];
+
+    await _pumpAssetLibrary(
+      tester,
+      assets: [asset],
+      onReuseAssetParameters: (asset) => actions.add('reuse:${asset.path}'),
+    );
+
+    await tester.tap(find.byTooltip('复用参数'));
+    await tester.pump();
+
+    expect(actions, ['reuse:2026/05/19/orange.png']);
   });
 
   testWidgets('batch mode selects assets and invokes bulk actions', (

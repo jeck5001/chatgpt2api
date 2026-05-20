@@ -26,6 +26,7 @@ void main() {
     expect(find.text('beautiful landscape'), findsWidgets);
     expect(find.text('保存'), findsOneWidget);
     expect(find.text('分享'), findsOneWidget);
+    expect(find.text('重绘'), findsOneWidget);
   });
 
   testWidgets('tapping save shows a saved message', (tester) async {

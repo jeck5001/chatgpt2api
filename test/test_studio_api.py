@@ -17,6 +17,8 @@ class FakeStudioService:
         self.projects = []
         self.favorites = []
         self.recipes = []
+        self.hub_recipes = []
+        self.consistency_profiles = []
         self.turns = [
             {
                 "id": "turn-1",
@@ -38,6 +40,9 @@ class FakeStudioService:
         self.marked_errors = []
         self.deleted_conversations = []
         self.deleted_turns = []
+        self.updated_recipes = []
+        self.cloned_recipes = []
+        self.updated_consistency_profiles = []
         self.delete_conversation_result = True
         self.delete_turn_result = True
 
@@ -90,14 +95,67 @@ class FakeStudioService:
             "source_turn_id": source_turn_id,
             "project_id": project_id,
             "tags": tags or [],
+            "shared": False,
         }
         self.recipes.append(item)
         return item
+
+    def update_recipe(self, identity, recipe_id, updates):
+        self.updated_recipes.append((identity, recipe_id, updates))
+        for item in self.recipes:
+            if item["id"] == recipe_id:
+                item.update(updates)
+                return item
+        return None
+
+    def list_prompt_hub(self, identity):
+        return self.hub_recipes
+
+    def clone_recipe(self, identity, recipe_id):
+        for item in self.recipes:
+            if item["id"] == recipe_id:
+                cloned = dict(item)
+                cloned["id"] = f"{recipe_id}-clone"
+                cloned["owner_id"] = identity["id"]
+                cloned["shared"] = False
+                self.cloned_recipes.append(cloned)
+                self.recipes.append(cloned)
+                return cloned
+        raise ValueError("recipe not found")
 
     def delete_recipe(self, identity, recipe_id):
         before = len(self.recipes)
         self.recipes = [item for item in self.recipes if item["id"] != recipe_id]
         return len(self.recipes) != before
+
+    def list_consistency_profiles(self, identity):
+        return self.consistency_profiles
+
+    def create_consistency_profile(self, identity, *, name, kind, guidance, reference_image_path="", tags=None):
+        item = {
+            "id": f"profile-{len(self.consistency_profiles) + 1}",
+            "owner_id": identity["id"],
+            "name": name,
+            "kind": kind,
+            "guidance": guidance,
+            "reference_image_path": reference_image_path,
+            "tags": tags or [],
+        }
+        self.consistency_profiles.append(item)
+        return item
+
+    def update_consistency_profile(self, identity, profile_id, updates):
+        self.updated_consistency_profiles.append((identity, profile_id, updates))
+        for item in self.consistency_profiles:
+            if item["id"] == profile_id:
+                item.update(updates)
+                return item
+        return None
+
+    def delete_consistency_profile(self, identity, profile_id):
+        before = len(self.consistency_profiles)
+        self.consistency_profiles = [item for item in self.consistency_profiles if item["id"] != profile_id]
+        return len(self.consistency_profiles) != before
 
     def add_favorite(self, identity, image_path, source_turn_id="", note=""):
         item = {"id": "favorite-1", "owner_id": identity["id"], "image_path": image_path, "source_turn_id": source_turn_id, "note": note}
@@ -187,8 +245,10 @@ class FakeImageTaskService:
     def __init__(self):
         self.generations = []
         self.edits = []
+        self.inpaints = []
         self.fail_generation_with = None
         self.fail_edit_with = None
+        self.fail_inpaint_with = None
         self.tasks = {
             "task-1": {"id": "task-1", "status": "success", "data": [{"url": "http://testserver/images/2026/05/cat.png"}]},
             "task-2": {"id": "task-2", "status": "queued"},
@@ -227,6 +287,27 @@ class FakeImageTaskService:
                 "size": size,
                 "base_url": base_url,
                 "images": images,
+            }
+        )
+        task = {"id": client_task_id, "status": "queued", "owner_id": owner_id}
+        self.tasks[(owner_id, client_task_id)] = task
+        return task
+
+    def submit_inpaint(self, identity, *, client_task_id, prompt, model, size, base_url, image, mask):
+        self._validate_client_task_id(client_task_id)
+        if self.fail_inpaint_with is not None:
+            raise self.fail_inpaint_with
+        owner_id = identity["id"]
+        self.inpaints.append(
+            {
+                "identity": identity,
+                "client_task_id": client_task_id,
+                "prompt": prompt,
+                "model": model,
+                "size": size,
+                "base_url": base_url,
+                "image": image,
+                "mask": mask,
             }
         )
         task = {"id": client_task_id, "status": "queued", "owner_id": owner_id}
@@ -325,6 +406,114 @@ class StudioApiTests(unittest.TestCase):
         delete_response = self.client.delete(f"/api/image-recipes/{created['id']}", headers=AUTH_HEADERS)
         self.assertEqual(delete_response.status_code, 200, delete_response.text)
         self.assertEqual(self.fake_service.recipes, [])
+
+    def test_prompt_hub_lists_shared_recipes(self):
+        self.fake_service.hub_recipes = [
+            {
+                "id": "recipe-1",
+                "name": "Shared recipe",
+                "prompt": "shared prompt",
+                "model": "gpt-image-2",
+                "size": "1024x1792",
+                "source_image_path": "2026/05/orange.png",
+                "tags": ["海报"],
+                "shared": True,
+                "created_at": "2026-05-19T09:30:00Z",
+                "updated_at": "2026-05-19T09:30:00Z",
+            }
+        ]
+
+        response = self.client.get("/api/prompt-hub", headers=AUTH_HEADERS)
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()["items"][0]["id"], "recipe-1")
+
+    def test_share_recipe_updates_visibility(self):
+        self.fake_service.recipes = [
+            {
+                "id": "recipe-1",
+                "owner_id": "chatgpt2api",
+                "name": "Private recipe",
+                "prompt": "private prompt",
+                "model": "gpt-image-2",
+                "size": "1024x1024",
+                "source_image_path": "",
+                "source_turn_id": "",
+                "project_id": "",
+                "tags": [],
+                "shared": False,
+            }
+        ]
+
+        response = self.client.patch(
+            "/api/image-recipes/recipe-1",
+            headers=AUTH_HEADERS,
+            json={"shared": True},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["item"]["shared"])
+        self.assertEqual(self.fake_service.updated_recipes[0][2], {"shared": True})
+
+    def test_clone_prompt_hub_recipe_creates_private_copy(self):
+        self.fake_service.recipes = [
+            {
+                "id": "recipe-1",
+                "owner_id": "other-user",
+                "name": "Shared recipe",
+                "prompt": "shared prompt",
+                "model": "gpt-image-2",
+                "size": "1024x1792",
+                "source_image_path": "2026/05/orange.png",
+                "source_turn_id": "turn-1",
+                "project_id": "project-1",
+                "tags": ["海报"],
+                "shared": True,
+            }
+        ]
+
+        response = self.client.post("/api/prompt-hub/recipe-1/clone", headers=AUTH_HEADERS)
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(response.json()["item"]["owner_id"])
+        self.assertFalse(response.json()["item"]["shared"])
+        self.assertEqual(self.fake_service.cloned_recipes[0]["prompt"], "shared prompt")
+
+    def test_consistency_profile_endpoints_preserve_guidance_and_tags(self):
+        create_response = self.client.post(
+            "/api/consistency-profiles",
+            headers=AUTH_HEADERS,
+            json={
+                "name": "Luna",
+                "kind": "character",
+                "guidance": "A silver-haired botanist with a teal jacket.",
+                "reference_image_path": "2026/05/luna.png",
+                "tags": ["角色", "主角"],
+            },
+        )
+
+        self.assertEqual(create_response.status_code, 200, create_response.text)
+        created = create_response.json()["item"]
+        self.assertEqual(created["name"], "Luna")
+        self.assertEqual(created["kind"], "character")
+        self.assertEqual(created["guidance"], "A silver-haired botanist with a teal jacket.")
+        self.assertEqual(created["tags"], ["角色", "主角"])
+
+        list_response = self.client.get("/api/consistency-profiles", headers=AUTH_HEADERS)
+        self.assertEqual(list_response.status_code, 200, list_response.text)
+        self.assertEqual(list_response.json()["items"][0]["id"], created["id"])
+
+        patch_response = self.client.patch(
+            f"/api/consistency-profiles/{created['id']}",
+            headers=AUTH_HEADERS,
+            json={"kind": "style"},
+        )
+        self.assertEqual(patch_response.status_code, 200, patch_response.text)
+        self.assertEqual(self.fake_service.updated_consistency_profiles[0][2], {"kind": "style"})
+
+        delete_response = self.client.delete(f"/api/consistency-profiles/{created['id']}", headers=AUTH_HEADERS)
+        self.assertEqual(delete_response.status_code, 200, delete_response.text)
+        self.assertEqual(self.fake_service.consistency_profiles, [])
 
     def test_image_prompt_draft_endpoint_returns_described_prompt(self):
         with mock.patch.object(
@@ -689,6 +878,76 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(len(self.fake_service.created_turns), 1)
         self.assertEqual(self.fake_service.created_turns[0]["status"], "error")
         self.assertEqual(self.fake_service.created_turns[0]["error"], "edit submit failed")
+
+    def test_create_inpaint_turn_accepts_source_image_and_mask(self):
+        response = self.client.post(
+            "/api/image-turns/inpaint",
+            headers=AUTH_HEADERS,
+            data={
+                "conversation_id": "conversation-1",
+                "client_task_id": "task-inpaint",
+                "prompt": "replace the sky with aurora",
+                "model": "gpt-image-2",
+                "size": "1024x1024",
+            },
+            files=[
+                ("image", ("source.png", b"source", "image/png")),
+                ("mask", ("mask.png", b"mask", "image/png")),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(self.fake_image_task_service.inpaints[0]["image"][1], "source.png")
+        self.assertEqual(self.fake_image_task_service.inpaints[0]["mask"][1], "mask.png")
+        self.assertEqual(self.fake_service.created_turns[0]["mode"], "inpaint")
+        self.assertEqual(
+            self.fake_service.created_turns[0]["reference_images"],
+            [
+                {"kind": "source", "filename": "source.png", "content_type": "image/png"},
+                {"kind": "mask", "filename": "mask.png", "content_type": "image/png"},
+            ],
+        )
+
+    def test_create_inpaint_turn_requires_mask_file(self):
+        response = self.client.post(
+            "/api/image-turns/inpaint",
+            headers=AUTH_HEADERS,
+            data={
+                "conversation_id": "conversation-1",
+                "client_task_id": "task-inpaint",
+                "prompt": "replace the sky with aurora",
+                "model": "gpt-image-2",
+                "size": "1024x1024",
+            },
+            files=[("image", ("source.png", b"source", "image/png"))],
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(self.fake_image_task_service.inpaints, [])
+
+    def test_create_inpaint_turn_marks_turn_error_when_task_submit_fails(self):
+        self.fake_image_task_service.fail_inpaint_with = ValueError("inpaint submit failed")
+
+        response = self.client.post(
+            "/api/image-turns/inpaint",
+            headers=AUTH_HEADERS,
+            data={
+                "conversation_id": "conversation-1",
+                "client_task_id": "task-inpaint-fail",
+                "prompt": "replace the sky with aurora",
+                "model": "gpt-image-2",
+                "size": "1024x1024",
+            },
+            files=[
+                ("image", ("source.png", b"source", "image/png")),
+                ("mask", ("mask.png", b"mask", "image/png")),
+            ],
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+        self.assertEqual(len(self.fake_service.created_turns), 1)
+        self.assertEqual(self.fake_service.created_turns[0]["status"], "error")
+        self.assertEqual(self.fake_service.created_turns[0]["error"], "inpaint submit failed")
 
     def test_retry_edit_turn_returns_bad_request(self):
         self.fake_service.turns.append(

@@ -108,6 +108,35 @@ environment:
 - 支持四种导入方式：本地 CPA JSON 文件导入、远程 CPA 服务器导入、`sub2api` 服务器导入、`access_token` 导入
 - 支持在设置页配置 `sub2api` 服务器，筛选并批量导入其中的 OpenAI OAuth 账号
 
+### 分布式生图节点
+
+- 支持注册远端图片 worker，并按心跳、容量、延迟和成功率选择健康节点
+- 文生图任务会优先派发到健康 worker，无可用 worker 时自动回退到主服务本地执行
+- worker 可独立部署在其他服务器，使用相同 `auth-key` 从主服务领取和回传任务
+- 当前远端派发覆盖文生图任务，图片编辑和局部重绘仍由主服务本地执行
+
+启动一个远端 worker：
+
+```bash
+CHATGPT2API_AUTH_KEY=<auth-key> \
+uv run python scripts/image_worker.py \
+  --server http://main-server:8000 \
+  --worker-id node-a \
+  --name "Node A" \
+  --capacity 2
+```
+
+也可以用环境变量配置：
+
+| 环境变量 | 说明 |
+|:--|:--|
+| `CHATGPT2API_WORKER_SERVER` | 主服务地址，默认 `http://localhost:8000` |
+| `CHATGPT2API_AUTH_KEY` | 主服务 `auth-key` |
+| `CHATGPT2API_WORKER_ID` | worker 唯一 ID |
+| `CHATGPT2API_WORKER_NAME` | worker 展示名称 |
+| `CHATGPT2API_WORKER_CAPACITY` | worker 并发容量 |
+| `CHATGPT2API_WORKER_POLL_INTERVAL` | 空闲轮询间隔，单位秒 |
+
 ### 实验性 / 规划中
 
 - `/v1/complete` 文本补全与流式输出已实现，但仍在测试，目前会出现对话重复的问题，请谨慎测试使用

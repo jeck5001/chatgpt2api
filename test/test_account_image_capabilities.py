@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-os.environ.setdefault("CHATGPT2API_AUTH_KEY", "test-auth")
+os.environ.setdefault("CHATGPT2API_AUTH_KEY", "chatgpt2api")
 
 from services.account_service import AccountService
 from services.auth_service import AuthService
@@ -65,6 +65,61 @@ class AccountCapabilityTests(unittest.TestCase):
             self.assertEqual(updated["quota"], 0)
             self.assertEqual(updated["status"], "正常")
             self.assertTrue(updated["image_quota_unknown"])
+
+    def test_get_available_access_token_prefers_healthiest_image_account(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            service = AccountService(JSONStorageBackend(Path(tmp_dir) / "accounts.json"))
+            service.add_accounts(["slow-failing-token", "fast-healthy-token"])
+            service.update_account(
+                "slow-failing-token",
+                {
+                    "status": "正常",
+                    "quota": 20,
+                    "success": 10,
+                    "fail": 8,
+                    "image_avg_latency_ms": 12000,
+                },
+            )
+            service.update_account(
+                "fast-healthy-token",
+                {
+                    "status": "正常",
+                    "quota": 5,
+                    "success": 4,
+                    "fail": 0,
+                    "image_avg_latency_ms": 800,
+                },
+            )
+
+            def fetch_local(access_token: str, event: str = "fetch_remote_info") -> dict | None:
+                return service.get_account(access_token)
+
+            service.fetch_remote_info = fetch_local  # type: ignore[method-assign]
+
+            selected = service.get_available_access_token()
+            try:
+                self.assertEqual(selected, "fast-healthy-token")
+            finally:
+                service.release_image_slot(selected)
+
+    def test_mark_image_result_records_smoothed_latency(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            service = AccountService(JSONStorageBackend(Path(tmp_dir) / "accounts.json"))
+            service.add_accounts(["token-1"])
+            service.update_account(
+                "token-1",
+                {
+                    "status": "正常",
+                    "quota": 10,
+                    "image_avg_latency_ms": 1000,
+                },
+            )
+
+            updated = service.mark_image_result("token-1", success=True, latency_ms=3000)
+
+            self.assertIsNotNone(updated)
+            self.assertEqual(updated["image_avg_latency_ms"], 1600)
+            self.assertIsNotNone(updated["image_last_result_at"])
 
 
 class TokenLogTests(unittest.TestCase):

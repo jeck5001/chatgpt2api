@@ -80,6 +80,8 @@ def create_router(app_version: str) -> APIRouter:
                 "prompt_templates",
                 "favorites",
                 "recipes",
+                "consistency_profiles",
+                "distributed_workers",
             ],
             "auth_modes": ["bearer_key"],
         }

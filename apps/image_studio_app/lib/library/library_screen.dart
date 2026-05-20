@@ -22,6 +22,7 @@ class LibraryScreen extends StatefulWidget {
     this.onToggleFavoriteAsset,
     this.onContinueEditAsset,
     this.onGenerateVariant,
+    this.onReuseAssetParameters,
     this.onDownloadAsset,
     this.onShareAsset,
     this.onSaveRecipeAsset,
@@ -40,6 +41,7 @@ class LibraryScreen extends StatefulWidget {
   final ValueChanged<StudioAsset>? onToggleFavoriteAsset;
   final ValueChanged<StudioAsset>? onContinueEditAsset;
   final ValueChanged<StudioAsset>? onGenerateVariant;
+  final ValueChanged<StudioAsset>? onReuseAssetParameters;
   final ValueChanged<StudioAsset>? onDownloadAsset;
   final ValueChanged<StudioAsset>? onShareAsset;
   final ValueChanged<StudioAsset>? onSaveRecipeAsset;
@@ -309,6 +311,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                       onFavorite: _toggleFavorite,
                       onContinueEdit: _continueEdit,
                       onGenerateVariant: widget.onGenerateVariant,
+                      onReuseAssetParameters: widget.onReuseAssetParameters,
                       onDownload: widget.onDownloadAsset,
                       onShare: widget.onShareAsset,
                       onSaveRecipe: widget.onSaveRecipeAsset,
@@ -448,6 +451,7 @@ class _AssetMasonry extends StatelessWidget {
     required this.onFavorite,
     required this.onContinueEdit,
     this.onGenerateVariant,
+    this.onReuseAssetParameters,
     this.onDownload,
     this.onShare,
     this.onSaveRecipe,
@@ -461,6 +465,7 @@ class _AssetMasonry extends StatelessWidget {
   final ValueChanged<StudioAsset> onFavorite;
   final ValueChanged<StudioAsset> onContinueEdit;
   final ValueChanged<StudioAsset>? onGenerateVariant;
+  final ValueChanged<StudioAsset>? onReuseAssetParameters;
   final ValueChanged<StudioAsset>? onDownload;
   final ValueChanged<StudioAsset>? onShare;
   final ValueChanged<StudioAsset>? onSaveRecipe;
@@ -500,6 +505,9 @@ class _AssetMasonry extends StatelessWidget {
               onGenerateVariant: onGenerateVariant == null
                   ? null
                   : () => onGenerateVariant!(asset),
+              onReuseAssetParameters: onReuseAssetParameters == null
+                  ? null
+                  : () => onReuseAssetParameters!(asset),
               onDownload: onDownload == null ? null : () => onDownload!(asset),
               onShare: onShare == null ? null : () => onShare!(asset),
               onSaveRecipe: onSaveRecipe == null
@@ -532,6 +540,7 @@ class _GalleryTile extends StatelessWidget {
     required this.onFavoriteToggle,
     required this.onContinueEdit,
     this.onGenerateVariant,
+    this.onReuseAssetParameters,
     this.onDownload,
     this.onShare,
     this.onSaveRecipe,
@@ -546,6 +555,7 @@ class _GalleryTile extends StatelessWidget {
   final VoidCallback onFavoriteToggle;
   final VoidCallback onContinueEdit;
   final VoidCallback? onGenerateVariant;
+  final VoidCallback? onReuseAssetParameters;
   final VoidCallback? onDownload;
   final VoidCallback? onShare;
   final VoidCallback? onSaveRecipe;
@@ -618,6 +628,7 @@ class _GalleryTile extends StatelessWidget {
                             key: const ValueKey('actions'),
                             onContinueEdit: onContinueEdit,
                             onGenerateVariant: onGenerateVariant,
+                            onReuseAssetParameters: onReuseAssetParameters,
                             onDownload: onDownload,
                             onShare: onShare,
                             onSaveRecipe: onSaveRecipe,
@@ -694,6 +705,7 @@ class _ActionStrip extends StatelessWidget {
     super.key,
     required this.onContinueEdit,
     this.onGenerateVariant,
+    this.onReuseAssetParameters,
     this.onDownload,
     this.onShare,
     this.onSaveRecipe,
@@ -701,6 +713,7 @@ class _ActionStrip extends StatelessWidget {
 
   final VoidCallback onContinueEdit;
   final VoidCallback? onGenerateVariant;
+  final VoidCallback? onReuseAssetParameters;
   final VoidCallback? onDownload;
   final VoidCallback? onShare;
   final VoidCallback? onSaveRecipe;
@@ -725,6 +738,11 @@ class _ActionStrip extends StatelessWidget {
             tooltip: '生成变体',
             icon: Icons.auto_awesome_motion_outlined,
             onPressed: onGenerateVariant,
+          ),
+          _TileAction(
+            tooltip: '复用参数',
+            icon: Icons.tune_rounded,
+            onPressed: onReuseAssetParameters,
           ),
           _TileAction(
             tooltip: '下载',

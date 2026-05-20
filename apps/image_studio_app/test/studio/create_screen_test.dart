@@ -79,6 +79,149 @@ void main() {
     expect(find.text('美化'), findsOneWidget);
   });
 
+  testWidgets('composer seed restores prompt model and size', (tester) async {
+    final controller = StudioController(FakeStudioRepository());
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: controller,
+          activeConversationId: 'conversation-1',
+          composerSeed: const StudioComposerSeed(
+            id: 'asset-1',
+            prompt: 'orange product photo',
+            model: 'gpt-image-1',
+            size: '1792x1024',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    var textField = tester.widget<TextField>(find.byType(TextField));
+    expect(textField.controller?.text, 'orange product photo');
+    expect(find.text('gpt-image-1'), findsOneWidget);
+    expect(find.text('1792×1024'), findsOneWidget);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: controller,
+          activeConversationId: 'conversation-1',
+          composerSeed: const StudioComposerSeed(
+            id: 'asset-2',
+            prompt: 'blue editorial portrait',
+            model: 'gpt-image-2',
+            size: '1024x1792',
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    textField = tester.widget<TextField>(find.byType(TextField));
+    expect(textField.controller?.text, 'blue editorial portrait');
+    expect(find.text('gpt-image-2'), findsOneWidget);
+    expect(find.text('1024×1792'), findsOneWidget);
+  });
+
+  testWidgets('prompt templates sheet exposes a community section', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: StudioController(FakeStudioRepository()),
+          activeConversationId: 'conversation-1',
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('模板'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('社区'), findsOneWidget);
+  });
+
+  testWidgets('prompt templates sheet applies consistency profiles', (
+    tester,
+  ) async {
+    final controller = StudioController(FakeStudioRepository());
+    controller.replaceTurns([
+      _turn(id: 'turn-1', status: StudioTurnStatus.success),
+    ]);
+    controller.replaceConsistencyProfiles([
+      const StudioConsistencyProfile(
+        id: 'profile-1',
+        name: 'Luna',
+        kind: StudioConsistencyProfileKind.character,
+        guidance: 'A silver-haired botanist with a teal jacket.',
+        referenceImagePath: '',
+        tags: ['角色'],
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: controller,
+          activeConversationId: 'conversation-1',
+        ),
+      ),
+    );
+
+    await tester.enterText(find.byType(TextField), 'standing in a greenhouse');
+    await tester.tap(find.text('模板'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('角色/风格档案'), findsOneWidget);
+    await tester.tap(find.text('Luna'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Consistency profile: Luna'), findsOneWidget);
+    expect(find.textContaining('standing in a greenhouse'), findsOneWidget);
+  });
+
+  testWidgets('tapping a community recipe clones it into the composer', (
+    tester,
+  ) async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(repository);
+    final sharedRecipe = StudioRecipe(
+      id: 'recipe-1',
+      name: 'Shared recipe',
+      prompt: 'shared prompt',
+      model: 'gpt-image-2',
+      size: '1024x1792',
+      sourceImagePath: '2026/05/shared.png',
+      sourceTurnId: 'turn-1',
+      projectId: 'project-1',
+      tags: const ['海报'],
+      createdAt: DateTime.utc(2026, 5, 19),
+      updatedAt: DateTime.utc(2026, 5, 19),
+      shared: true,
+    );
+    repository.recipes.add(sharedRecipe);
+    controller.replaceHubRecipes([sharedRecipe]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: controller,
+          activeConversationId: 'conversation-1',
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('模板'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Shared recipe'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('shared prompt'), findsOneWidget);
+    expect(controller.state.recipes.single.sourceRecipeId, 'recipe-1');
+  });
+
   testWidgets('renders result image previews for successful turns', (
     tester,
   ) async {
@@ -411,6 +554,8 @@ StudioTurn _turn({
 class FakeStudioRepository implements StudioRepositoryContract {
   final List<String> createdPrompts = [];
   final List<String> retriedTurns = [];
+  final List<StudioRecipe> recipes = [];
+  final List<StudioConsistencyProfile> consistencyProfiles = [];
   int _generationCounter = 0;
 
   @override
@@ -504,6 +649,19 @@ class FakeStudioRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<StudioTurn> createInpaintTurn({
+    required String conversationId,
+    required String clientTaskId,
+    required String prompt,
+    required String model,
+    String? size,
+    required StudioEditImage image,
+    required StudioEditImage mask,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<String> draftPromptFromImage({
     required List<StudioEditImage> images,
   }) async {
@@ -551,7 +709,10 @@ class FakeStudioRepository implements StudioRepositoryContract {
   }
 
   @override
-  Future<List<StudioRecipe>> fetchRecipes() async => const [];
+  Future<List<StudioRecipe>> fetchRecipes() async => recipes;
+
+  @override
+  Future<List<StudioRecipe>> fetchPromptHubRecipes() async => const [];
 
   @override
   Future<StudioRecipe> createRecipe({
@@ -564,11 +725,136 @@ class FakeStudioRepository implements StudioRepositoryContract {
     String projectId = '',
     List<String> tags = const [],
   }) async {
-    throw UnimplementedError();
+    final recipe = StudioRecipe(
+      id: 'recipe-${recipes.length + 1}',
+      name: name,
+      prompt: prompt,
+      model: model,
+      size: size,
+      sourceImagePath: sourceImagePath,
+      sourceTurnId: sourceTurnId,
+      projectId: projectId,
+      tags: tags,
+      createdAt: DateTime.utc(2026, 5, 19, 9, 30),
+      updatedAt: DateTime.utc(2026, 5, 19, 9, 30),
+    );
+    recipes.add(recipe);
+    return recipe;
+  }
+
+  @override
+  Future<StudioRecipe> updateRecipeSharing({
+    required String recipeId,
+    required bool shared,
+  }) async {
+    final index = recipes.indexWhere((recipe) => recipe.id == recipeId);
+    if (index == -1) {
+      throw StateError('recipe not found');
+    }
+    final recipe = recipes[index];
+    final updated = StudioRecipe(
+      id: recipe.id,
+      name: recipe.name,
+      prompt: recipe.prompt,
+      model: recipe.model,
+      size: recipe.size,
+      sourceImagePath: recipe.sourceImagePath,
+      sourceTurnId: recipe.sourceTurnId,
+      projectId: recipe.projectId,
+      tags: recipe.tags,
+      createdAt: recipe.createdAt,
+      updatedAt: DateTime.utc(2026, 5, 19, 9, 30),
+      shared: shared,
+      sourceRecipeId: recipe.sourceRecipeId,
+      sharedAt: shared ? DateTime.utc(2026, 5, 19, 9, 30) : null,
+    );
+    recipes[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<StudioRecipe> clonePromptHubRecipe(String recipeId) async {
+    final source = recipes.firstWhere((recipe) => recipe.id == recipeId);
+    final recipe = StudioRecipe(
+      id: 'recipe-${recipes.length + 1}',
+      name: source.name,
+      prompt: source.prompt,
+      model: source.model,
+      size: source.size,
+      sourceImagePath: source.sourceImagePath,
+      sourceTurnId: source.sourceTurnId,
+      projectId: source.projectId,
+      tags: source.tags,
+      createdAt: DateTime.utc(2026, 5, 19, 9, 30),
+      updatedAt: DateTime.utc(2026, 5, 19, 9, 30),
+      sourceRecipeId: source.id,
+    );
+    recipes.add(recipe);
+    return recipe;
   }
 
   @override
   Future<void> deleteRecipe(String recipeId) async {}
+
+  @override
+  Future<List<StudioConsistencyProfile>> fetchConsistencyProfiles() async {
+    return consistencyProfiles;
+  }
+
+  @override
+  Future<StudioConsistencyProfile> createConsistencyProfile({
+    required String name,
+    required StudioConsistencyProfileKind kind,
+    required String guidance,
+    String referenceImagePath = '',
+    List<String> tags = const [],
+  }) async {
+    final profile = StudioConsistencyProfile(
+      id: 'profile-${consistencyProfiles.length + 1}',
+      name: name,
+      kind: kind,
+      guidance: guidance,
+      referenceImagePath: referenceImagePath,
+      tags: tags,
+    );
+    consistencyProfiles.add(profile);
+    return profile;
+  }
+
+  @override
+  Future<StudioConsistencyProfile> updateConsistencyProfile({
+    required String profileId,
+    String? name,
+    StudioConsistencyProfileKind? kind,
+    String? guidance,
+    String? referenceImagePath,
+    List<String>? tags,
+  }) async {
+    final index = consistencyProfiles.indexWhere(
+      (profile) => profile.id == profileId,
+    );
+    if (index == -1) {
+      throw StateError('profile not found');
+    }
+    final current = consistencyProfiles[index];
+    final updated = StudioConsistencyProfile(
+      id: current.id,
+      name: name ?? current.name,
+      kind: kind ?? current.kind,
+      guidance: guidance ?? current.guidance,
+      referenceImagePath: referenceImagePath ?? current.referenceImagePath,
+      tags: tags ?? current.tags,
+      createdAt: current.createdAt,
+      updatedAt: DateTime.utc(2026, 5, 20),
+    );
+    consistencyProfiles[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<void> deleteConsistencyProfile(String profileId) async {
+    consistencyProfiles.removeWhere((profile) => profile.id == profileId);
+  }
 
   @override
   Future<StudioFavorite> favoriteImage({

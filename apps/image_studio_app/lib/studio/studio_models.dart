@@ -1,6 +1,6 @@
 enum StudioTurnStatus { queued, running, success, error }
 
-enum StudioTurnMode { generate, edit }
+enum StudioTurnMode { generate, edit, inpaint }
 
 class StudioProject {
   const StudioProject({
@@ -51,9 +51,11 @@ class StudioConversation {
       id: json['id'].toString(),
       projectId: json['project_id'].toString(),
       title: json['title'].toString(),
-      mode: json['mode'] == 'edit'
-          ? StudioTurnMode.edit
-          : StudioTurnMode.generate,
+      mode: switch (json['mode']) {
+        'edit' => StudioTurnMode.edit,
+        'inpaint' => StudioTurnMode.inpaint,
+        _ => StudioTurnMode.generate,
+      },
       updatedAt: DateTime.parse(json['updated_at'].toString()),
     );
   }
@@ -113,9 +115,11 @@ class StudioTurn {
       conversationId: json['conversation_id'].toString(),
       clientTaskId: json['client_task_id'].toString(),
       taskId: json['task_id'].toString(),
-      mode: json['mode'] == 'edit'
-          ? StudioTurnMode.edit
-          : StudioTurnMode.generate,
+      mode: switch (json['mode']) {
+        'edit' => StudioTurnMode.edit,
+        'inpaint' => StudioTurnMode.inpaint,
+        _ => StudioTurnMode.generate,
+      },
       prompt: json['prompt'].toString(),
       model: json['model'].toString(),
       size: json['size']?.toString(),
@@ -377,6 +381,9 @@ class StudioRecipe {
     required this.tags,
     required this.createdAt,
     required this.updatedAt,
+    this.shared = false,
+    this.sourceRecipeId = '',
+    this.sharedAt,
   });
 
   final String id;
@@ -390,6 +397,9 @@ class StudioRecipe {
   final List<String> tags;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final bool shared;
+  final String sourceRecipeId;
+  final DateTime? sharedAt;
 
   String get displayName {
     if (name.trim().isNotEmpty) return name;
@@ -408,6 +418,78 @@ class StudioRecipe {
       sourceImagePath: (json['source_image_path'] ?? '').toString(),
       sourceTurnId: (json['source_turn_id'] ?? '').toString(),
       projectId: (json['project_id'] ?? '').toString(),
+      tags: ((json['tags'] ?? <Object?>[]) as List)
+          .map((tag) => tag.toString())
+          .where((tag) => tag.trim().isNotEmpty)
+          .toList(growable: false),
+      createdAt: StudioAsset._dateTimeValue(json['created_at']),
+      updatedAt: StudioAsset._dateTimeValue(json['updated_at']),
+      shared: json['shared'] == true,
+      sourceRecipeId: (json['source_recipe_id'] ?? '').toString(),
+      sharedAt: (() {
+        final raw = (json['shared_at'] ?? '').toString().trim();
+        if (raw.isEmpty) return null;
+        return DateTime.tryParse(raw) ??
+            DateTime.tryParse(raw.replaceFirst(' ', 'T'));
+      })(),
+    );
+  }
+}
+
+enum StudioConsistencyProfileKind {
+  character,
+  style;
+
+  String get wireName => switch (this) {
+    StudioConsistencyProfileKind.character => 'character',
+    StudioConsistencyProfileKind.style => 'style',
+  };
+
+  String get label => switch (this) {
+    StudioConsistencyProfileKind.character => '角色',
+    StudioConsistencyProfileKind.style => '风格',
+  };
+
+  static StudioConsistencyProfileKind fromJson(Object? value) {
+    return value.toString().trim().toLowerCase() == 'style'
+        ? StudioConsistencyProfileKind.style
+        : StudioConsistencyProfileKind.character;
+  }
+}
+
+class StudioConsistencyProfile {
+  const StudioConsistencyProfile({
+    required this.id,
+    required this.name,
+    required this.kind,
+    required this.guidance,
+    required this.referenceImagePath,
+    required this.tags,
+    this.createdAt,
+    this.updatedAt,
+  });
+
+  final String id;
+  final String name;
+  final StudioConsistencyProfileKind kind;
+  final String guidance;
+  final String referenceImagePath;
+  final List<String> tags;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
+  String get displayName {
+    if (name.trim().isNotEmpty) return name;
+    return guidance.length > 24 ? '${guidance.substring(0, 24)}…' : guidance;
+  }
+
+  factory StudioConsistencyProfile.fromJson(Map<String, Object?> json) {
+    return StudioConsistencyProfile(
+      id: json['id'].toString(),
+      name: (json['name'] ?? '').toString(),
+      kind: StudioConsistencyProfileKind.fromJson(json['kind']),
+      guidance: (json['guidance'] ?? '').toString(),
+      referenceImagePath: (json['reference_image_path'] ?? '').toString(),
       tags: ((json['tags'] ?? <Object?>[]) as List)
           .map((tag) => tag.toString())
           .where((tag) => tag.trim().isNotEmpty)

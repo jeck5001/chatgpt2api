@@ -29,6 +29,10 @@ class StudioImageSaver {
     return targetFile.writeAsBytes(bytes, flush: true);
   }
 
+  Future<Uint8List> loadImageBytes(Uri imageUrl) {
+    return _bytesLoader(imageUrl);
+  }
+
   Future<File> saveBytes({
     required Uint8List bytes,
     required String fileName,

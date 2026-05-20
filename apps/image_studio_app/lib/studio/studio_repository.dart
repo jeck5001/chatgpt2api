@@ -57,6 +57,16 @@ abstract interface class StudioRepositoryContract {
     required List<StudioEditImage> images,
   });
 
+  Future<StudioTurn> createInpaintTurn({
+    required String conversationId,
+    required String clientTaskId,
+    required String prompt,
+    required String model,
+    String? size,
+    required StudioEditImage image,
+    required StudioEditImage mask,
+  });
+
   Future<String> draftPromptFromImage({required List<StudioEditImage> images});
 
   Future<String> optimizePrompt(String prompt);
@@ -97,6 +107,8 @@ abstract interface class StudioRepositoryContract {
 
   Future<List<StudioRecipe>> fetchRecipes();
 
+  Future<List<StudioRecipe>> fetchPromptHubRecipes();
+
   Future<StudioRecipe> createRecipe({
     required String name,
     required String prompt,
@@ -108,7 +120,35 @@ abstract interface class StudioRepositoryContract {
     List<String> tags = const [],
   });
 
+  Future<StudioRecipe> updateRecipeSharing({
+    required String recipeId,
+    required bool shared,
+  });
+
+  Future<StudioRecipe> clonePromptHubRecipe(String recipeId);
+
   Future<void> deleteRecipe(String recipeId);
+
+  Future<List<StudioConsistencyProfile>> fetchConsistencyProfiles();
+
+  Future<StudioConsistencyProfile> createConsistencyProfile({
+    required String name,
+    required StudioConsistencyProfileKind kind,
+    required String guidance,
+    String referenceImagePath = '',
+    List<String> tags = const [],
+  });
+
+  Future<StudioConsistencyProfile> updateConsistencyProfile({
+    required String profileId,
+    String? name,
+    StudioConsistencyProfileKind? kind,
+    String? guidance,
+    String? referenceImagePath,
+    List<String>? tags,
+  });
+
+  Future<void> deleteConsistencyProfile(String profileId);
 
   Future<List<StudioPromptTemplate>> fetchPromptTemplates();
 
@@ -220,6 +260,32 @@ class StudioRepository implements StudioRepositoryContract {
         'model': model,
         'size': ?size,
       },
+    );
+    return StudioTurn.fromJson(payload['item']! as Map<String, Object?>);
+  }
+
+  @override
+  Future<StudioTurn> createInpaintTurn({
+    required String conversationId,
+    required String clientTaskId,
+    required String prompt,
+    required String model,
+    String? size,
+    required StudioEditImage image,
+    required StudioEditImage mask,
+  }) async {
+    final formMap = <String, Object?>{
+      'conversation_id': conversationId,
+      'client_task_id': clientTaskId,
+      'prompt': prompt,
+      'model': model,
+      if (size != null && size.isNotEmpty) 'size': size,
+      'image': MultipartFile.fromBytes(image.bytes, filename: image.filename),
+      'mask': MultipartFile.fromBytes(mask.bytes, filename: mask.filename),
+    };
+    final payload = await _client.postMultipart(
+      '/api/image-turns/inpaint',
+      formData: FormData.fromMap(formMap, ListFormat.multiCompatible),
     );
     return StudioTurn.fromJson(payload['item']! as Map<String, Object?>);
   }
@@ -407,6 +473,12 @@ class StudioRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<List<StudioRecipe>> fetchPromptHubRecipes() async {
+    final payload = await _client.getJson('/api/prompt-hub');
+    return _items(payload).map(StudioRecipe.fromJson).toList();
+  }
+
+  @override
   Future<StudioRecipe> createRecipe({
     required String name,
     required String prompt,
@@ -434,8 +506,84 @@ class StudioRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<StudioRecipe> updateRecipeSharing({
+    required String recipeId,
+    required bool shared,
+  }) async {
+    final payload = await _client.patchJson(
+      '/api/image-recipes/$recipeId',
+      body: <String, Object?>{'shared': shared},
+    );
+    return StudioRecipe.fromJson(payload['item']! as Map<String, Object?>);
+  }
+
+  @override
+  Future<StudioRecipe> clonePromptHubRecipe(String recipeId) async {
+    final payload = await _client.postJson('/api/prompt-hub/$recipeId/clone');
+    return StudioRecipe.fromJson(payload['item']! as Map<String, Object?>);
+  }
+
+  @override
   Future<void> deleteRecipe(String recipeId) async {
     await _client.deleteJson('/api/image-recipes/$recipeId');
+  }
+
+  @override
+  Future<List<StudioConsistencyProfile>> fetchConsistencyProfiles() async {
+    final payload = await _client.getJson('/api/consistency-profiles');
+    return _items(payload).map(StudioConsistencyProfile.fromJson).toList();
+  }
+
+  @override
+  Future<StudioConsistencyProfile> createConsistencyProfile({
+    required String name,
+    required StudioConsistencyProfileKind kind,
+    required String guidance,
+    String referenceImagePath = '',
+    List<String> tags = const [],
+  }) async {
+    final payload = await _client.postJson(
+      '/api/consistency-profiles',
+      body: <String, Object?>{
+        'name': name,
+        'kind': kind.wireName,
+        'guidance': guidance,
+        'reference_image_path': referenceImagePath,
+        'tags': tags,
+      },
+    );
+    return StudioConsistencyProfile.fromJson(
+      payload['item']! as Map<String, Object?>,
+    );
+  }
+
+  @override
+  Future<StudioConsistencyProfile> updateConsistencyProfile({
+    required String profileId,
+    String? name,
+    StudioConsistencyProfileKind? kind,
+    String? guidance,
+    String? referenceImagePath,
+    List<String>? tags,
+  }) async {
+    final payload = await _client.patchJson(
+      '/api/consistency-profiles/$profileId',
+      body: <String, Object?>{
+        'name': ?name,
+        'kind': ?kind?.wireName,
+        'guidance': ?guidance,
+        'reference_image_path': ?referenceImagePath,
+        'tags': ?tags,
+      },
+    );
+    return StudioConsistencyProfile.fromJson(
+      payload['item']! as Map<String, Object?>,
+    );
+  }
+
+  @override
+  Future<void> deleteConsistencyProfile(String profileId) async {
+    await _client.deleteJson('/api/consistency-profiles/$profileId');
   }
 
   @override

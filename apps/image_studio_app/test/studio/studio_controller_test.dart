@@ -91,6 +91,43 @@ void main() {
   });
 
   test(
+    'submitInpaint adds a masked edit turn and polls until success',
+    () async {
+      final repository = FakeStudioRepository();
+      final controller = StudioController(
+        repository,
+        pollInterval: const Duration(milliseconds: 20),
+      );
+      final dynamic dynamicController = controller;
+
+      await dynamicController.submitInpaint(
+        conversationId: 'conversation-1',
+        prompt: 'replace only the painted window with warm light',
+        image: StudioEditImage(
+          bytes: Uint8List.fromList(const [1, 2, 3, 4]),
+          filename: 'source.png',
+          contentType: 'image/png',
+        ),
+        mask: StudioEditImage(
+          bytes: Uint8List.fromList(const [5, 6, 7, 8]),
+          filename: 'mask.png',
+          contentType: 'image/png',
+        ),
+      );
+
+      expect(controller.state.turns.single.status, StudioTurnStatus.running);
+
+      for (var i = 0; i < 20 && controller.hasRunningTurns; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+      }
+
+      expect(controller.state.turns.single.status, StudioTurnStatus.success);
+      expect(repository.lastInpaintImageName, 'source.png');
+      expect(repository.lastInpaintMaskName, 'mask.png');
+    },
+  );
+
+  test(
     'submitEdit rejects an empty image list before hitting the API',
     () async {
       final repository = FakeStudioRepository();
@@ -171,6 +208,120 @@ void main() {
       );
     },
   );
+
+  test('load workspace keeps prompt hub recipes available', () async {
+    final repository = FakeStudioRepository()
+      ..hubRecipes = [
+        StudioRecipe(
+          id: 'recipe-1',
+          name: 'Shared recipe',
+          prompt: 'shared prompt',
+          model: 'gpt-image-2',
+          size: '1024x1792',
+          sourceImagePath: '2026/05/orange.png',
+          sourceTurnId: 'turn-1',
+          projectId: 'project-1',
+          tags: const ['海报'],
+          createdAt: DateTime.utc(2026, 5, 19),
+          updatedAt: DateTime.utc(2026, 5, 19),
+          shared: true,
+        ),
+      ];
+    final controller = StudioController(repository);
+
+    await controller.loadWorkspace();
+
+    expect(controller.state.hubRecipes.single.shared, isTrue);
+    expect(controller.state.hubRecipes.single.name, 'Shared recipe');
+  });
+
+  test('load workspace keeps consistency profiles available', () async {
+    final repository = FakeStudioRepository()
+      ..consistencyProfiles = [
+        StudioConsistencyProfile(
+          id: 'profile-1',
+          name: 'Luna',
+          kind: StudioConsistencyProfileKind.character,
+          guidance: 'A silver-haired botanist with a teal jacket.',
+          referenceImagePath: '2026/05/luna.png',
+          tags: const ['角色'],
+          createdAt: DateTime.utc(2026, 5, 20),
+          updatedAt: DateTime.utc(2026, 5, 20),
+        ),
+      ];
+    final controller = StudioController(repository);
+
+    await controller.loadWorkspace();
+
+    expect(controller.state.consistencyProfiles.single.name, 'Luna');
+  });
+
+  test('saveConsistencyProfile prepends a reusable character guide', () async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(repository);
+
+    final profile = await controller.saveConsistencyProfile(
+      name: 'Luna',
+      kind: StudioConsistencyProfileKind.character,
+      guidance: 'A silver-haired botanist with a teal jacket.',
+    );
+
+    expect(profile.name, 'Luna');
+    expect(controller.state.consistencyProfiles.single.id, profile.id);
+    expect(
+      repository.createdConsistencyProfiles.single.guidance,
+      contains('silver-haired'),
+    );
+  });
+
+  test('applyConsistencyProfile stores composed prompt draft', () async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(repository);
+    const profile = StudioConsistencyProfile(
+      id: 'profile-1',
+      name: 'Luna',
+      kind: StudioConsistencyProfileKind.character,
+      guidance: 'A silver-haired botanist with a teal jacket.',
+      referenceImagePath: '',
+      tags: [],
+    );
+
+    final prompt = controller.applyConsistencyProfile(
+      profile,
+      currentPrompt: 'standing in a greenhouse',
+    );
+
+    expect(prompt, contains('Consistency profile: Luna'));
+    expect(prompt, contains('A silver-haired botanist'));
+    expect(prompt, contains('standing in a greenhouse'));
+    expect(controller.state.promptDraft, prompt);
+  });
+
+  test('toggleRecipeSharing promotes recipes into the hub list', () async {
+    final repository = FakeStudioRepository();
+    repository.createdRecipes.add(
+      StudioRecipe(
+        id: 'recipe-1',
+        name: 'Private recipe',
+        prompt: 'private prompt',
+        model: 'gpt-image-2',
+        size: '1024x1024',
+        sourceImagePath: '2026/05/private.png',
+        sourceTurnId: 'turn-1',
+        projectId: 'project-1',
+        tags: const ['海报'],
+        createdAt: DateTime.utc(2026, 5, 19),
+        updatedAt: DateTime.utc(2026, 5, 19),
+      ),
+    );
+    final controller = StudioController(repository);
+
+    await controller.loadWorkspace();
+    await controller.toggleRecipeSharing(controller.state.recipes.single);
+
+    expect(controller.state.recipes.single.shared, isTrue);
+    expect(controller.state.hubRecipes.single.id, 'recipe-1');
+  });
 
   test(
     'deleteLibraryAssets removes selected assets from state after API success',
@@ -760,12 +911,16 @@ class FakeStudioRepository implements StudioRepositoryContract {
   bool failSubmit = false;
   String? createdProjectName;
   int? lastEditImages;
+  String? lastInpaintImageName;
+  String? lastInpaintMaskName;
   int? lastDraftPromptImages;
   String draftPrompt = 'draft prompt';
   String optimizedPrompt = 'optimized prompt';
   int _generationCounter = 0;
   List<StudioProject> projects = [];
   List<StudioAsset> libraryAssets = [];
+  List<StudioRecipe> hubRecipes = [];
+  List<StudioConsistencyProfile> consistencyProfiles = [];
   Map<String, List<StudioConversation>> conversationsByProject = {};
   Map<String, List<StudioTurn>> turnsByConversation = {};
   Map<String, Future<StudioTurn> Function(String)> syncOverrides = const {};
@@ -773,6 +928,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
   final List<String> deletedTurns = [];
   final List<String> deletedImages = [];
   final List<StudioRecipe> createdRecipes = [];
+  final List<StudioConsistencyProfile> createdConsistencyProfiles = [];
   final List<String> createdPrompts = [];
   final List<String?> createdSizes = [];
   final List<String> retriedTurns = [];
@@ -888,6 +1044,27 @@ class FakeStudioRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<StudioTurn> createInpaintTurn({
+    required String conversationId,
+    required String clientTaskId,
+    required String prompt,
+    required String model,
+    String? size,
+    required StudioEditImage image,
+    required StudioEditImage mask,
+  }) async {
+    if (failSubmit) {
+      throw Exception('network down');
+    }
+    lastInpaintImageName = image.filename;
+    lastInpaintMaskName = mask.filename;
+    return fakeTurn(
+      status: StudioTurnStatus.running,
+      mode: StudioTurnMode.inpaint,
+    );
+  }
+
+  @override
   Future<String> draftPromptFromImage({
     required List<StudioEditImage> images,
   }) async {
@@ -975,6 +1152,11 @@ class FakeStudioRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<List<StudioRecipe>> fetchPromptHubRecipes() async {
+    return hubRecipes;
+  }
+
+  @override
   Future<StudioRecipe> createRecipe({
     required String name,
     required String prompt,
@@ -1003,8 +1185,123 @@ class FakeStudioRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<StudioRecipe> updateRecipeSharing({
+    required String recipeId,
+    required bool shared,
+  }) async {
+    final index = createdRecipes.indexWhere((recipe) => recipe.id == recipeId);
+    if (index == -1) {
+      throw StateError('recipe not found');
+    }
+    final updated = StudioRecipe(
+      id: createdRecipes[index].id,
+      name: createdRecipes[index].name,
+      prompt: createdRecipes[index].prompt,
+      model: createdRecipes[index].model,
+      size: createdRecipes[index].size,
+      sourceImagePath: createdRecipes[index].sourceImagePath,
+      sourceTurnId: createdRecipes[index].sourceTurnId,
+      projectId: createdRecipes[index].projectId,
+      tags: createdRecipes[index].tags,
+      createdAt: createdRecipes[index].createdAt,
+      updatedAt: DateTime.utc(2026, 5, 19, 9, 30),
+      shared: shared,
+      sourceRecipeId: createdRecipes[index].sourceRecipeId,
+      sharedAt: shared ? DateTime.utc(2026, 5, 19, 9, 30) : null,
+    );
+    createdRecipes[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<StudioRecipe> clonePromptHubRecipe(String recipeId) async {
+    final source = createdRecipes.firstWhere((recipe) => recipe.id == recipeId);
+    final recipe = StudioRecipe(
+      id: 'recipe-${createdRecipes.length + 1}',
+      name: source.name,
+      prompt: source.prompt,
+      model: source.model,
+      size: source.size,
+      sourceImagePath: source.sourceImagePath,
+      sourceTurnId: source.sourceTurnId,
+      projectId: source.projectId,
+      tags: source.tags,
+      createdAt: DateTime.utc(2026, 5, 19, 9, 30),
+      updatedAt: DateTime.utc(2026, 5, 19, 9, 30),
+      sourceRecipeId: source.id,
+    );
+    createdRecipes.add(recipe);
+    return recipe;
+  }
+
+  @override
   Future<void> deleteRecipe(String recipeId) async {
     createdRecipes.removeWhere((recipe) => recipe.id == recipeId);
+  }
+
+  @override
+  Future<List<StudioConsistencyProfile>> fetchConsistencyProfiles() async {
+    return consistencyProfiles;
+  }
+
+  @override
+  Future<StudioConsistencyProfile> createConsistencyProfile({
+    required String name,
+    required StudioConsistencyProfileKind kind,
+    required String guidance,
+    String referenceImagePath = '',
+    List<String> tags = const [],
+  }) async {
+    final profile = StudioConsistencyProfile(
+      id: 'profile-${createdConsistencyProfiles.length + 1}',
+      name: name,
+      kind: kind,
+      guidance: guidance,
+      referenceImagePath: referenceImagePath,
+      tags: tags,
+      createdAt: DateTime.utc(2026, 5, 20),
+      updatedAt: DateTime.utc(2026, 5, 20),
+    );
+    createdConsistencyProfiles.add(profile);
+    return profile;
+  }
+
+  @override
+  Future<StudioConsistencyProfile> updateConsistencyProfile({
+    required String profileId,
+    String? name,
+    StudioConsistencyProfileKind? kind,
+    String? guidance,
+    String? referenceImagePath,
+    List<String>? tags,
+  }) async {
+    final index = consistencyProfiles.indexWhere(
+      (profile) => profile.id == profileId,
+    );
+    if (index == -1) {
+      throw StateError('profile not found');
+    }
+    final current = consistencyProfiles[index];
+    final updated = StudioConsistencyProfile(
+      id: current.id,
+      name: name ?? current.name,
+      kind: kind ?? current.kind,
+      guidance: guidance ?? current.guidance,
+      referenceImagePath: referenceImagePath ?? current.referenceImagePath,
+      tags: tags ?? current.tags,
+      createdAt: current.createdAt,
+      updatedAt: DateTime.utc(2026, 5, 20),
+    );
+    consistencyProfiles[index] = updated;
+    return updated;
+  }
+
+  @override
+  Future<void> deleteConsistencyProfile(String profileId) async {
+    consistencyProfiles.removeWhere((profile) => profile.id == profileId);
+    createdConsistencyProfiles.removeWhere(
+      (profile) => profile.id == profileId,
+    );
   }
 
   @override
@@ -1053,13 +1350,14 @@ StudioTurn fakeTurn({
   String prompt = 'cat',
   String model = 'gpt-image-2',
   String? size = '1024x1024',
+  StudioTurnMode mode = StudioTurnMode.generate,
 }) {
   return StudioTurn(
     id: id,
     conversationId: 'conversation-1',
     clientTaskId: 'task-1',
     taskId: 'task-1',
-    mode: StudioTurnMode.generate,
+    mode: mode,
     prompt: prompt,
     model: model,
     size: size,

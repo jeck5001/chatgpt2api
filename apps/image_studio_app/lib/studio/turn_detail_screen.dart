@@ -12,6 +12,7 @@ class TurnDetailScreen extends StatelessWidget {
     this.onRetry,
     this.onEditPrompt,
     this.onVariation,
+    this.onInpaint,
     this.onSave,
     this.onOpenImage,
   });
@@ -21,6 +22,7 @@ class TurnDetailScreen extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onEditPrompt;
   final VoidCallback? onVariation;
+  final VoidCallback? onInpaint;
   final VoidCallback? onSave;
   final ValueChanged<StudioResultImage>? onOpenImage;
 
@@ -70,6 +72,7 @@ class TurnDetailScreen extends StatelessWidget {
               onRetry: onRetry,
               onEditPrompt: onEditPrompt,
               onVariation: onVariation,
+              onInpaint: onInpaint,
               onSave: onSave,
             ),
           ],
@@ -260,6 +263,7 @@ class _ActionsSection extends StatelessWidget {
     this.onRetry,
     this.onEditPrompt,
     this.onVariation,
+    this.onInpaint,
     this.onSave,
   });
 
@@ -267,6 +271,7 @@ class _ActionsSection extends StatelessWidget {
   final VoidCallback? onRetry;
   final VoidCallback? onEditPrompt;
   final VoidCallback? onVariation;
+  final VoidCallback? onInpaint;
   final VoidCallback? onSave;
 
   @override
@@ -278,6 +283,12 @@ class _ActionsSection extends StatelessWidget {
           onPressed: onVariation,
           icon: const Icon(Icons.auto_awesome_rounded),
           label: const Text('Generate Variation'),
+        ),
+        const SizedBox(height: KilnSpacing.sm),
+        FilledButton.tonalIcon(
+          onPressed: onInpaint,
+          icon: const Icon(Icons.brush_outlined),
+          label: const Text('局部重绘'),
         ),
         const SizedBox(height: KilnSpacing.sm),
         Row(

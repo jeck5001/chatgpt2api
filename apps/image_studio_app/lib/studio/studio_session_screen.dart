@@ -52,6 +52,8 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
   late final Future<void> _loadFuture;
   late final StudioImageSaver _imageSaver;
   int _selectedIndex = 1;
+  int _composerSeedSequence = 0;
+  StudioComposerSeed? _composerSeed;
 
   @override
   void initState() {
@@ -230,6 +232,27 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
     } catch (error) {
       _toast('生成变体失败：$error');
     }
+  }
+
+  void _reuseAssetParameters(StudioAsset asset) {
+    final prompt = [asset.prompt, asset.revisedPrompt, asset.name]
+        .map((value) => value.trim())
+        .firstWhere((value) => value.isNotEmpty, orElse: () => '');
+    if (prompt.isEmpty) {
+      _toast('这张图没有可复用的 prompt');
+      return;
+    }
+    setState(() {
+      _selectedIndex = 1;
+      _composerSeedSequence += 1;
+      _composerSeed = StudioComposerSeed(
+        id: '${asset.path}:$_composerSeedSequence',
+        prompt: prompt,
+        model: asset.model.trim().isNotEmpty ? asset.model : 'gpt-image-2',
+        size: asset.sizeLabel.trim().isEmpty ? null : asset.sizeLabel.trim(),
+      );
+    });
+    _toast('已回填 prompt、模型和尺寸');
   }
 
   Future<void> _saveRecipeFromAsset(StudioAsset asset) async {
@@ -496,7 +519,10 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
                   _selectedIndex = index;
                 });
               },
-              create: CreateScreen(controller: widget.controller),
+              create: CreateScreen(
+                controller: widget.controller,
+                composerSeed: _composerSeed,
+              ),
               library: LibraryScreen(
                 assets: state.libraryAssets,
                 favorites: state.favorites,
@@ -506,6 +532,7 @@ class _StudioSessionScreenState extends State<StudioSessionScreen> {
                 onToggleFavoriteAsset: _toggleFavoriteAsset,
                 onContinueEditAsset: _openAssetInViewer,
                 onGenerateVariant: _generateVariantFromAsset,
+                onReuseAssetParameters: _reuseAssetParameters,
                 onDownloadAsset: _downloadAsset,
                 onShareAsset: _shareAsset,
                 onSaveRecipeAsset: _saveRecipeFromAsset,

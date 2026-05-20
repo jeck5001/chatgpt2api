@@ -604,6 +604,7 @@ def stream_image_outputs_with_pool(request: ConversationRequest) -> Iterator[Ima
             emitted_for_token = False
             returned_message = False
             returned_result = False
+            attempt_started = time.time()
             try:
                 backend = OpenAIBackendAPI(access_token=token)
                 for output in stream_image_outputs(backend, request, index, request.n):
@@ -620,15 +621,15 @@ def stream_image_outputs_with_pool(request: ConversationRequest) -> Iterator[Ima
                     returned_result = returned_result or output.kind == "result"
                     yield output
                 if returned_message or not returned_result:
-                    account_service.mark_image_result(token, False)
+                    account_service.mark_image_result(token, False, latency_ms=int((time.time() - attempt_started) * 1000))
                     return
-                account_service.mark_image_result(token, True)
+                account_service.mark_image_result(token, True, latency_ms=int((time.time() - attempt_started) * 1000))
                 break
             except ImageGenerationError:
-                account_service.mark_image_result(token, False)
+                account_service.mark_image_result(token, False, latency_ms=int((time.time() - attempt_started) * 1000))
                 raise
             except Exception as exc:
-                account_service.mark_image_result(token, False)
+                account_service.mark_image_result(token, False, latency_ms=int((time.time() - attempt_started) * 1000))
                 last_error = str(exc)
                 logger.warning({"event": "image_stream_fail", "request_token": token, "error": last_error})
                 if not emitted_for_token and is_token_invalid_error(last_error):

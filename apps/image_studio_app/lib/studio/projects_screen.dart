@@ -496,7 +496,7 @@ class _ConversationRow extends StatelessWidget {
                   ),
                   alignment: Alignment.center,
                   child: Icon(
-                    conversation.mode == StudioTurnMode.edit
+                    conversation.mode != StudioTurnMode.generate
                         ? Icons.brush_outlined
                         : Icons.auto_awesome_outlined,
                     size: 16,

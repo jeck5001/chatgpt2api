@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_studio_app/core/api/api_client.dart';
+import 'package:image_studio_app/studio/studio_models.dart';
 import 'package:image_studio_app/studio/studio_repository.dart';
 
 void main() {
@@ -183,6 +184,84 @@ void main() {
     expect(adapter.requests.single.path, '/api/image-recipes/recipe-1');
   });
 
+  test('fetchPromptHubRecipes reads the shared prompt hub endpoint', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{
+        'items': <Object?>[
+          <String, Object?>{
+            'id': 'recipe-1',
+            'name': 'Shared recipe',
+            'prompt': 'shared prompt',
+            'model': 'gpt-image-2',
+            'size': '1024x1792',
+            'source_image_path': '2026/05/19/orange.png',
+            'tags': <Object?>['海报'],
+            'shared': true,
+            'created_at': '2026-05-19T09:30:00Z',
+            'updated_at': '2026-05-19T09:30:00Z',
+          },
+        ],
+      }),
+    ]);
+    final repository = _repository(adapter);
+    final dynamic dynamicRepository = repository;
+
+    final recipes = await dynamicRepository.fetchPromptHubRecipes();
+
+    expect(adapter.requests.single.path, '/api/prompt-hub');
+    expect(recipes.single.name, 'Shared recipe');
+  });
+
+  test('updateRecipeSharing patches the visibility flag', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{
+        'item': <String, Object?>{
+          'id': 'recipe-1',
+          'name': 'Private recipe',
+          'prompt': 'private prompt',
+          'model': 'gpt-image-2',
+          'shared': true,
+          'created_at': '2026-05-19T09:30:00Z',
+          'updated_at': '2026-05-19T09:30:00Z',
+        },
+      }),
+    ]);
+    final repository = _repository(adapter);
+    final dynamic dynamicRepository = repository;
+
+    final recipe = await dynamicRepository.updateRecipeSharing(
+      recipeId: 'recipe-1',
+      shared: true,
+    );
+
+    expect(adapter.requests.single.path, '/api/image-recipes/recipe-1');
+    expect(adapter.requests.single.body, <String, Object?>{'shared': true});
+    expect(recipe.shared, isTrue);
+  });
+
+  test('clonePromptHubRecipe posts to the clone endpoint', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{
+        'item': <String, Object?>{
+          'id': 'recipe-2',
+          'name': 'Shared recipe',
+          'prompt': 'shared prompt',
+          'model': 'gpt-image-2',
+          'shared': false,
+          'created_at': '2026-05-19T09:30:00Z',
+          'updated_at': '2026-05-19T09:30:00Z',
+        },
+      }),
+    ]);
+    final repository = _repository(adapter);
+    final dynamic dynamicRepository = repository;
+
+    final recipe = await dynamicRepository.clonePromptHubRecipe('recipe-1');
+
+    expect(adapter.requests.single.path, '/api/prompt-hub/recipe-1/clone');
+    expect(recipe.id, 'recipe-2');
+  });
+
   test('draftPromptFromImage uploads an image and returns the draft', () async {
     final adapter = _QueueAdapter([
       _JsonResponse(<String, Object?>{
@@ -231,6 +310,56 @@ void main() {
       });
     },
   );
+
+  test('createInpaintTurn uploads the source image and painted mask', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{
+        'item': <String, Object?>{
+          'id': 'turn-inpaint',
+          'conversation_id': 'conversation-1',
+          'client_task_id': 'task-inpaint',
+          'task_id': 'task-inpaint',
+          'mode': 'inpaint',
+          'prompt': 'replace the sky with aurora',
+          'model': 'gpt-image-2',
+          'size': '1024x1024',
+          'result_images': <Object?>[],
+          'status': 'queued',
+          'error': '',
+          'updated_at': '2026-05-19T09:30:00Z',
+        },
+      }),
+    ]);
+    final repository = _repository(adapter);
+    final dynamic dynamicRepository = repository;
+
+    final turn = await dynamicRepository.createInpaintTurn(
+      conversationId: 'conversation-1',
+      clientTaskId: 'task-inpaint',
+      prompt: 'replace the sky with aurora',
+      model: 'gpt-image-2',
+      size: '1024x1024',
+      image: StudioEditImage(
+        bytes: Uint8List.fromList(const [1, 2, 3]),
+        filename: 'source.png',
+        contentType: 'image/png',
+      ),
+      mask: StudioEditImage(
+        bytes: Uint8List.fromList(const [4, 5, 6]),
+        filename: 'mask.png',
+        contentType: 'image/png',
+      ),
+    );
+
+    expect(turn.mode, StudioTurnMode.inpaint);
+    expect(adapter.requests.single.path, '/api/image-turns/inpaint');
+    final formData = adapter.requests.single.body as FormData;
+    expect(formData.files.map((file) => file.key).toList(), ['image', 'mask']);
+    expect(formData.files.map((file) => file.value.filename).toList(), [
+      'source.png',
+      'mask.png',
+    ]);
+  });
 }
 
 StudioRepository _repository(HttpClientAdapter adapter) {

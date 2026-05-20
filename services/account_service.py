@@ -17,6 +17,13 @@ from utils.helper import anonymize_token
 class AccountService:
     """账号池服务，使用 token -> account 的 dict 保存账号。"""
 
+    _ACCOUNT_TYPE_ALIASES = {
+        "free": "free",
+        "plus": "plus",
+        "pro": "pro",
+        "prolite": "ProLite",
+    }
+
     def __init__(self, storage_backend: StorageBackend):
         self.storage = storage_backend
         self._lock = Lock()
@@ -66,8 +73,41 @@ class AccountService:
         normalized["restore_at"] = normalized.get("restore_at") or None
         normalized["success"] = int(normalized.get("success") or 0)
         normalized["fail"] = int(normalized.get("fail") or 0)
+        normalized["image_avg_latency_ms"] = max(0, int(normalized.get("image_avg_latency_ms") or 0))
+        normalized["image_last_result_at"] = normalized.get("image_last_result_at") or None
         normalized["last_used_at"] = normalized.get("last_used_at")
         return normalized
+
+    @classmethod
+    def _normalize_account_type(cls, value: object) -> str | None:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        key = "".join(char for char in text.lower() if char.isalnum())
+        return cls._ACCOUNT_TYPE_ALIASES.get(key)
+
+    @classmethod
+    def _search_account_type(cls, payload: object) -> str | None:
+        if isinstance(payload, list):
+            for item in payload:
+                matched = cls._search_account_type(item)
+                if matched:
+                    return matched
+            return None
+        if not isinstance(payload, dict):
+            return None
+        for key, value in payload.items():
+            key_text = str(key or "").lower()
+            if isinstance(value, (dict, list)):
+                matched = cls._search_account_type(value)
+                if matched:
+                    return matched
+                continue
+            if any(marker in key_text for marker in ("plan", "account_type", "subscription", "sku", "product")):
+                matched = cls._normalize_account_type(value)
+                if matched:
+                    return matched
+        return None
 
     def list_tokens(self) -> list[str]:
         with self._lock:
@@ -85,11 +125,45 @@ class AccountService:
 
     def _list_available_candidate_tokens(self, excluded_tokens: set[str] | None = None) -> list[str]:
         max_concurrency = max(1, int(config.image_account_concurrency or 1))
-        return [
+        tokens = [
             token
             for token in self._list_ready_candidate_tokens(excluded_tokens)
             if int(self._image_inflight.get(token, 0)) < max_concurrency
         ]
+        return self._sort_image_candidate_tokens(tokens)
+
+    @classmethod
+    def _image_health_score(cls, account: dict, inflight: int = 0) -> float:
+        success = max(0, int(account.get("success") or 0))
+        fail = max(0, int(account.get("fail") or 0))
+        total = success + fail
+        success_score = 55.0 * (success / total) if total else 38.0
+        failure_penalty = min(35.0, fail * 4.0)
+
+        latency_ms = max(0, int(account.get("image_avg_latency_ms") or 0))
+        if latency_ms <= 0:
+            latency_score = 15.0
+        elif latency_ms <= 1000:
+            latency_score = 20.0
+        elif latency_ms >= 15000:
+            latency_score = 0.0
+        else:
+            latency_score = 20.0 - ((latency_ms - 1000) / 14000) * 20.0
+
+        if bool(account.get("image_quota_unknown")) or account.get("type") in cls._UNLIMITED_IMAGE_QUOTA_TYPES:
+            quota_score = 15.0
+        else:
+            quota_score = min(15.0, max(0, int(account.get("quota") or 0)) * 0.6)
+
+        return success_score + latency_score + quota_score - failure_penalty - max(0, inflight) * 12.0
+
+    def _sort_image_candidate_tokens(self, tokens: list[str]) -> list[str]:
+        def sort_key(token: str) -> tuple[float, str, str]:
+            account = self._accounts.get(token) or {}
+            score = self._image_health_score(account, int(self._image_inflight.get(token, 0)))
+            return (-score, str(account.get("last_used_at") or ""), token)
+
+        return sorted(tokens, key=sort_key)
 
     def _acquire_next_candidate_token(self, excluded_tokens: set[str] | None = None) -> str:
         with self._image_slot_condition:
@@ -98,8 +172,7 @@ class AccountService:
                     raise RuntimeError("no available image quota")
                 tokens = self._list_available_candidate_tokens(excluded_tokens)
                 if tokens:
-                    access_token = tokens[self._index % len(tokens)]
-                    self._index += 1
+                    access_token = tokens[0]
                     self._image_inflight[access_token] = int(self._image_inflight.get(access_token, 0)) + 1
                     return access_token
                 self._image_slot_condition.wait(timeout=1.0)
@@ -352,7 +425,7 @@ class AccountService:
             return dict(account)
         return None
 
-    def mark_image_result(self, access_token: str, success: bool) -> dict | None:
+    def mark_image_result(self, access_token: str, success: bool, latency_ms: int | None = None) -> dict | None:
         if not access_token:
             return None
         self.release_image_slot(access_token)
@@ -361,7 +434,15 @@ class AccountService:
             if current is None:
                 return None
             next_item = dict(current)
-            next_item["last_used_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            next_item["last_used_at"] = finished_at
+            next_item["image_last_result_at"] = finished_at
+            if latency_ms is not None:
+                sample_latency = max(0, int(latency_ms))
+                current_avg = max(0, int(next_item.get("image_avg_latency_ms") or 0))
+                next_item["image_avg_latency_ms"] = (
+                    sample_latency if current_avg <= 0 else int(current_avg * 0.7 + sample_latency * 0.3)
+                )
             image_quota_unknown = bool(next_item.get("image_quota_unknown"))
             if success:
                 next_item["success"] = int(next_item.get("success") or 0) + 1

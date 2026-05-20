@@ -10,6 +10,7 @@ from typing import Any
 
 from services.config import DATA_DIR, config
 from services.content_filter import request_text
+from services.image_worker_service import image_worker_service
 from services.log_service import LOG_TYPE_CALL, log_service
 from services.protocol import openai_v1_image_edit, openai_v1_image_generations
 
@@ -19,6 +20,7 @@ TASK_STATUS_SUCCESS = "success"
 TASK_STATUS_ERROR = "error"
 TERMINAL_STATUSES = {TASK_STATUS_SUCCESS, TASK_STATUS_ERROR}
 UNFINISHED_STATUSES = {TASK_STATUS_QUEUED, TASK_STATUS_RUNNING}
+EDIT_MODES = {"edit", "inpaint"}
 
 
 def _now_iso() -> str:
@@ -61,6 +63,19 @@ def _collect_image_urls(data: list[Any]) -> list[str]:
     return urls
 
 
+def _inpaint_prompt(prompt: str) -> str:
+    cleaned = _clean(prompt)
+    if not cleaned:
+        cleaned = "Edit the masked area."
+    return (
+        f"{cleaned}\n\n"
+        "In-painting instruction: use the first image as the source image and "
+        "the second image as a white-on-transparent mask. Modify only the masked "
+        "painted area and preserve the unmasked areas, composition, identity, "
+        "lighting, and texture as much as possible."
+    )
+
+
 def _public_task(task: dict[str, Any]) -> dict[str, Any]:
     item = {
         "id": task.get("id"),
@@ -75,6 +90,9 @@ def _public_task(task: dict[str, Any]) -> dict[str, Any]:
         item["data"] = task.get("data")
     if task.get("error"):
         item["error"] = task.get("error")
+    item["dispatch_mode"] = _clean(task.get("dispatch_mode"), "local")
+    if task.get("worker_id"):
+        item["worker_id"] = task.get("worker_id")
     return item
 
 
@@ -86,11 +104,13 @@ class ImageTaskService:
         generation_handler: Callable[[dict[str, Any]], dict[str, Any]] = openai_v1_image_generations.handle,
         edit_handler: Callable[[dict[str, Any]], dict[str, Any]] = openai_v1_image_edit.handle,
         retention_days_getter: Callable[[], int] | None = None,
+        worker_service: Any | None = None,
     ):
         self.path = path
         self.generation_handler = generation_handler
         self.edit_handler = edit_handler
         self.retention_days_getter = retention_days_getter or (lambda: config.image_retention_days)
+        self.worker_service = worker_service
         self._lock = threading.RLock()
         self._tasks: dict[str, dict[str, Any]] = {}
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -142,6 +162,29 @@ class ImageTaskService:
             "base_url": base_url,
         }
         return self._submit(identity, client_task_id=client_task_id, mode="edit", payload=payload)
+
+    def submit_inpaint(
+        self,
+        identity: dict[str, object],
+        *,
+        client_task_id: str,
+        prompt: str,
+        model: str,
+        size: str | None,
+        base_url: str,
+        image: tuple[bytes, str, str],
+        mask: tuple[bytes, str, str],
+    ) -> dict[str, Any]:
+        payload = {
+            "prompt": _inpaint_prompt(prompt),
+            "images": [image, mask],
+            "model": model,
+            "n": 1,
+            "size": size,
+            "response_format": "url",
+            "base_url": base_url,
+        }
+        return self._submit(identity, client_task_id=client_task_id, mode="inpaint", payload=payload)
 
     def list_tasks(self, identity: dict[str, object], task_ids: list[str]) -> dict[str, Any]:
         owner = _owner_id(identity)
@@ -203,6 +246,9 @@ class ImageTaskService:
         key = _task_key(owner, task_id)
         now = _now_iso()
         should_start = False
+        worker_id = ""
+        worker_payload: dict[str, Any] | None = None
+        dispatch_mode = "local"
         with self._lock:
             cleaned = self._cleanup_locked()
             task = self._tasks.get(key)
@@ -210,6 +256,12 @@ class ImageTaskService:
                 if cleaned:
                     self._save_locked()
                 return _public_task(task)
+            if mode == "generate" and self.worker_service is not None:
+                worker = self.worker_service.select_worker(mode)
+                if worker is not None:
+                    worker_id = _clean(worker.get("id"))
+                    dispatch_mode = "remote"
+                    worker_payload = self._worker_payload(payload)
             task = {
                 "id": task_id,
                 "owner_id": owner,
@@ -217,16 +269,23 @@ class ImageTaskService:
                 "mode": mode,
                 "model": _clean(payload.get("model"), "gpt-image-2"),
                 "size": _clean(payload.get("size")),
+                "dispatch_mode": dispatch_mode,
                 "created_at": now,
                 "updated_at": now,
             }
+            if worker_id:
+                task["worker_id"] = worker_id
+            if worker_payload is not None:
+                task["worker_payload"] = worker_payload
             self._tasks[key] = task
             try:
                 self._save_locked()
             except Exception:
                 self._tasks.pop(key, None)
+                if worker_id and self.worker_service is not None:
+                    self.worker_service.release_worker(worker_id)
                 raise
-            should_start = True
+            should_start = dispatch_mode == "local"
 
         if should_start:
             thread = threading.Thread(
@@ -237,6 +296,81 @@ class ImageTaskService:
             )
             thread.start()
         return _public_task(task)
+
+    def _worker_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "prompt": _clean(payload.get("prompt")),
+            "model": _clean(payload.get("model"), "gpt-image-2"),
+            "n": int(payload.get("n") or 1),
+            "size": _clean(payload.get("size")) or None,
+            "response_format": _clean(payload.get("response_format"), "url"),
+            "base_url": _clean(payload.get("base_url")),
+        }
+
+    def claim_worker_task(self, worker_id: str) -> dict[str, Any] | None:
+        worker_id = _clean(worker_id)
+        if not worker_id:
+            return None
+        with self._lock:
+            candidates = [
+                (key, task)
+                for key, task in self._tasks.items()
+                if task.get("dispatch_mode") == "remote"
+                and task.get("worker_id") == worker_id
+                and task.get("status") == TASK_STATUS_QUEUED
+            ]
+            candidates.sort(key=lambda item: str(item[1].get("created_at") or ""))
+            if not candidates:
+                return None
+            key, task = candidates[0]
+            task["status"] = TASK_STATUS_RUNNING
+            task["updated_at"] = _now_iso()
+            self._save_locked()
+            return {
+                "id": task.get("id"),
+                "mode": task.get("mode"),
+                "model": task.get("model"),
+                "size": task.get("size"),
+                "payload": dict(task.get("worker_payload") or {}),
+            }
+
+    def complete_worker_task(
+        self,
+        worker_id: str,
+        task_id: str,
+        *,
+        data: list[Any] | None = None,
+        error: str = "",
+        avg_latency_ms: int | None = None,
+    ) -> dict[str, Any] | None:
+        worker_id = _clean(worker_id)
+        task_id = _clean(task_id)
+        if not worker_id or not task_id:
+            return None
+        success = False
+        updated: dict[str, Any] | None = None
+        with self._lock:
+            for task in self._tasks.values():
+                if task.get("id") != task_id or task.get("worker_id") != worker_id:
+                    continue
+                if task.get("dispatch_mode") != "remote":
+                    continue
+                if data:
+                    task["status"] = TASK_STATUS_SUCCESS
+                    task["data"] = data
+                    task["error"] = ""
+                    success = True
+                else:
+                    task["status"] = TASK_STATUS_ERROR
+                    task["data"] = []
+                    task["error"] = _clean(error) or "worker returned no image data"
+                task["updated_at"] = _now_iso()
+                updated = _public_task(task)
+                self._save_locked()
+                break
+        if updated is not None and self.worker_service is not None:
+            self.worker_service.release_worker(worker_id, success=success, avg_latency_ms=avg_latency_ms)
+        return updated
 
     def _run_task(
         self,
@@ -249,7 +383,7 @@ class ImageTaskService:
         started = time.time()
         self._update_task(key, status=TASK_STATUS_RUNNING, error="")
         try:
-            handler = self.edit_handler if mode == "edit" else self.generation_handler
+            handler = self.edit_handler if mode in EDIT_MODES else self.generation_handler
             result = handler(payload)
             if not isinstance(result, dict):
                 raise RuntimeError("image task returned streaming result unexpectedly")
@@ -294,8 +428,8 @@ class ImageTaskService:
         error: str = "",
         urls: list[str] | None = None,
     ) -> None:
-        endpoint = "/v1/images/edits" if mode == "edit" else "/v1/images/generations"
-        summary_prefix = "图生图" if mode == "edit" else "文生图"
+        endpoint = "/v1/images/edits" if mode in EDIT_MODES else "/v1/images/generations"
+        summary_prefix = "局部重绘" if mode == "inpaint" else ("图生图" if mode == "edit" else "文生图")
         detail = {
             "key_id": identity.get("id"),
             "key_name": identity.get("name"),
@@ -348,16 +482,25 @@ class ImageTaskService:
             status = _clean(item.get("status"))
             if status not in {TASK_STATUS_QUEUED, TASK_STATUS_RUNNING, TASK_STATUS_SUCCESS, TASK_STATUS_ERROR}:
                 status = TASK_STATUS_ERROR
+            mode = _clean(item.get("mode"))
+            if mode not in {"generate", "edit", "inpaint"}:
+                mode = "generate"
             task = {
                 "id": task_id,
                 "owner_id": owner,
                 "status": status,
-                "mode": "edit" if item.get("mode") == "edit" else "generate",
+                "mode": mode,
                 "model": _clean(item.get("model"), "gpt-image-2"),
                 "size": _clean(item.get("size")),
+                "dispatch_mode": _clean(item.get("dispatch_mode"), "local"),
                 "created_at": _clean(item.get("created_at"), _now_iso()),
                 "updated_at": _clean(item.get("updated_at"), _clean(item.get("created_at"), _now_iso())),
             }
+            if item.get("worker_id"):
+                task["worker_id"] = _clean(item.get("worker_id"))
+            worker_payload = item.get("worker_payload")
+            if isinstance(worker_payload, dict):
+                task["worker_payload"] = worker_payload
             data = item.get("data")
             if isinstance(data, list):
                 task["data"] = data
@@ -399,4 +542,4 @@ class ImageTaskService:
         return bool(removed_keys)
 
 
-image_task_service = ImageTaskService(DATA_DIR / "image_tasks.json")
+image_task_service = ImageTaskService(DATA_DIR / "image_tasks.json", worker_service=image_worker_service)
