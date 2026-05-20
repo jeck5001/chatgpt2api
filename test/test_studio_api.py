@@ -17,6 +17,7 @@ class FakeStudioService:
         self.projects = []
         self.favorites = []
         self.recipes = []
+        self.style_guides = []
         self.turns = [
             {
                 "id": "turn-1",
@@ -98,6 +99,34 @@ class FakeStudioService:
         before = len(self.recipes)
         self.recipes = [item for item in self.recipes if item["id"] != recipe_id]
         return len(self.recipes) != before
+
+    def list_style_guides(self, identity):
+        return self.style_guides
+
+    def create_style_guide(
+        self,
+        identity,
+        *,
+        name,
+        guide,
+        reference_image_path="",
+    ):
+        item = {
+            "id": f"style-{len(self.style_guides) + 1}",
+            "owner_id": identity["id"],
+            "name": name,
+            "guide": guide,
+            "reference_image_path": reference_image_path,
+        }
+        self.style_guides.append(item)
+        return item
+
+    def delete_style_guide(self, identity, style_guide_id):
+        before = len(self.style_guides)
+        self.style_guides = [
+            item for item in self.style_guides if item["id"] != style_guide_id
+        ]
+        return len(self.style_guides) != before
 
     def add_favorite(self, identity, image_path, source_turn_id="", note=""):
         item = {"id": "favorite-1", "owner_id": identity["id"], "image_path": image_path, "source_turn_id": source_turn_id, "note": note}
@@ -325,6 +354,43 @@ class StudioApiTests(unittest.TestCase):
         delete_response = self.client.delete(f"/api/image-recipes/{created['id']}", headers=AUTH_HEADERS)
         self.assertEqual(delete_response.status_code, 200, delete_response.text)
         self.assertEqual(self.fake_service.recipes, [])
+
+    def test_style_guide_endpoints_preserve_character_reference(self):
+        create_response = self.client.post(
+            "/api/style-guides",
+            headers=AUTH_HEADERS,
+            json={
+                "name": "Ink Noir Detective",
+                "guide": "same detective, scar over left eyebrow, ink noir line art",
+                "reference_image_path": "2026/05/detective.png",
+            },
+        )
+
+        self.assertEqual(create_response.status_code, 200, create_response.text)
+        created = create_response.json()["item"]
+        self.assertEqual(created["name"], "Ink Noir Detective")
+        self.assertEqual(
+            created["guide"],
+            "same detective, scar over left eyebrow, ink noir line art",
+        )
+        self.assertEqual(created["reference_image_path"], "2026/05/detective.png")
+
+        list_response = self.client.get("/api/style-guides", headers=AUTH_HEADERS)
+        self.assertEqual(list_response.status_code, 200, list_response.text)
+        self.assertEqual(list_response.json()["items"][0]["id"], created["id"])
+
+        delete_response = self.client.delete(f"/api/style-guides/{created['id']}", headers=AUTH_HEADERS)
+        self.assertEqual(delete_response.status_code, 200, delete_response.text)
+        self.assertEqual(self.fake_service.style_guides, [])
+
+    def test_create_style_guide_requires_guide_text(self):
+        response = self.client.post(
+            "/api/style-guides",
+            headers=AUTH_HEADERS,
+            json={"name": "Blank", "guide": "   "},
+        )
+
+        self.assertEqual(response.status_code, 422, response.text)
 
     def test_image_prompt_draft_endpoint_returns_described_prompt(self):
         with mock.patch.object(

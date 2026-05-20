@@ -55,6 +55,10 @@ class _CreateScreenState extends State<CreateScreen> {
   bool _draftingPrompt = false;
   bool _optimizingPrompt = false;
 
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +67,7 @@ class _CreateScreenState extends State<CreateScreen> {
     _selectedModel = _resolveModel(prefs?.defaultModel);
     _selectedSize = _resolveSize(prefs?.defaultSize);
     _promptController.addListener(_onPromptChanged);
+    widget.controller?.addListener(_onControllerChanged);
   }
 
   String _resolveModel(String? candidate) {
@@ -81,6 +86,7 @@ class _CreateScreenState extends State<CreateScreen> {
 
   @override
   void dispose() {
+    widget.controller?.removeListener(_onControllerChanged);
     _promptController
       ..removeListener(_onPromptChanged)
       ..dispose();
@@ -465,6 +471,63 @@ class _CreateScreenState extends State<CreateScreen> {
     }
   }
 
+  Future<void> _openStyleGuides() async {
+    final controller = widget.controller;
+    if (controller == null) return;
+    final current = controller.state.activeStyleGuide;
+    final action = await showModalBottomSheet<_StyleGuideSheetAction>(
+      context: context,
+      backgroundColor: KilnColors.ink900,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return _StyleGuideSheet(
+          styleGuides: controller.state.styleGuides,
+          activeStyleGuideId: current?.id,
+          currentPrompt: _promptController.text,
+        );
+      },
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _StyleGuideSheetSelect(:final styleGuide):
+        await controller.selectStyleGuide(styleGuide.id);
+        if (!mounted) return;
+        setState(() {});
+        _showSnack('已启用 ${styleGuide.displayName}');
+      case _StyleGuideSheetClear():
+        await controller.clearStyleGuide();
+        if (!mounted) return;
+        setState(() {});
+        _showSnack('已清除风格');
+      case _StyleGuideSheetSaveCurrent():
+        final guide = _promptController.text.trim();
+        if (guide.isEmpty) {
+          _showSnack('请先在输入框写好 prompt');
+          return;
+        }
+        final name = await showNamePromptDialog(
+          context,
+          title: '保存为风格指南',
+          hint: '名称（可留空）',
+        );
+        if (name == null) return;
+        try {
+          final created = await controller.createStyleGuide(
+            name: name,
+            guide: guide,
+          );
+          if (!mounted) return;
+          setState(() {});
+          _showSnack('已保存 ${created.displayName}');
+        } catch (error) {
+          if (mounted) _showSnack('保存失败：$error');
+        }
+    }
+  }
+
   Future<void> _saveCurrentPromptAsTemplate() async {
     final controller = widget.controller;
     final content = _promptController.text.trim();
@@ -761,6 +824,7 @@ class _CreateScreenState extends State<CreateScreen> {
     final canOptimize =
         widget.controller != null && !_optimizingPrompt && hasPrompt;
     final state = widget.controller?.state;
+    final activeStyleGuide = state?.activeStyleGuide;
     final turns = state?.turns ?? const <StudioTurn>[];
     final batchRuns = (state?.batchRuns ?? const <StudioBatchRun>[])
         .where((run) => run.conversationId == _activeConversationId)
@@ -890,6 +954,13 @@ class _CreateScreenState extends State<CreateScreen> {
                     ComposerChipData(
                       label: '模板',
                       onTap: widget.controller == null ? null : _openTemplates,
+                    ),
+                    ComposerChipData(
+                      label: '风格',
+                      active: activeStyleGuide != null,
+                      onTap: widget.controller == null
+                          ? null
+                          : _openStyleGuides,
                     ),
                     ComposerChipData(
                       label: _draftingPrompt ? '识图中...' : '识图',
@@ -1481,6 +1552,164 @@ class _HeroChip extends StatelessWidget {
       child: Text(
         label,
         style: KilnTypography.chipMono.copyWith(color: Colors.white),
+      ),
+    );
+  }
+}
+
+sealed class _StyleGuideSheetAction {
+  const _StyleGuideSheetAction();
+}
+
+class _StyleGuideSheetSelect extends _StyleGuideSheetAction {
+  const _StyleGuideSheetSelect(this.styleGuide);
+  final StudioStyleGuide styleGuide;
+}
+
+class _StyleGuideSheetClear extends _StyleGuideSheetAction {
+  const _StyleGuideSheetClear();
+}
+
+class _StyleGuideSheetSaveCurrent extends _StyleGuideSheetAction {
+  const _StyleGuideSheetSaveCurrent();
+}
+
+class _StyleGuideSheet extends StatelessWidget {
+  const _StyleGuideSheet({
+    required this.styleGuides,
+    required this.activeStyleGuideId,
+    required this.currentPrompt,
+  });
+
+  final List<StudioStyleGuide> styleGuides;
+  final String? activeStyleGuideId;
+  final String currentPrompt;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCurrent = currentPrompt.trim().isNotEmpty;
+    return SafeArea(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                KilnSpacing.lg,
+                KilnSpacing.md,
+                KilnSpacing.lg,
+                KilnSpacing.sm,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '风格 / 角色指南',
+                      style: KilnTypography.display(
+                        size: 16,
+                        weight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: hasCurrent
+                        ? () => Navigator.of(
+                            context,
+                          ).pop(const _StyleGuideSheetSaveCurrent())
+                        : null,
+                    icon: const Icon(Icons.bookmark_add_outlined, size: 16),
+                    label: const Text('保存当前'),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(color: KilnColors.hairline, height: 1),
+            if (activeStyleGuideId != null || styleGuides.isNotEmpty)
+              ListTile(
+                title: const Text('无风格'),
+                subtitle: const Text('不注入额外的角色或画风说明'),
+                trailing: activeStyleGuideId == null
+                    ? const Icon(
+                        Icons.check_rounded,
+                        color: KilnColors.ember400,
+                        size: 18,
+                      )
+                    : null,
+                onTap: activeStyleGuideId == null
+                    ? null
+                    : () => Navigator.of(context).pop(
+                        const _StyleGuideSheetClear(),
+                      ),
+              ),
+            if (styleGuides.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(KilnSpacing.xl),
+                child: Text(
+                  '还没有风格指南。可以先输入一段稳定的人物/画风描述，再点“保存当前”。',
+                  textAlign: TextAlign.center,
+                  style: KilnTypography.mono(
+                    size: 12,
+                    color: KilnColors.ink500,
+                  ),
+                ),
+              )
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.only(bottom: KilnSpacing.sm),
+                  itemCount: styleGuides.length,
+                  separatorBuilder: (_, _) =>
+                      const Divider(color: KilnColors.hairline, height: 1),
+                  itemBuilder: (context, index) {
+                    final guide = styleGuides[index];
+                    final isActive = guide.id == activeStyleGuideId;
+                    final meta = [
+                      if (guide.name.trim().isNotEmpty) guide.name.trim(),
+                      if (guide.referenceImagePath.trim().isNotEmpty)
+                        '参考图已保存',
+                    ].join(' · ');
+                    return ListTile(
+                      onTap: () => Navigator.of(context).pop(
+                        _StyleGuideSheetSelect(guide),
+                      ),
+                      leading: const Icon(
+                        Icons.auto_awesome_outlined,
+                        size: 18,
+                        color: KilnColors.ember400,
+                      ),
+                      title: Text(
+                        guide.displayName,
+                        style: KilnTypography.ui(
+                          size: 14,
+                          weight: FontWeight.w600,
+                        ),
+                      ),
+                      subtitle: Text(
+                        meta.isEmpty ? guide.guide : '$meta\n${guide.guide}',
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                        style: KilnTypography.mono(
+                          size: 11,
+                          color: KilnColors.ink400,
+                        ),
+                      ),
+                      trailing: isActive
+                          ? const Icon(
+                              Icons.check_rounded,
+                              color: KilnColors.ember400,
+                              size: 18,
+                            )
+                          : null,
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

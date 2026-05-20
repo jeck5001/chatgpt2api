@@ -17,9 +17,11 @@ class StudioState {
     this.favorites = const [],
     this.libraryAssets = const [],
     this.recipes = const [],
+    this.styleGuides = const [],
     this.batchRuns = const [],
     this.templates = const [],
     this.preferences = const StudioPreferences(),
+    this.activeStyleGuideId,
     this.promptDraft = '',
     this.submitting = false,
     this.errorMessage,
@@ -33,12 +35,23 @@ class StudioState {
   final List<StudioFavorite> favorites;
   final List<StudioAsset> libraryAssets;
   final List<StudioRecipe> recipes;
+  final List<StudioStyleGuide> styleGuides;
   final List<StudioBatchRun> batchRuns;
   final List<StudioPromptTemplate> templates;
   final StudioPreferences preferences;
+  final String? activeStyleGuideId;
   final String promptDraft;
   final bool submitting;
   final String? errorMessage;
+
+  StudioStyleGuide? get activeStyleGuide {
+    final id = activeStyleGuideId;
+    if (id == null || id.isEmpty) return null;
+    for (final styleGuide in styleGuides) {
+      if (styleGuide.id == id) return styleGuide;
+    }
+    return null;
+  }
 
   StudioState copyWith({
     List<StudioProject>? projects,
@@ -49,13 +62,16 @@ class StudioState {
     List<StudioFavorite>? favorites,
     List<StudioAsset>? libraryAssets,
     List<StudioRecipe>? recipes,
+    List<StudioStyleGuide>? styleGuides,
     List<StudioBatchRun>? batchRuns,
     List<StudioPromptTemplate>? templates,
     StudioPreferences? preferences,
+    String? activeStyleGuideId,
     String? promptDraft,
     bool? submitting,
     String? errorMessage,
     bool clearError = false,
+    bool clearActiveStyleGuide = false,
   }) {
     return StudioState(
       projects: projects ?? this.projects,
@@ -66,9 +82,13 @@ class StudioState {
       favorites: favorites ?? this.favorites,
       libraryAssets: libraryAssets ?? this.libraryAssets,
       recipes: recipes ?? this.recipes,
+      styleGuides: styleGuides ?? this.styleGuides,
       batchRuns: batchRuns ?? this.batchRuns,
       templates: templates ?? this.templates,
       preferences: preferences ?? this.preferences,
+      activeStyleGuideId: clearActiveStyleGuide
+          ? null
+          : activeStyleGuideId ?? this.activeStyleGuideId,
       promptDraft: promptDraft ?? this.promptDraft,
       submitting: submitting ?? this.submitting,
       errorMessage: clearError ? null : errorMessage ?? this.errorMessage,
@@ -141,6 +161,21 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void replaceStyleGuides(List<StudioStyleGuide> styleGuides) {
+    final activeStyleGuideId = styleGuides.any(
+      (guide) => guide.id == _state.activeStyleGuideId,
+    )
+        ? _state.activeStyleGuideId
+        : null;
+    _state = _state.copyWith(
+      styleGuides: styleGuides,
+      activeStyleGuideId: activeStyleGuideId,
+      clearActiveStyleGuide: activeStyleGuideId == null &&
+          _state.activeStyleGuideId != null,
+    );
+    notifyListeners();
+  }
+
   Future<void> loadWorkspace() async {
     StudioPreferences? loadedPreferences;
     if (_preferencesStore != null) {
@@ -182,12 +217,24 @@ class StudioController extends ChangeNotifier {
     } catch (_) {
       recipes = const [];
     }
+    List<StudioStyleGuide> styleGuides;
+    try {
+      styleGuides = await _repository.fetchStyleGuides();
+    } catch (_) {
+      styleGuides = const [];
+    }
     List<StudioPromptTemplate> templates;
     try {
       templates = await _repository.fetchPromptTemplates();
     } catch (_) {
       templates = const [];
     }
+    final existingStyleGuideId = _state.activeStyleGuideId;
+    final activeStyleGuideId = styleGuides.any(
+      (guide) => guide.id == existingStyleGuideId,
+    )
+        ? existingStyleGuideId
+        : null;
     _state = _state.copyWith(
       projects: projects,
       conversations: conversations,
@@ -197,8 +244,10 @@ class StudioController extends ChangeNotifier {
       favorites: favorites,
       libraryAssets: libraryAssets,
       recipes: recipes,
+      styleGuides: styleGuides,
       templates: templates,
       preferences: loadedPreferences,
+      activeStyleGuideId: activeStyleGuideId,
     );
     notifyListeners();
     _ensurePolling();
@@ -432,6 +481,53 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<StudioStyleGuide> createStyleGuide({
+    required String name,
+    required String guide,
+    String referenceImagePath = '',
+  }) async {
+    final created = await _repository.createStyleGuide(
+      name: name,
+      guide: guide,
+      referenceImagePath: referenceImagePath,
+    );
+    _state = _state.copyWith(
+      styleGuides: [
+        created,
+        ..._state.styleGuides.where((item) => item.id != created.id),
+      ],
+      activeStyleGuideId: created.id,
+    );
+    notifyListeners();
+    return created;
+  }
+
+  Future<void> deleteStyleGuide(String styleGuideId) async {
+    await _repository.deleteStyleGuide(styleGuideId);
+    final wasActive = _state.activeStyleGuideId == styleGuideId;
+    _state = _state.copyWith(
+      styleGuides: _state.styleGuides
+          .where((guide) => guide.id != styleGuideId)
+          .toList(growable: false),
+      activeStyleGuideId: wasActive ? null : _state.activeStyleGuideId,
+      clearActiveStyleGuide: wasActive,
+    );
+    notifyListeners();
+  }
+
+  Future<void> selectStyleGuide(String styleGuideId) async {
+    final exists = _state.styleGuides.any((guide) => guide.id == styleGuideId);
+    if (!exists) return;
+    _state = _state.copyWith(activeStyleGuideId: styleGuideId);
+    notifyListeners();
+  }
+
+  Future<void> clearStyleGuide() async {
+    if (_state.activeStyleGuideId == null) return;
+    _state = _state.copyWith(clearActiveStyleGuide: true);
+    notifyListeners();
+  }
+
   Future<List<StudioTurn>> submitRecipeBatch({
     required String conversationId,
     required StudioRecipe recipe,
@@ -462,7 +558,9 @@ class StudioController extends ChangeNotifier {
         final turn = await _repository.createGenerationTurn(
           conversationId: conversationId,
           clientTaskId: _uuid.v4(),
-          prompt: _expandRecipePrompt(recipe.prompt, input),
+          prompt: _composePromptWithStyleGuide(
+            _expandRecipePrompt(recipe.prompt, input),
+          ),
           model: model,
           size: size,
         );
@@ -555,6 +653,26 @@ class StudioController extends ChangeNotifier {
     return failedTurns.length;
   }
 
+  String _composePromptWithStyleGuide(String prompt) {
+    final base = prompt.trim();
+    final styleGuide = _state.activeStyleGuide;
+    if (styleGuide == null) return base;
+    final guideText = styleGuide.guide.trim();
+    if (guideText.isEmpty) return base;
+    final name = styleGuide.name.trim();
+    final parts = <String>[];
+    if (base.isNotEmpty) {
+      parts.add(base);
+    }
+    parts.add('');
+    parts.add('Style / character consistency guide:');
+    if (name.isNotEmpty) {
+      parts.add('Name: $name');
+    }
+    parts.add(guideText);
+    return parts.join('\n').trim();
+  }
+
   String _expandRecipePrompt(String prompt, String input) {
     final base = prompt.trim();
     final value = input.trim();
@@ -627,10 +745,12 @@ class StudioController extends ChangeNotifier {
       favorites: _state.favorites,
       libraryAssets: _state.libraryAssets,
       recipes: _state.recipes,
+      styleGuides: _state.styleGuides,
       batchRuns: _state.batchRuns
           .where((run) => run.conversationId != conversationId)
           .toList(growable: false),
       templates: _state.templates,
+      activeStyleGuideId: _state.activeStyleGuideId,
       preferences: _state.preferences,
       promptDraft: _state.promptDraft,
       submitting: _state.submitting,
@@ -735,6 +855,7 @@ class StudioController extends ChangeNotifier {
     int count = 1,
   }) async {
     final n = count < 1 ? 1 : count;
+    final submittedPrompt = _composePromptWithStyleGuide(prompt);
     _state = _state.copyWith(
       promptDraft: prompt,
       submitting: true,
@@ -747,7 +868,7 @@ class StudioController extends ChangeNotifier {
         final turn = await _repository.createGenerationTurn(
           conversationId: conversationId,
           clientTaskId: _uuid.v4(),
-          prompt: prompt,
+          prompt: submittedPrompt,
           model: model,
           size: size,
         );
@@ -794,6 +915,7 @@ class StudioController extends ChangeNotifier {
     if (images.isEmpty) {
       throw ArgumentError('submitEdit requires at least one reference image');
     }
+    final submittedPrompt = _composePromptWithStyleGuide(prompt);
     _state = _state.copyWith(
       promptDraft: prompt,
       submitting: true,
@@ -804,7 +926,7 @@ class StudioController extends ChangeNotifier {
       final turn = await _repository.createEditTurn(
         conversationId: conversationId,
         clientTaskId: _uuid.v4(),
-        prompt: prompt,
+        prompt: submittedPrompt,
         model: model,
         size: size,
         images: images,

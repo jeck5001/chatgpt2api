@@ -418,6 +418,41 @@ class StudioRecipe {
   }
 }
 
+class StudioStyleGuide {
+  const StudioStyleGuide({
+    required this.id,
+    required this.name,
+    required this.guide,
+    required this.referenceImagePath,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final String name;
+  final String guide;
+  final String referenceImagePath;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  String get displayName {
+    final cleanedName = name.trim();
+    if (cleanedName.isNotEmpty) return cleanedName;
+    return guide.length > 24 ? '${guide.substring(0, 24)}…' : guide;
+  }
+
+  factory StudioStyleGuide.fromJson(Map<String, Object?> json) {
+    return StudioStyleGuide(
+      id: json['id'].toString(),
+      name: (json['name'] ?? '').toString(),
+      guide: (json['guide'] ?? '').toString(),
+      referenceImagePath: (json['reference_image_path'] ?? '').toString(),
+      createdAt: StudioAsset._dateTimeValue(json['created_at']),
+      updatedAt: StudioAsset._dateTimeValue(json['updated_at']),
+    );
+  }
+}
+
 class StudioFavorite {
   const StudioFavorite({
     required this.id,

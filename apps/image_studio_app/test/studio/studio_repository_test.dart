@@ -183,6 +183,71 @@ void main() {
     expect(adapter.requests.single.path, '/api/image-recipes/recipe-1');
   });
 
+  test('fetchStyleGuides reads reusable style guides', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{
+        'items': <Object?>[
+          <String, Object?>{
+            'id': 'style-1',
+            'name': 'Lia Noir',
+            'guide': 'Keep Lia with a black bob and red coat.',
+            'reference_image_path': '2026/05/lia.png',
+            'created_at': '2026-05-20T09:30:00Z',
+            'updated_at': '2026-05-20T09:35:00Z',
+          },
+        ],
+      }),
+    ]);
+    final repository = _repository(adapter);
+
+    final guides = await repository.fetchStyleGuides();
+
+    expect(adapter.requests.single.path, '/api/style-guides');
+    expect(guides.single.name, 'Lia Noir');
+    expect(guides.single.referenceImagePath, '2026/05/lia.png');
+  });
+
+  test('createStyleGuide posts the guide text and reference path', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{
+        'item': <String, Object?>{
+          'id': 'style-1',
+          'name': 'Lia Noir',
+          'guide': 'Keep Lia with a black bob and red coat.',
+          'reference_image_path': '2026/05/lia.png',
+          'created_at': '2026-05-20T09:30:00Z',
+          'updated_at': '2026-05-20T09:35:00Z',
+        },
+      }),
+    ]);
+    final repository = _repository(adapter);
+
+    final guide = await repository.createStyleGuide(
+      name: 'Lia Noir',
+      guide: 'Keep Lia with a black bob and red coat.',
+      referenceImagePath: '2026/05/lia.png',
+    );
+
+    expect(adapter.requests.single.path, '/api/style-guides');
+    expect(adapter.requests.single.body, <String, Object?>{
+      'name': 'Lia Noir',
+      'guide': 'Keep Lia with a black bob and red coat.',
+      'reference_image_path': '2026/05/lia.png',
+    });
+    expect(guide.id, 'style-1');
+  });
+
+  test('deleteStyleGuide deletes the selected style endpoint', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{'ok': true}),
+    ]);
+    final repository = _repository(adapter);
+
+    await repository.deleteStyleGuide('style-1');
+
+    expect(adapter.requests.single.path, '/api/style-guides/style-1');
+  });
+
   test('draftPromptFromImage uploads an image and returns the draft', () async {
     final adapter = _QueueAdapter([
       _JsonResponse(<String, Object?>{

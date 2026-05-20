@@ -79,6 +79,45 @@ void main() {
     expect(find.text('美化'), findsOneWidget);
   });
 
+  testWidgets('composer exposes a style guide entry point and selects one', (
+    tester,
+  ) async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(repository);
+    controller.replaceStyleGuides([
+      StudioStyleGuide(
+        id: 'style-1',
+        name: 'Lia Noir',
+        guide: 'Keep Lia with a black bob and red coat.',
+        referenceImagePath: '2026/05/lia.png',
+        createdAt: DateTime.utc(2026, 5, 20),
+        updatedAt: DateTime.utc(2026, 5, 20),
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: controller,
+          activeConversationId: 'conversation-1',
+        ),
+      ),
+    );
+
+    expect(find.text('风格'), findsOneWidget);
+
+    await tester.tap(find.text('风格'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('风格 / 角色指南'), findsOneWidget);
+    expect(find.text('Lia Noir'), findsOneWidget);
+
+    await tester.tap(find.text('Lia Noir'));
+    await tester.pumpAndSettle();
+
+    expect(controller.state.activeStyleGuide?.id, 'style-1');
+  });
+
   testWidgets('renders result image previews for successful turns', (
     tester,
   ) async {
@@ -412,6 +451,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
   final List<String> createdPrompts = [];
   final List<String> retriedTurns = [];
   int _generationCounter = 0;
+  List<StudioStyleGuide> styleGuides = [];
 
   @override
   Future<List<StudioProject>> fetchProjects() async => [];
@@ -569,6 +609,32 @@ class FakeStudioRepository implements StudioRepositoryContract {
 
   @override
   Future<void> deleteRecipe(String recipeId) async {}
+
+  @override
+  Future<List<StudioStyleGuide>> fetchStyleGuides() async => styleGuides;
+
+  @override
+  Future<StudioStyleGuide> createStyleGuide({
+    required String name,
+    required String guide,
+    String referenceImagePath = '',
+  }) async {
+    final styleGuide = StudioStyleGuide(
+      id: 'style-${styleGuides.length + 1}',
+      name: name,
+      guide: guide,
+      referenceImagePath: referenceImagePath,
+      createdAt: DateTime.utc(2026, 5, 20, 9, 30),
+      updatedAt: DateTime.utc(2026, 5, 20, 9, 30),
+    );
+    styleGuides.add(styleGuide);
+    return styleGuide;
+  }
+
+  @override
+  Future<void> deleteStyleGuide(String styleGuideId) async {
+    styleGuides.removeWhere((guide) => guide.id == styleGuideId);
+  }
 
   @override
   Future<StudioFavorite> favoriteImage({

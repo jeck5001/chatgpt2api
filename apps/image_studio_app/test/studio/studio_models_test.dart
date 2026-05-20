@@ -108,4 +108,21 @@ void main() {
     expect(recipe.tags, ['商业', '海报']);
     expect(recipe.updatedAt, DateTime.parse('2026-05-19T09:35:00Z'));
   });
+
+  test('parses style guide response with reference image path', () {
+    final guide = StudioStyleGuide.fromJson(<String, Object?>{
+      'id': 'style-1',
+      'name': 'Lia Noir',
+      'guide': 'Keep Lia with a black bob, red coat, and ink-noir lighting.',
+      'reference_image_path': '2026/05/lia.png',
+      'created_at': '2026-05-20T09:30:00Z',
+      'updated_at': '2026-05-20T09:35:00Z',
+    });
+
+    expect(guide.id, 'style-1');
+    expect(guide.name, 'Lia Noir');
+    expect(guide.guide, contains('black bob'));
+    expect(guide.referenceImagePath, '2026/05/lia.png');
+    expect(guide.updatedAt, DateTime.parse('2026-05-20T09:35:00Z'));
+  });
 }

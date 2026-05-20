@@ -110,6 +110,16 @@ abstract interface class StudioRepositoryContract {
 
   Future<void> deleteRecipe(String recipeId);
 
+  Future<List<StudioStyleGuide>> fetchStyleGuides();
+
+  Future<StudioStyleGuide> createStyleGuide({
+    required String name,
+    required String guide,
+    String referenceImagePath = '',
+  });
+
+  Future<void> deleteStyleGuide(String styleGuideId);
+
   Future<List<StudioPromptTemplate>> fetchPromptTemplates();
 
   Future<StudioPromptTemplate> createPromptTemplate({
@@ -436,6 +446,34 @@ class StudioRepository implements StudioRepositoryContract {
   @override
   Future<void> deleteRecipe(String recipeId) async {
     await _client.deleteJson('/api/image-recipes/$recipeId');
+  }
+
+  @override
+  Future<List<StudioStyleGuide>> fetchStyleGuides() async {
+    final payload = await _client.getJson('/api/style-guides');
+    return _items(payload).map(StudioStyleGuide.fromJson).toList();
+  }
+
+  @override
+  Future<StudioStyleGuide> createStyleGuide({
+    required String name,
+    required String guide,
+    String referenceImagePath = '',
+  }) async {
+    final payload = await _client.postJson(
+      '/api/style-guides',
+      body: <String, Object?>{
+        'name': name,
+        'guide': guide,
+        'reference_image_path': referenceImagePath,
+      },
+    );
+    return StudioStyleGuide.fromJson(payload['item']! as Map<String, Object?>);
+  }
+
+  @override
+  Future<void> deleteStyleGuide(String styleGuideId) async {
+    await _client.deleteJson('/api/style-guides/$styleGuideId');
   }
 
   @override

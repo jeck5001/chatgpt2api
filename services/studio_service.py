@@ -164,6 +164,7 @@ class StudioService:
             "prompt_templates": [],
             "favorites": [],
             "recipes": [],
+            "style_guides": [],
         }
         for key in state:
             values = source.get(key)
@@ -705,6 +706,58 @@ class StudioService:
                 )
             ]
             changed = len(self._state["recipes"]) != before
+            if changed:
+                self._rollback_save_locked(before_state)
+            return changed
+
+    def list_style_guides(self, identity: dict[str, object]) -> list[dict[str, Any]]:
+        with self._lock:
+            return sorted(
+                self._visible(identity, self._state["style_guides"]),
+                key=lambda item: str(item.get("updated_at") or item.get("created_at") or ""),
+                reverse=True,
+            )
+
+    def create_style_guide(
+        self,
+        identity: dict[str, object],
+        *,
+        name: str,
+        guide: str,
+        reference_image_path: str = "",
+    ) -> dict[str, Any]:
+        normalized_guide = _clean(guide)
+        if not normalized_guide:
+            raise ValueError("style guide is required")
+        now = _now_iso()
+        with self._lock:
+            before = deepcopy(self._state)
+            item = {
+                "id": _id("style"),
+                "owner_id": _owner_id(identity),
+                "name": _clean(name) or normalized_guide[:32] or "未命名风格",
+                "guide": normalized_guide,
+                "reference_image_path": _clean(reference_image_path).lstrip("/"),
+                "created_at": now,
+                "updated_at": now,
+            }
+            self._state["style_guides"].append(item)
+            self._rollback_save_locked(before)
+            return _public(item)
+
+    def delete_style_guide(self, identity: dict[str, object], style_guide_id: str) -> bool:
+        with self._lock:
+            before_state = deepcopy(self._state)
+            before = len(self._state["style_guides"])
+            self._state["style_guides"] = [
+                item
+                for item in self._state["style_guides"]
+                if not (
+                    item.get("id") == style_guide_id
+                    and (_is_admin(identity) or item.get("owner_id") == _owner_id(identity))
+                )
+            ]
+            changed = len(self._state["style_guides"]) != before
             if changed:
                 self._rollback_save_locked(before_state)
             return changed

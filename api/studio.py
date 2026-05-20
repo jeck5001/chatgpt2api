@@ -67,6 +67,20 @@ class RecipeCreateRequest(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class StyleGuideCreateRequest(BaseModel):
+    name: str = ""
+    guide: str = Field(..., min_length=1)
+    reference_image_path: str = ""
+
+    @field_validator("guide")
+    @classmethod
+    def guide_must_not_be_blank(cls, value: str) -> str:
+        guide = value.strip()
+        if not guide:
+            raise ValueError("style guide is required")
+        return guide
+
+
 class PromptOptimizationRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
 
@@ -385,6 +399,32 @@ def create_router() -> APIRouter:
         identity = _identity(authorization)
         if not studio_service.delete_recipe(identity, recipe_id):
             raise _not_found("recipe not found")
+        return {"ok": True}
+
+    @router.get("/api/style-guides")
+    async def list_style_guides(authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        return {"items": studio_service.list_style_guides(identity)}
+
+    @router.post("/api/style-guides")
+    async def create_style_guide(body: StyleGuideCreateRequest, authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        try:
+            item = studio_service.create_style_guide(
+                identity,
+                name=body.name,
+                guide=body.guide,
+                reference_image_path=body.reference_image_path,
+            )
+        except ValueError as exc:
+            raise _bad_request(exc) from exc
+        return {"item": item}
+
+    @router.delete("/api/style-guides/{style_guide_id}")
+    async def delete_style_guide(style_guide_id: str, authorization: str | None = Header(default=None)):
+        identity = _identity(authorization)
+        if not studio_service.delete_style_guide(identity, style_guide_id):
+            raise _not_found("style guide not found")
         return {"ok": True}
 
     @router.post("/api/image-prompt-drafts")

@@ -285,6 +285,83 @@ void main() {
     },
   );
 
+  test('load workspace keeps style guides available for selection', () async {
+    final repository = FakeStudioRepository()
+      ..styleGuides = [
+        StudioStyleGuide(
+          id: 'style-1',
+          name: 'Lia Noir',
+          guide: 'Keep Lia with a black bob and red coat.',
+          referenceImagePath: '2026/05/lia.png',
+          createdAt: DateTime.utc(2026, 5, 20),
+          updatedAt: DateTime.utc(2026, 5, 20),
+        ),
+      ];
+    final controller = StudioController(repository);
+
+    await controller.loadWorkspace();
+
+    expect(controller.state.styleGuides.single.name, 'Lia Noir');
+    expect(
+      controller.state.styleGuides.single.referenceImagePath,
+      '2026/05/lia.png',
+    );
+  });
+
+  test('selectStyleGuide injects the style guide into generation prompts', (
+    ) async {
+    final repository = FakeStudioRepository()
+      ..styleGuides = [
+        StudioStyleGuide(
+          id: 'style-1',
+          name: 'Lia Noir',
+          guide: 'Keep Lia with a black bob and red coat.',
+          referenceImagePath: '2026/05/lia.png',
+          createdAt: DateTime.utc(2026, 5, 20),
+          updatedAt: DateTime.utc(2026, 5, 20),
+        ),
+      ];
+    final controller = StudioController(repository);
+    await controller.loadWorkspace();
+
+    await controller.selectStyleGuide('style-1');
+    await controller.submitGeneration(
+      conversationId: 'conversation-1',
+      prompt: 'Lia walking into a neon market',
+    );
+
+    expect(controller.state.styleGuides.single.id, 'style-1');
+    expect(repository.createdPrompts.single, contains('Lia walking into a neon market'));
+    expect(repository.createdPrompts.single, contains('Keep Lia with a black bob and red coat.'));
+    expect(repository.createdPrompts.single, contains('Style / character consistency guide:'));
+  });
+
+  test('clearStyleGuide submits generation without injected guide text', () async {
+    final repository = FakeStudioRepository()
+      ..styleGuides = [
+        StudioStyleGuide(
+          id: 'style-1',
+          name: 'Lia Noir',
+          guide: 'Keep Lia with a black bob and red coat.',
+          referenceImagePath: '2026/05/lia.png',
+          createdAt: DateTime.utc(2026, 5, 20),
+          updatedAt: DateTime.utc(2026, 5, 20),
+        ),
+      ];
+    final controller = StudioController(repository);
+    await controller.loadWorkspace();
+
+    await controller.selectStyleGuide('style-1');
+    await controller.clearStyleGuide();
+    await controller.submitGeneration(
+      conversationId: 'conversation-1',
+      prompt: 'Lia walking into a neon market',
+    );
+
+    expect(controller.state.activeStyleGuide, isNull);
+    expect(repository.createdPrompts.single, 'Lia walking into a neon market');
+  });
+
   test('selectConversation loads turns for the chosen conversation', () async {
     final repository = FakeStudioRepository()
       ..projects = [
@@ -766,6 +843,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
   int _generationCounter = 0;
   List<StudioProject> projects = [];
   List<StudioAsset> libraryAssets = [];
+  List<StudioStyleGuide> styleGuides = [];
   Map<String, List<StudioConversation>> conversationsByProject = {};
   Map<String, List<StudioTurn>> turnsByConversation = {};
   Map<String, Future<StudioTurn> Function(String)> syncOverrides = const {};
@@ -1005,6 +1083,34 @@ class FakeStudioRepository implements StudioRepositoryContract {
   @override
   Future<void> deleteRecipe(String recipeId) async {
     createdRecipes.removeWhere((recipe) => recipe.id == recipeId);
+  }
+
+  @override
+  Future<List<StudioStyleGuide>> fetchStyleGuides() async {
+    return styleGuides;
+  }
+
+  @override
+  Future<StudioStyleGuide> createStyleGuide({
+    required String name,
+    required String guide,
+    String referenceImagePath = '',
+  }) async {
+    final styleGuide = StudioStyleGuide(
+      id: 'style-${styleGuides.length + 1}',
+      name: name,
+      guide: guide,
+      referenceImagePath: referenceImagePath,
+      createdAt: DateTime.utc(2026, 5, 20, 9, 30),
+      updatedAt: DateTime.utc(2026, 5, 20, 9, 30),
+    );
+    styleGuides.add(styleGuide);
+    return styleGuide;
+  }
+
+  @override
+  Future<void> deleteStyleGuide(String styleGuideId) async {
+    styleGuides.removeWhere((guide) => guide.id == styleGuideId);
   }
 
   @override

@@ -60,6 +60,8 @@ void main() {
 }
 
 class _FakeSessionRepository implements StudioRepositoryContract {
+  List<StudioStyleGuide> styleGuides = [];
+
   @override
   Future<List<StudioProject>> fetchProjects() async {
     return [
@@ -280,6 +282,21 @@ class _FakeSessionRepository implements StudioRepositoryContract {
 
   @override
   Future<void> deleteRecipe(String recipeId) async {}
+
+  @override
+  Future<List<StudioStyleGuide>> fetchStyleGuides() async => styleGuides;
+
+  @override
+  Future<StudioStyleGuide> createStyleGuide({
+    required String name,
+    required String guide,
+    String referenceImagePath = '',
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> deleteStyleGuide(String styleGuideId) async {}
 
   @override
   Future<StudioFavorite> favoriteImage({

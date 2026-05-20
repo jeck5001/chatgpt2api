@@ -18,6 +18,7 @@ class StudioStorageTests(unittest.TestCase):
                 "turns": [{"id": "turn-1", "conversation_id": "conversation-1"}],
                 "prompt_templates": [{"id": "template-1", "name": "Product"}],
                 "favorites": [{"id": "favorite-1", "image_path": "2026/05/image.png"}],
+                "style_guides": [{"id": "style-1", "name": "Ink Noir"}],
             }
 
             storage.save_studio_state(state)
@@ -149,6 +150,41 @@ class StudioServiceTests(unittest.TestCase):
 
         self.assertTrue(service.delete_recipe(OWNER, recipe["id"]))
         self.assertEqual(service.list_recipes(OWNER), [])
+
+    def test_style_guide_lifecycle_is_user_scoped_and_keeps_reference(self):
+        service, _storage, _path = self.make_service()
+
+        guide = service.create_style_guide(
+            OWNER,
+            name="Ink Noir Detective",
+            guide="same detective, scar over left eyebrow, ink noir line art",
+            reference_image_path="/2026/05/detective.png",
+        )
+
+        listed = service.list_style_guides(OWNER)
+
+        self.assertEqual(listed[0]["id"], guide["id"])
+        self.assertEqual(listed[0]["name"], "Ink Noir Detective")
+        self.assertEqual(
+            listed[0]["guide"],
+            "same detective, scar over left eyebrow, ink noir line art",
+        )
+        self.assertEqual(listed[0]["reference_image_path"], "2026/05/detective.png")
+        self.assertEqual(service.list_style_guides(OTHER_OWNER), [])
+
+        self.assertTrue(service.delete_style_guide(OWNER, guide["id"]))
+        self.assertEqual(service.list_style_guides(OWNER), [])
+
+    def test_create_style_guide_requires_guide_text(self):
+        service, _storage, _path = self.make_service()
+
+        with self.assertRaises(ValueError):
+            service.create_style_guide(
+                OWNER,
+                name="Blank",
+                guide="   ",
+                reference_image_path="",
+            )
 
     def test_image_asset_metadata_index_joins_turn_project_and_prompt_by_path(self):
         service, _storage, _path = self.make_service()
