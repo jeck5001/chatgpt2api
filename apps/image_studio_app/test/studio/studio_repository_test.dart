@@ -210,24 +210,27 @@ void main() {
     expect(formData.files.single.value.filename, 'reference.png');
   });
 
-  test('optimizePrompt posts the current prompt and returns the result', () async {
-    final adapter = _QueueAdapter([
-      _JsonResponse(<String, Object?>{
-        'item': <String, Object?>{
-          'optimized_prompt': 'A cinematic cyberpunk cat with neon rim light',
-        },
-      }),
-    ]);
-    final repository = _repository(adapter);
+  test(
+    'optimizePrompt posts the current prompt and returns the result',
+    () async {
+      final adapter = _QueueAdapter([
+        _JsonResponse(<String, Object?>{
+          'item': <String, Object?>{
+            'optimized_prompt': 'A cinematic cyberpunk cat with neon rim light',
+          },
+        }),
+      ]);
+      final repository = _repository(adapter);
 
-    final prompt = await repository.optimizePrompt('一只赛博朋克的猫');
+      final prompt = await repository.optimizePrompt('一只赛博朋克的猫');
 
-    expect(prompt, 'A cinematic cyberpunk cat with neon rim light');
-    expect(adapter.requests.single.path, '/api/prompt-optimizations');
-    expect(adapter.requests.single.body, <String, Object?>{
-      'prompt': '一只赛博朋克的猫',
-    });
-  });
+      expect(prompt, 'A cinematic cyberpunk cat with neon rim light');
+      expect(adapter.requests.single.path, '/api/prompt-optimizations');
+      expect(adapter.requests.single.body, <String, Object?>{
+        'prompt': '一只赛博朋克的猫',
+      });
+    },
+  );
 }
 
 StudioRepository _repository(HttpClientAdapter adapter) {

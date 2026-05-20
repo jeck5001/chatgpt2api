@@ -758,6 +758,8 @@ class _CreateScreenState extends State<CreateScreen> {
   Widget build(BuildContext context) {
     final hasPrompt = _promptController.text.trim().isNotEmpty;
     final canSubmit = hasPrompt && _activeConversationId != null;
+    final canOptimize =
+        widget.controller != null && !_optimizingPrompt && hasPrompt;
     final state = widget.controller?.state;
     final turns = state?.turns ?? const <StudioTurn>[];
     final batchRuns = (state?.batchRuns ?? const <StudioBatchRun>[])
@@ -899,11 +901,7 @@ class _CreateScreenState extends State<CreateScreen> {
                     ComposerChipData(
                       label: _optimizingPrompt ? '美化中...' : '美化',
                       active: _optimizingPrompt,
-                      onTap: widget.controller == null ||
-                              _optimizingPrompt ||
-                              !hasPrompt
-                          ? null
-                          : _optimizePrompt,
+                      onTap: canOptimize ? _optimizePrompt : null,
                     ),
                     ComposerChipData(
                       label: _selectedModel,
