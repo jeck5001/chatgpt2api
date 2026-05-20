@@ -52,6 +52,7 @@ class _CreateScreenState extends State<CreateScreen> {
 
   late String _selectedModel;
   late String _selectedSize;
+  bool _draftingPrompt = false;
 
   @override
   void initState() {
@@ -167,6 +168,38 @@ class _CreateScreenState extends State<CreateScreen> {
     } catch (error) {
       if (!mounted) return;
       _showSnack('选图失败：$error');
+    }
+  }
+
+  Future<void> _draftPromptFromImage() async {
+    final controller = widget.controller;
+    if (controller == null || _draftingPrompt) return;
+    try {
+      final picked = await _imagePicker.pickImage(imageQuality: 90);
+      if (picked == null) return;
+      setState(() => _draftingPrompt = true);
+      final bytes = await picked.readAsBytes();
+      final filename = picked.name.isNotEmpty ? picked.name : 'reference.png';
+      final draft = await controller.draftPromptFromImage(
+        images: [
+          StudioEditImage(
+            bytes: bytes,
+            filename: filename,
+            contentType: picked.mimeType,
+          ),
+        ],
+      );
+      if (!mounted) return;
+      _promptController.text = draft;
+      _promptController.selection = TextSelection.fromPosition(
+        TextPosition(offset: draft.length),
+      );
+      _showSnack('已根据图片生成 prompt 草稿');
+    } catch (error) {
+      if (!mounted) return;
+      _showSnack('识图失败：$error');
+    } finally {
+      if (mounted) setState(() => _draftingPrompt = false);
     }
   }
 
@@ -830,6 +863,13 @@ class _CreateScreenState extends State<CreateScreen> {
                     ComposerChipData(
                       label: '模板',
                       onTap: widget.controller == null ? null : _openTemplates,
+                    ),
+                    ComposerChipData(
+                      label: _draftingPrompt ? '识图中...' : '识图',
+                      active: _draftingPrompt,
+                      onTap: widget.controller == null || _draftingPrompt
+                          ? null
+                          : _draftPromptFromImage,
                     ),
                     ComposerChipData(
                       label: _selectedModel,

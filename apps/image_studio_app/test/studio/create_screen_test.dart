@@ -49,6 +49,21 @@ void main() {
     expect(_submitDisabled(tester), isTrue);
   });
 
+  testWidgets('composer exposes a vision-to-prompt entry point', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: StudioController(FakeStudioRepository()),
+          activeConversationId: 'conversation-1',
+        ),
+      ),
+    );
+
+    expect(find.text('识图'), findsOneWidget);
+  });
+
   testWidgets('renders result image previews for successful turns', (
     tester,
   ) async {
@@ -471,6 +486,13 @@ class FakeStudioRepository implements StudioRepositoryContract {
     required List<StudioEditImage> images,
   }) async {
     throw UnimplementedError();
+  }
+
+  @override
+  Future<String> draftPromptFromImage({
+    required List<StudioEditImage> images,
+  }) async {
+    return 'cinematic product photo, warm rim light';
   }
 
   @override

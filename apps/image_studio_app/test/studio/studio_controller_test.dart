@@ -722,12 +722,34 @@ void main() {
     expect(repository.deletedTurns, ['turn-drop']);
     expect(controller.state.turns.single.id, 'turn-keep');
   });
+
+  test('draftPromptFromImage stores the generated prompt draft', () async {
+    final repository = FakeStudioRepository()
+      ..draftPrompt = 'cinematic product photo, warm rim light';
+    final controller = StudioController(repository);
+
+    final prompt = await controller.draftPromptFromImage(
+      images: [
+        StudioEditImage(
+          bytes: Uint8List.fromList(const [1, 2, 3]),
+          filename: 'reference.png',
+          contentType: 'image/png',
+        ),
+      ],
+    );
+
+    expect(prompt, 'cinematic product photo, warm rim light');
+    expect(controller.state.promptDraft, prompt);
+    expect(repository.lastDraftPromptImages, 1);
+  });
 }
 
 class FakeStudioRepository implements StudioRepositoryContract {
   bool failSubmit = false;
   String? createdProjectName;
   int? lastEditImages;
+  int? lastDraftPromptImages;
+  String draftPrompt = 'draft prompt';
   int _generationCounter = 0;
   List<StudioProject> projects = [];
   List<StudioAsset> libraryAssets = [];
@@ -849,6 +871,14 @@ class FakeStudioRepository implements StudioRepositoryContract {
     }
     lastEditImages = images.length;
     return fakeTurn(status: StudioTurnStatus.running);
+  }
+
+  @override
+  Future<String> draftPromptFromImage({
+    required List<StudioEditImage> images,
+  }) async {
+    lastDraftPromptImages = images.length;
+    return draftPrompt;
   }
 
   @override

@@ -57,6 +57,8 @@ abstract interface class StudioRepositoryContract {
     required List<StudioEditImage> images,
   });
 
+  Future<String> draftPromptFromImage({required List<StudioEditImage> images});
+
   Future<StudioTurn> retryTurn({
     required String turnId,
     required String clientTaskId,
@@ -248,6 +250,30 @@ class StudioRepository implements StudioRepositoryContract {
       formData: FormData.fromMap(formMap, ListFormat.multiCompatible),
     );
     return StudioTurn.fromJson(payload['item']! as Map<String, Object?>);
+  }
+
+  @override
+  Future<String> draftPromptFromImage({
+    required List<StudioEditImage> images,
+  }) async {
+    if (images.isEmpty) {
+      throw ArgumentError('draftPromptFromImage requires at least one image');
+    }
+    final formData = FormData();
+    for (final image in images) {
+      formData.files.add(
+        MapEntry(
+          'image',
+          MultipartFile.fromBytes(image.bytes, filename: image.filename),
+        ),
+      );
+    }
+    final payload = await _client.postMultipart(
+      '/api/image-prompt-drafts',
+      formData: formData,
+    );
+    final item = payload['item']! as Map<String, Object?>;
+    return (item['draft_prompt'] ?? '').toString();
   }
 
   @override

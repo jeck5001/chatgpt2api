@@ -216,6 +216,13 @@ class _FakeSessionRepository implements StudioRepositoryContract {
   }
 
   @override
+  Future<String> draftPromptFromImage({
+    required List<StudioEditImage> images,
+  }) async {
+    throw UnimplementedError();
+  }
+
+  @override
   Future<StudioTurn> retryTurn({
     required String turnId,
     required String clientTaskId,

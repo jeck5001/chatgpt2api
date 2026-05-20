@@ -326,6 +326,35 @@ class StudioApiTests(unittest.TestCase):
         self.assertEqual(delete_response.status_code, 200, delete_response.text)
         self.assertEqual(self.fake_service.recipes, [])
 
+    def test_image_prompt_draft_endpoint_returns_described_prompt(self):
+        with mock.patch.object(
+            studio_module,
+            "draft_prompt_from_images",
+            create=True,
+            return_value="cinematic product photo, warm rim light",
+        ) as draft_prompt:
+            response = self.client.post(
+                "/api/image-prompt-drafts",
+                headers=AUTH_HEADERS,
+                files=[("image", ("reference.png", b"image-bytes", "image/png"))],
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(
+            response.json()["item"]["draft_prompt"],
+            "cinematic product photo, warm rim light",
+        )
+        images = draft_prompt.call_args.args[0]
+        self.assertEqual(images, [(b"image-bytes", "reference.png", "image/png")])
+
+    def test_image_prompt_draft_endpoint_requires_image(self):
+        response = self.client.post(
+            "/api/image-prompt-drafts",
+            headers=AUTH_HEADERS,
+        )
+
+        self.assertEqual(response.status_code, 400, response.text)
+
     def test_update_prompt_template_ignores_null_content(self):
         response = self.client.patch("/api/prompt-templates/template-1", headers=AUTH_HEADERS, json={"content": None})
 

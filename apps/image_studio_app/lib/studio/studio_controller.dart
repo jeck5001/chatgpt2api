@@ -688,6 +688,26 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<String> draftPromptFromImage({
+    required List<StudioEditImage> images,
+  }) async {
+    if (images.isEmpty) {
+      throw ArgumentError('draftPromptFromImage requires at least one image');
+    }
+    _state = _state.copyWith(clearError: true);
+    notifyListeners();
+    try {
+      final draft = await _repository.draftPromptFromImage(images: images);
+      _state = _state.copyWith(promptDraft: draft);
+      notifyListeners();
+      return draft;
+    } catch (error) {
+      _state = _state.copyWith(errorMessage: error.toString());
+      notifyListeners();
+      rethrow;
+    }
+  }
+
   Future<void> submitGeneration({
     required String conversationId,
     required String prompt,

@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from api.support import require_identity, resolve_image_base_url
 from services.image_task_service import image_task_service
 from services.studio_service import studio_service
+from services.vision_prompt_service import draft_prompt_from_images
 
 
 class ProjectCreateRequest(BaseModel):
@@ -372,6 +373,34 @@ def create_router() -> APIRouter:
         if not studio_service.delete_recipe(identity, recipe_id):
             raise _not_found("recipe not found")
         return {"ok": True}
+
+    @router.post("/api/image-prompt-drafts")
+    async def create_image_prompt_draft(
+        authorization: str | None = Header(default=None),
+        image: list[UploadFile] | None = File(default=None),
+        image_list: list[UploadFile] | None = File(default=None, alias="image[]"),
+    ):
+        _identity(authorization)
+        uploads = [*(image or []), *(image_list or [])]
+        if not uploads:
+            raise HTTPException(status_code=400, detail={"error": "image file is required"})
+        images: list[tuple[bytes, str, str]] = []
+        for upload in uploads:
+            image_data = await upload.read()
+            if not image_data:
+                raise HTTPException(status_code=400, detail={"error": "image file is empty"})
+            images.append((
+                image_data,
+                upload.filename or "image.png",
+                upload.content_type or "image/png",
+            ))
+        try:
+            draft_prompt = await run_in_threadpool(draft_prompt_from_images, images)
+        except ValueError as exc:
+            raise _bad_request(exc) from exc
+        except Exception as exc:
+            raise _bad_gateway(exc) from exc
+        return {"item": {"draft_prompt": draft_prompt}}
 
     @router.post("/api/image-favorites")
     async def add_image_favorite(body: FavoriteCreateRequest, authorization: str | None = Header(default=None)):

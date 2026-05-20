@@ -182,6 +182,33 @@ void main() {
 
     expect(adapter.requests.single.path, '/api/image-recipes/recipe-1');
   });
+
+  test('draftPromptFromImage uploads an image and returns the draft', () async {
+    final adapter = _QueueAdapter([
+      _JsonResponse(<String, Object?>{
+        'item': <String, Object?>{
+          'draft_prompt': 'cinematic product photo, warm rim light',
+        },
+      }),
+    ]);
+    final repository = _repository(adapter);
+
+    final prompt = await repository.draftPromptFromImage(
+      images: [
+        StudioEditImage(
+          bytes: Uint8List.fromList(const [1, 2, 3]),
+          filename: 'reference.png',
+          contentType: 'image/png',
+        ),
+      ],
+    );
+
+    expect(prompt, 'cinematic product photo, warm rim light');
+    expect(adapter.requests.single.path, '/api/image-prompt-drafts');
+    final formData = adapter.requests.single.body as FormData;
+    expect(formData.files.single.key, 'image');
+    expect(formData.files.single.value.filename, 'reference.png');
+  });
 }
 
 StudioRepository _repository(HttpClientAdapter adapter) {
