@@ -28,6 +28,37 @@ void main() {
     expect(find.text('分享'), findsOneWidget);
   });
 
+  testWidgets('viewer labels variation action as parameter reuse', (
+    tester,
+  ) async {
+    var reused = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StudioResultViewer(
+          imageUrl: 'http://example.test/images/landscape.png',
+          imagePath: '2026/05/landscape.png',
+          promptText: 'beautiful landscape',
+          model: 'gpt-image-2',
+          size: '1024x1792',
+          imageSaver: StudioImageSaver(
+            outputDirectoryProvider: () async => throw UnimplementedError(),
+            bytesLoader: (_) async => throw UnimplementedError(),
+          ),
+          onVariation: () => reused = true,
+        ),
+      ),
+    );
+
+    expect(find.text('复用'), findsOneWidget);
+    expect(find.text('1024x1792'), findsOneWidget);
+
+    await tester.tap(find.text('复用'));
+    await tester.pump();
+
+    expect(reused, isTrue);
+  });
+
   testWidgets('tapping save shows a saved message', (tester) async {
     await tester.pumpWidget(
       MaterialApp(

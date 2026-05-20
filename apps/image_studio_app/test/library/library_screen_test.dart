@@ -25,6 +25,7 @@ StudioAsset _asset(
   List<String> tags = const [],
   String model = 'gpt-image-2',
   String projectName = 'Campaign',
+  String sizeLabel = '',
 }) {
   return StudioAsset(
     path: path,
@@ -38,6 +39,7 @@ StudioAsset _asset(
     prompt: prompt,
     model: model,
     projectName: projectName,
+    sizeLabel: sizeLabel,
   );
 }
 
@@ -234,29 +236,51 @@ void main() {
     expect(find.textContaining('命中 1 / 2'), findsOneWidget);
   });
 
+  testWidgets('asset tile surfaces recovered model and size metadata', (
+    tester,
+  ) async {
+    final asset = _asset(
+      '2026/05/19/orange.png',
+      'orange product photo',
+      model: 'gpt-image-2',
+      sizeLabel: '1024x1792',
+    );
+
+    await _pumpAssetLibrary(tester, assets: [asset]);
+
+    expect(find.textContaining('gpt-image-2'), findsOneWidget);
+    expect(find.textContaining('1024×1792'), findsOneWidget);
+  });
+
   testWidgets(
-    'asset tile action buttons call continue, variant, download and share callbacks',
+    'asset tile action buttons call continue, reuse, download and share callbacks',
     (tester) async {
-      final asset = _asset('2026/05/19/orange.png', 'orange product photo');
+      final asset = _asset(
+        '2026/05/19/orange.png',
+        'orange product photo',
+        sizeLabel: '1024x1792',
+      );
       final actions = <String>[];
 
       await _pumpAssetLibrary(
         tester,
         assets: [asset],
         onContinueEditAsset: (asset) => actions.add('continue:${asset.path}'),
-        onGenerateVariant: (asset) => actions.add('variant:${asset.path}'),
+        onGenerateVariant: (asset) => actions.add(
+          'reuse:${asset.prompt}:${asset.model}:${asset.sizeLabel}',
+        ),
         onDownloadAsset: (asset) => actions.add('download:${asset.path}'),
         onShareAsset: (asset) => actions.add('share:${asset.path}'),
       );
 
       await tester.tap(find.byTooltip('继续编辑'));
-      await tester.tap(find.byTooltip('生成变体'));
+      await tester.tap(find.byTooltip('复用参数'));
       await tester.tap(find.byTooltip('下载'));
       await tester.tap(find.byTooltip('分享'));
 
       expect(actions, [
         'continue:2026/05/19/orange.png',
-        'variant:2026/05/19/orange.png',
+        'reuse:orange product photo:gpt-image-2:1024x1792',
         'download:2026/05/19/orange.png',
         'share:2026/05/19/orange.png',
       ]);

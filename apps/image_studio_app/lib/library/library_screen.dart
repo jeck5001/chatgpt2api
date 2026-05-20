@@ -643,6 +643,7 @@ class _TileCaption extends StatelessWidget {
     final meta = [
       if (asset.projectName.isNotEmpty) asset.projectName,
       if (asset.model.isNotEmpty) asset.model,
+      if (asset.sizeLabel.isNotEmpty) _formatSizeLabel(asset.sizeLabel),
       if (asset.tags.isNotEmpty) asset.tags.join(' · '),
     ].join(' / ');
     return Container(
@@ -687,6 +688,10 @@ class _TileCaption extends StatelessWidget {
       ),
     );
   }
+
+  String _formatSizeLabel(String sizeLabel) {
+    return sizeLabel.trim().replaceAll(RegExp(r'\s*[xX]\s*'), '×');
+  }
 }
 
 class _ActionStrip extends StatelessWidget {
@@ -722,8 +727,8 @@ class _ActionStrip extends StatelessWidget {
             onPressed: onContinueEdit,
           ),
           _TileAction(
-            tooltip: '生成变体',
-            icon: Icons.auto_awesome_motion_outlined,
+            tooltip: '复用参数',
+            icon: Icons.tune_rounded,
             onPressed: onGenerateVariant,
           ),
           _TileAction(

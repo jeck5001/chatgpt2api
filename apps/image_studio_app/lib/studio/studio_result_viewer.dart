@@ -467,8 +467,8 @@ class _ViewerDrawer extends StatelessWidget {
                   ),
                   Expanded(
                     child: _DrawerAction(
-                      icon: Icons.alt_route_rounded,
-                      label: '变体',
+                      icon: Icons.tune_rounded,
+                      label: '复用',
                       onPressed: onVariation,
                     ),
                   ),
