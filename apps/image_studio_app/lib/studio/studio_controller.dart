@@ -162,16 +162,15 @@ class StudioController extends ChangeNotifier {
   }
 
   void replaceStyleGuides(List<StudioStyleGuide> styleGuides) {
-    final activeStyleGuideId = styleGuides.any(
-      (guide) => guide.id == _state.activeStyleGuideId,
-    )
+    final activeStyleGuideId =
+        styleGuides.any((guide) => guide.id == _state.activeStyleGuideId)
         ? _state.activeStyleGuideId
         : null;
     _state = _state.copyWith(
       styleGuides: styleGuides,
       activeStyleGuideId: activeStyleGuideId,
-      clearActiveStyleGuide: activeStyleGuideId == null &&
-          _state.activeStyleGuideId != null,
+      clearActiveStyleGuide:
+          activeStyleGuideId == null && _state.activeStyleGuideId != null,
     );
     notifyListeners();
   }
@@ -230,9 +229,8 @@ class StudioController extends ChangeNotifier {
       templates = const [];
     }
     final existingStyleGuideId = _state.activeStyleGuideId;
-    final activeStyleGuideId = styleGuides.any(
-      (guide) => guide.id == existingStyleGuideId,
-    )
+    final activeStyleGuideId =
+        styleGuides.any((guide) => guide.id == existingStyleGuideId)
         ? existingStyleGuideId
         : null;
     _state = _state.copyWith(

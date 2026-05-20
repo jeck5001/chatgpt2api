@@ -1640,9 +1640,9 @@ class _StyleGuideSheet extends StatelessWidget {
                     : null,
                 onTap: activeStyleGuideId == null
                     ? null
-                    : () => Navigator.of(context).pop(
-                        const _StyleGuideSheetClear(),
-                      ),
+                    : () => Navigator.of(
+                        context,
+                      ).pop(const _StyleGuideSheetClear()),
               ),
             if (styleGuides.isEmpty)
               Padding(
@@ -1669,13 +1669,12 @@ class _StyleGuideSheet extends StatelessWidget {
                     final isActive = guide.id == activeStyleGuideId;
                     final meta = [
                       if (guide.name.trim().isNotEmpty) guide.name.trim(),
-                      if (guide.referenceImagePath.trim().isNotEmpty)
-                        '参考图已保存',
+                      if (guide.referenceImagePath.trim().isNotEmpty) '参考图已保存',
                     ].join(' · ');
                     return ListTile(
-                      onTap: () => Navigator.of(context).pop(
-                        _StyleGuideSheetSelect(guide),
-                      ),
+                      onTap: () => Navigator.of(
+                        context,
+                      ).pop(_StyleGuideSheetSelect(guide)),
                       leading: const Icon(
                         Icons.auto_awesome_outlined,
                         size: 18,

@@ -308,59 +308,76 @@ void main() {
     );
   });
 
-  test('selectStyleGuide injects the style guide into generation prompts', (
-    ) async {
-    final repository = FakeStudioRepository()
-      ..styleGuides = [
-        StudioStyleGuide(
-          id: 'style-1',
-          name: 'Lia Noir',
-          guide: 'Keep Lia with a black bob and red coat.',
-          referenceImagePath: '2026/05/lia.png',
-          createdAt: DateTime.utc(2026, 5, 20),
-          updatedAt: DateTime.utc(2026, 5, 20),
-        ),
-      ];
-    final controller = StudioController(repository);
-    await controller.loadWorkspace();
+  test(
+    'selectStyleGuide injects the style guide into generation prompts',
+    () async {
+      final repository = FakeStudioRepository()
+        ..styleGuides = [
+          StudioStyleGuide(
+            id: 'style-1',
+            name: 'Lia Noir',
+            guide: 'Keep Lia with a black bob and red coat.',
+            referenceImagePath: '2026/05/lia.png',
+            createdAt: DateTime.utc(2026, 5, 20),
+            updatedAt: DateTime.utc(2026, 5, 20),
+          ),
+        ];
+      final controller = StudioController(repository);
+      await controller.loadWorkspace();
 
-    await controller.selectStyleGuide('style-1');
-    await controller.submitGeneration(
-      conversationId: 'conversation-1',
-      prompt: 'Lia walking into a neon market',
-    );
+      await controller.selectStyleGuide('style-1');
+      await controller.submitGeneration(
+        conversationId: 'conversation-1',
+        prompt: 'Lia walking into a neon market',
+      );
 
-    expect(controller.state.styleGuides.single.id, 'style-1');
-    expect(repository.createdPrompts.single, contains('Lia walking into a neon market'));
-    expect(repository.createdPrompts.single, contains('Keep Lia with a black bob and red coat.'));
-    expect(repository.createdPrompts.single, contains('Style / character consistency guide:'));
-  });
+      expect(controller.state.styleGuides.single.id, 'style-1');
+      expect(
+        repository.createdPrompts.single,
+        contains('Lia walking into a neon market'),
+      );
+      expect(
+        repository.createdPrompts.single,
+        contains('Keep Lia with a black bob and red coat.'),
+      );
+      expect(
+        repository.createdPrompts.single,
+        contains('Style / character consistency guide:'),
+      );
+    },
+  );
 
-  test('clearStyleGuide submits generation without injected guide text', () async {
-    final repository = FakeStudioRepository()
-      ..styleGuides = [
-        StudioStyleGuide(
-          id: 'style-1',
-          name: 'Lia Noir',
-          guide: 'Keep Lia with a black bob and red coat.',
-          referenceImagePath: '2026/05/lia.png',
-          createdAt: DateTime.utc(2026, 5, 20),
-          updatedAt: DateTime.utc(2026, 5, 20),
-        ),
-      ];
-    final controller = StudioController(repository);
-    await controller.loadWorkspace();
+  test(
+    'clearStyleGuide submits generation without injected guide text',
+    () async {
+      final repository = FakeStudioRepository()
+        ..styleGuides = [
+          StudioStyleGuide(
+            id: 'style-1',
+            name: 'Lia Noir',
+            guide: 'Keep Lia with a black bob and red coat.',
+            referenceImagePath: '2026/05/lia.png',
+            createdAt: DateTime.utc(2026, 5, 20),
+            updatedAt: DateTime.utc(2026, 5, 20),
+          ),
+        ];
+      final controller = StudioController(repository);
+      await controller.loadWorkspace();
 
-    await controller.selectStyleGuide('style-1');
-    await controller.clearStyleGuide();
-    await controller.submitGeneration(
-      conversationId: 'conversation-1',
-      prompt: 'Lia walking into a neon market',
-    );
+      await controller.selectStyleGuide('style-1');
+      await controller.clearStyleGuide();
+      await controller.submitGeneration(
+        conversationId: 'conversation-1',
+        prompt: 'Lia walking into a neon market',
+      );
 
-    expect(controller.state.activeStyleGuide, isNull);
-    expect(repository.createdPrompts.single, 'Lia walking into a neon market');
-  });
+      expect(controller.state.activeStyleGuide, isNull);
+      expect(
+        repository.createdPrompts.single,
+        'Lia walking into a neon market',
+      );
+    },
+  );
 
   test('selectConversation loads turns for the chosen conversation', () async {
     final repository = FakeStudioRepository()
