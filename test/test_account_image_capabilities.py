@@ -121,6 +121,23 @@ class AccountCapabilityTests(unittest.TestCase):
             self.assertEqual(updated["image_avg_latency_ms"], 1600)
             self.assertIsNotNone(updated["image_last_result_at"])
 
+    def test_auto_refresh_targets_abnormal_accounts_when_auto_remove_is_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            service = AccountService(JSONStorageBackend(Path(tmp_dir) / "accounts.json"))
+            service.add_accounts(["limited-token", "abnormal-token", "normal-token"])
+            service.update_account("limited-token", {"status": "限流", "quota": 0})
+            service.update_account("abnormal-token", {"status": "异常", "quota": 0})
+            service.update_account("normal-token", {"status": "正常", "quota": 8})
+
+            self.assertEqual(
+                service.list_auto_refresh_tokens(auto_remove_invalid_accounts=False),
+                ["limited-token"],
+            )
+            self.assertEqual(
+                service.list_auto_refresh_tokens(auto_remove_invalid_accounts=True),
+                ["limited-token", "abnormal-token"],
+            )
+
 
 class TokenLogTests(unittest.TestCase):
     def test_anonymize_token_hides_raw_value(self) -> None:

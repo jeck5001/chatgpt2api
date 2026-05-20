@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from threading import Event, Thread
+import time
 
 from fastapi import HTTPException, Request
 
@@ -79,21 +80,40 @@ def sanitize_sub2api_servers(servers: list[dict]) -> list[dict]:
     return [sanitized for server in servers if (sanitized := sanitize_sub2api_server(server)) is not None]
 
 
+def _account_refresh_interval_seconds() -> int:
+    try:
+        minutes = int(config.refresh_account_interval_minute)
+    except (TypeError, ValueError):
+        minutes = 5
+    return max(1, minutes) * 60
+
+
+def _wait_for_next_account_refresh(stop_event: Event, started_at: float) -> None:
+    while not stop_event.is_set():
+        elapsed = time.monotonic() - started_at
+        remaining = _account_refresh_interval_seconds() - elapsed
+        if remaining <= 0:
+            return
+        stop_event.wait(min(60.0, remaining))
+
+
 def start_limited_account_watcher(stop_event: Event) -> Thread:
-    interval_seconds = config.refresh_account_interval_minute * 60
 
     def worker() -> None:
         while not stop_event.is_set():
+            started_at = time.monotonic()
             try:
-                limited_tokens = account_service.list_limited_tokens()
-                if limited_tokens:
-                    print(f"[account-limited-watcher] checking {len(limited_tokens)} limited accounts")
-                    account_service.refresh_accounts(limited_tokens)
+                refresh_tokens = account_service.list_auto_refresh_tokens(
+                    auto_remove_invalid_accounts=config.auto_remove_invalid_accounts,
+                )
+                if refresh_tokens:
+                    print(f"[account-refresh-watcher] checking {len(refresh_tokens)} accounts")
+                    account_service.refresh_accounts(refresh_tokens)
             except Exception as exc:
-                print(f"[account-limited-watcher] fail {exc}")
-            stop_event.wait(interval_seconds)
+                print(f"[account-refresh-watcher] fail {exc}")
+            _wait_for_next_account_refresh(stop_event, started_at)
 
-    thread = Thread(target=worker, name="limited-account-watcher", daemon=True)
+    thread = Thread(target=worker, name="account-refresh-watcher", daemon=True)
     thread.start()
     return thread
 

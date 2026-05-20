@@ -349,11 +349,17 @@ class AccountService:
         }
 
     def list_limited_tokens(self) -> list[str]:
+        return self.list_auto_refresh_tokens(auto_remove_invalid_accounts=False)
+
+    def list_auto_refresh_tokens(self, *, auto_remove_invalid_accounts: bool = False) -> list[str]:
+        refresh_statuses = {"限流"}
+        if auto_remove_invalid_accounts:
+            refresh_statuses.add("异常")
         with self._lock:
             return [
                 token
                 for item in self._accounts.values()
-                if item.get("status") == "限流"
+                if item.get("status") in refresh_statuses
                    and (token := item.get("access_token") or "")
             ]
 
