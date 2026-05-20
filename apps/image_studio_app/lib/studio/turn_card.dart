@@ -110,6 +110,8 @@ class TurnCard extends StatelessWidget {
           ),
           const SizedBox(height: KilnSpacing.sm),
           _RunningStatusLine(elapsed: runningElapsed),
+          const SizedBox(height: KilnSpacing.sm),
+          _RunningPreviewBar(elapsed: runningElapsed),
           if (onCancel != null) ...[
             const SizedBox(height: KilnSpacing.sm),
             _CancelButton(onPressed: onCancel),
@@ -370,6 +372,107 @@ class _RunningStatusLineState extends State<_RunningStatusLine> {
                 color: KilnColors.ember400,
                 letterSpacing: 1.5,
               ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _RunningPreviewBar extends StatefulWidget {
+  const _RunningPreviewBar({this.elapsed});
+  final String? elapsed;
+
+  @override
+  State<_RunningPreviewBar> createState() => _RunningPreviewBarState();
+}
+
+class _RunningPreviewBarState extends State<_RunningPreviewBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 2200),
+      vsync: this,
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final label = widget.elapsed == null ? '动态预览' : '动态预览 · ${widget.elapsed}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: KilnTypography.mono(
+            size: 10,
+            weight: FontWeight.w500,
+            color: KilnColors.ink400,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 6),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: SizedBox(
+            key: const ValueKey('running-preview-bar'),
+            height: 10,
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final sweep = Curves.easeInOutCubic.transform(
+                  _controller.value,
+                );
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Container(color: KilnColors.ink800),
+                    Align(
+                      alignment: Alignment(-1.0 + (2.0 * sweep), 0),
+                      child: FractionallySizedBox(
+                        widthFactor: 0.34,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.centerLeft,
+                              end: Alignment.centerRight,
+                              colors: [
+                                Color(0x00E8A84A),
+                                Color(0xFFE8A84A),
+                                Color(0x00E8A84A),
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: KilnColors.ember500.withValues(
+                                  alpha: 0.45,
+                                ),
+                                blurRadius: 14,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: KilnColors.hairline),
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ),

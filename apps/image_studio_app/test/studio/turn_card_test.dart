@@ -45,6 +45,19 @@ void main() {
     expect(find.text('正在渲染'), findsOneWidget);
   });
 
+  testWidgets('running turn shows a dynamic preview bar', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: TurnCard(turn: _turn(status: StudioTurnStatus.running)),
+        ),
+      ),
+    );
+
+    expect(find.textContaining('动态预览'), findsOneWidget);
+    expect(find.byKey(const ValueKey('running-preview-bar')), findsOneWidget);
+  });
+
   testWidgets('successful image tile wraps Image.network in a Hero', (
     tester,
   ) async {
