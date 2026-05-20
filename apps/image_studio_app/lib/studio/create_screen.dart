@@ -175,7 +175,10 @@ class _CreateScreenState extends State<CreateScreen> {
     final controller = widget.controller;
     if (controller == null || _draftingPrompt) return;
     try {
-      final picked = await _imagePicker.pickImage(imageQuality: 90);
+      final picked = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 90,
+      );
       if (picked == null) return;
       setState(() => _draftingPrompt = true);
       final bytes = await picked.readAsBytes();
