@@ -201,6 +201,23 @@ class _CreateScreenState extends State<CreateScreen> {
     );
   }
 
+  void _retryFailedBatch(StudioBatchRun batch) {
+    final controller = widget.controller;
+    if (controller == null) return;
+    unawaited(
+      controller
+          .retryFailedBatch(batch.id)
+          .then((count) {
+            if (!mounted) return;
+            _showSnack(count == 0 ? '没有需要重试的失败任务' : '已重试 $count 个失败任务');
+          })
+          .catchError((error) {
+            if (!mounted) return;
+            _showSnack('重试失败：$error');
+          }),
+    );
+  }
+
   void _editPrompt(StudioTurn turn) {
     _promptController.text = turn.prompt;
     _promptController.selection = TextSelection.fromPosition(
@@ -683,7 +700,11 @@ class _CreateScreenState extends State<CreateScreen> {
   Widget build(BuildContext context) {
     final hasPrompt = _promptController.text.trim().isNotEmpty;
     final canSubmit = hasPrompt && _activeConversationId != null;
-    final turns = widget.controller?.state.turns ?? const <StudioTurn>[];
+    final state = widget.controller?.state;
+    final turns = state?.turns ?? const <StudioTurn>[];
+    final batchRuns = (state?.batchRuns ?? const <StudioBatchRun>[])
+        .where((run) => run.conversationId == _activeConversationId)
+        .toList(growable: false);
     final palette = KilnThemeScope.of(context);
     final successTurns = turns
         .where((turn) => turn.resultImages.isNotEmpty)
@@ -705,6 +726,21 @@ class _CreateScreenState extends State<CreateScreen> {
                   ? null
                   : _createNewConversation,
             ),
+            if (batchRuns.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  KilnSpacing.md,
+                  0,
+                  KilnSpacing.md,
+                  KilnSpacing.sm,
+                ),
+                child: _BatchTaskCenter(
+                  runs: batchRuns,
+                  turns: turns,
+                  onRetryFailures: _retryFailedBatch,
+                  palette: palette,
+                ),
+              ),
             Expanded(
               child: turns.isEmpty
                   ? const _EmptyStudio()
@@ -1045,6 +1081,146 @@ class _EmptyStudio extends StatelessWidget {
         icon: Icons.auto_awesome_outlined,
       ),
     );
+  }
+}
+
+class _BatchTaskCenter extends StatelessWidget {
+  const _BatchTaskCenter({
+    required this.runs,
+    required this.turns,
+    required this.onRetryFailures,
+    required this.palette,
+  });
+
+  final List<StudioBatchRun> runs;
+  final List<StudioTurn> turns;
+  final ValueChanged<StudioBatchRun> onRetryFailures;
+  final KilnAccentPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleRuns = runs.take(3).toList(growable: false);
+    return Container(
+      decoration: BoxDecoration(
+        color: KilnColors.ink900,
+        borderRadius: BorderRadius.circular(KilnRadii.card),
+        border: Border.all(color: KilnColors.hairlineStrong, width: 1),
+      ),
+      padding: const EdgeInsets.all(KilnSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: palette.shade500.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: palette.shade500.withValues(alpha: 0.28),
+                  ),
+                ),
+                child: Icon(
+                  Icons.route_rounded,
+                  size: 15,
+                  color: palette.shade400,
+                ),
+              ),
+              const SizedBox(width: KilnSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '任务中心',
+                      style: KilnTypography.display(
+                        size: 15,
+                        weight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      '批量生成看板 · 当前会话',
+                      style: KilnTypography.mono(
+                        size: 10,
+                        color: KilnColors.ink500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: KilnSpacing.sm),
+          for (var i = 0; i < visibleRuns.length; i++) ...[
+            if (i > 0) const Divider(color: KilnColors.hairline, height: 16),
+            _BatchTaskRow(
+              run: visibleRuns[i],
+              progress: visibleRuns[i].progressFor(turns),
+              onRetryFailures: () => onRetryFailures(visibleRuns[i]),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BatchTaskRow extends StatelessWidget {
+  const _BatchTaskRow({
+    required this.run,
+    required this.progress,
+    required this.onRetryFailures,
+  });
+
+  final StudioBatchRun run;
+  final StudioBatchProgress progress;
+  final VoidCallback onRetryFailures;
+
+  @override
+  Widget build(BuildContext context) {
+    final retryEnabled = progress.hasFailures;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                run.recipeName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: KilnTypography.ui(
+                  size: 13,
+                  color: KilnColors.ink100,
+                  weight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                _formatBatchProgress(progress),
+                style: KilnTypography.mono(size: 11, color: KilnColors.ink400),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: KilnSpacing.sm),
+        OutlinedButton(
+          onPressed: retryEnabled ? onRetryFailures : null,
+          child: const Text('重试失败'),
+        ),
+      ],
+    );
+  }
+
+  String _formatBatchProgress(StudioBatchProgress progress) {
+    final parts = <String>['${progress.completed}/${progress.total} 完成'];
+    if (progress.failed > 0) parts.add('${progress.failed} 失败');
+    if (progress.running > 0) parts.add('${progress.running} 生成中');
+    if (progress.pending > 0) parts.add('${progress.pending} 等待同步');
+    return parts.join(' · ');
   }
 }
 

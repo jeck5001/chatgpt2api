@@ -247,6 +247,43 @@ void main() {
     expect(controller.state.turns.length, 2);
   });
 
+  testWidgets('task center summarizes a batch run and retries failures', (
+    tester,
+  ) async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(repository);
+    addTearDown(controller.dispose);
+    await controller.submitRecipeBatch(
+      conversationId: 'conversation-1',
+      recipe: _recipe(),
+      inputs: const ['mug', 'bottle', 'plate'],
+    );
+    controller.replaceTurns([
+      _turn(id: 'turn-1', status: StudioTurnStatus.success),
+      _turn(id: 'turn-2', status: StudioTurnStatus.error),
+      _turn(id: 'turn-3', status: StudioTurnStatus.success),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: controller,
+          activeConversationId: 'conversation-1',
+        ),
+      ),
+    );
+
+    expect(find.text('任务中心'), findsOneWidget);
+    expect(find.text('Orange recipe'), findsOneWidget);
+    expect(find.textContaining('1 失败'), findsOneWidget);
+
+    await tester.tap(find.text('重试失败'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(repository.retriedTurns, ['turn-2']);
+  });
+
   testWidgets('renders shimmer placeholders for running turns', (tester) async {
     final controller = StudioController(FakeStudioRepository());
     controller.replaceTurns([
@@ -304,8 +341,47 @@ void main() {
   });
 }
 
+StudioRecipe _recipe() {
+  return StudioRecipe(
+    id: 'recipe-1',
+    name: 'Orange recipe',
+    prompt: 'orange product photo for {item}',
+    model: 'gpt-image-2',
+    size: '1024x1792',
+    sourceImagePath: '2026/05/orange.png',
+    sourceTurnId: 'turn-1',
+    projectId: 'project-1',
+    tags: const ['海报'],
+    createdAt: DateTime.utc(2026, 5, 19),
+    updatedAt: DateTime.utc(2026, 5, 19),
+  );
+}
+
+StudioTurn _turn({
+  required String id,
+  required StudioTurnStatus status,
+  String prompt = 'orange product photo',
+}) {
+  return StudioTurn(
+    id: id,
+    conversationId: 'conversation-1',
+    clientTaskId: 'task-$id',
+    taskId: 'task-$id',
+    mode: StudioTurnMode.generate,
+    prompt: prompt,
+    model: 'gpt-image-2',
+    size: '1024x1792',
+    resultImages: const [],
+    status: status,
+    error: status == StudioTurnStatus.error ? 'upstream failed' : '',
+    updatedAt: DateTime.utc(2026, 5, 12),
+  );
+}
+
 class FakeStudioRepository implements StudioRepositoryContract {
   final List<String> createdPrompts = [];
+  final List<String> retriedTurns = [];
+  int _generationCounter = 0;
 
   @override
   Future<List<StudioProject>> fetchProjects() async => [];
@@ -350,8 +426,9 @@ class FakeStudioRepository implements StudioRepositoryContract {
     String? size,
   }) async {
     createdPrompts.add(prompt);
+    _generationCounter += 1;
     return StudioTurn(
-      id: 'turn-1',
+      id: 'turn-$_generationCounter',
       conversationId: conversationId,
       clientTaskId: clientTaskId,
       taskId: clientTaskId,
@@ -401,7 +478,8 @@ class FakeStudioRepository implements StudioRepositoryContract {
     required String turnId,
     required String clientTaskId,
   }) async {
-    throw UnimplementedError();
+    retriedTurns.add(turnId);
+    return _turn(id: turnId, status: StudioTurnStatus.success);
   }
 
   @override

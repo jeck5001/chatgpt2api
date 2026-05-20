@@ -510,6 +510,80 @@ void main() {
     },
   );
 
+  test('submitRecipeBatch records a batch run for task progress', () async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(repository);
+    final recipe = StudioRecipe(
+      id: 'recipe-1',
+      name: 'Orange recipe',
+      prompt: 'orange product photo for {item}',
+      model: 'gpt-image-2',
+      size: '1024x1792',
+      sourceImagePath: '2026/05/orange.png',
+      sourceTurnId: 'turn-1',
+      projectId: 'project-1',
+      tags: const ['海报'],
+      createdAt: DateTime.utc(2026, 5, 19),
+      updatedAt: DateTime.utc(2026, 5, 19),
+    );
+
+    await controller.submitRecipeBatch(
+      conversationId: 'conversation-1',
+      recipe: recipe,
+      inputs: const ['mug', 'bottle'],
+    );
+
+    final batch = controller.state.batchRuns.single;
+    expect(batch.recipeName, 'Orange recipe');
+    expect(batch.conversationId, 'conversation-1');
+    expect(batch.turnIds, ['turn-1', 'turn-2']);
+    final progress = batch.progressFor(controller.state.turns);
+    expect(progress.total, 2);
+    expect(progress.running, 2);
+    expect(progress.failed, 0);
+  });
+
+  test(
+    'retryFailedBatch retries only failed generation turns in that run',
+    () async {
+      final repository = FakeStudioRepository();
+      final controller = StudioController(repository);
+      final recipe = StudioRecipe(
+        id: 'recipe-1',
+        name: 'Orange recipe',
+        prompt: 'orange product photo for {item}',
+        model: 'gpt-image-2',
+        size: '1024x1792',
+        sourceImagePath: '2026/05/orange.png',
+        sourceTurnId: 'turn-1',
+        projectId: 'project-1',
+        tags: const ['海报'],
+        createdAt: DateTime.utc(2026, 5, 19),
+        updatedAt: DateTime.utc(2026, 5, 19),
+      );
+
+      await controller.submitRecipeBatch(
+        conversationId: 'conversation-1',
+        recipe: recipe,
+        inputs: const ['mug', 'bottle', 'plate'],
+      );
+      final batchId = controller.state.batchRuns.single.id;
+      controller.replaceTurns([
+        fakeTurn(id: 'turn-1', status: StudioTurnStatus.success),
+        fakeTurn(id: 'turn-2', status: StudioTurnStatus.error),
+        fakeTurn(id: 'turn-3', status: StudioTurnStatus.running),
+        fakeTurn(id: 'turn-outside', status: StudioTurnStatus.error),
+      ]);
+
+      final retried = await controller.retryFailedBatch(batchId);
+
+      expect(retried, 1);
+      expect(repository.retriedTurns, ['turn-2']);
+      final turn2 = controller.state.turns.singleWhere((t) => t.id == 'turn-2');
+      expect(turn2.status, StudioTurnStatus.running);
+    },
+  );
+
   test(
     'autoFavorite preference favorites successful turn images during polling',
     () async {
@@ -666,6 +740,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
   final List<StudioRecipe> createdRecipes = [];
   final List<String> createdPrompts = [];
   final List<String?> createdSizes = [];
+  final List<String> retriedTurns = [];
 
   @override
   Future<List<StudioProject>> fetchProjects() async {
@@ -806,6 +881,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
     if (failSubmit) {
       throw Exception('network down');
     }
+    retriedTurns.add(turnId);
     return fakeTurn(id: turnId, status: StudioTurnStatus.running);
   }
 

@@ -135,6 +135,87 @@ class StudioTurn {
   }
 }
 
+class StudioBatchRun {
+  const StudioBatchRun({
+    required this.id,
+    required this.conversationId,
+    required this.recipeId,
+    required this.recipeName,
+    required this.createdAt,
+    required this.turnIds,
+    required this.totalCount,
+  });
+
+  final String id;
+  final String conversationId;
+  final String recipeId;
+  final String recipeName;
+  final DateTime createdAt;
+  final List<String> turnIds;
+  final int totalCount;
+
+  StudioBatchRun copyWith({List<String>? turnIds, int? totalCount}) {
+    return StudioBatchRun(
+      id: id,
+      conversationId: conversationId,
+      recipeId: recipeId,
+      recipeName: recipeName,
+      createdAt: createdAt,
+      turnIds: turnIds ?? this.turnIds,
+      totalCount: totalCount ?? this.totalCount,
+    );
+  }
+
+  StudioBatchProgress progressFor(List<StudioTurn> turns) {
+    final byId = {for (final turn in turns) turn.id: turn};
+    var running = 0;
+    var success = 0;
+    var failed = 0;
+    for (final id in turnIds) {
+      final turn = byId[id];
+      if (turn == null) continue;
+      switch (turn.status) {
+        case StudioTurnStatus.queued:
+        case StudioTurnStatus.running:
+          running += 1;
+        case StudioTurnStatus.success:
+          success += 1;
+        case StudioTurnStatus.error:
+          failed += 1;
+      }
+    }
+    return StudioBatchProgress(
+      total: totalCount,
+      running: running,
+      success: success,
+      failed: failed,
+    );
+  }
+}
+
+class StudioBatchProgress {
+  const StudioBatchProgress({
+    required this.total,
+    required this.running,
+    required this.success,
+    required this.failed,
+  });
+
+  final int total;
+  final int running;
+  final int success;
+  final int failed;
+
+  int get completed => success;
+
+  int get pending {
+    final missing = total - running - success - failed;
+    return missing < 0 ? 0 : missing;
+  }
+
+  bool get hasFailures => failed > 0;
+}
+
 class StudioAsset {
   const StudioAsset({
     required this.path,

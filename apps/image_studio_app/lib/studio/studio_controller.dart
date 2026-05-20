@@ -17,6 +17,7 @@ class StudioState {
     this.favorites = const [],
     this.libraryAssets = const [],
     this.recipes = const [],
+    this.batchRuns = const [],
     this.templates = const [],
     this.preferences = const StudioPreferences(),
     this.promptDraft = '',
@@ -32,6 +33,7 @@ class StudioState {
   final List<StudioFavorite> favorites;
   final List<StudioAsset> libraryAssets;
   final List<StudioRecipe> recipes;
+  final List<StudioBatchRun> batchRuns;
   final List<StudioPromptTemplate> templates;
   final StudioPreferences preferences;
   final String promptDraft;
@@ -47,6 +49,7 @@ class StudioState {
     List<StudioFavorite>? favorites,
     List<StudioAsset>? libraryAssets,
     List<StudioRecipe>? recipes,
+    List<StudioBatchRun>? batchRuns,
     List<StudioPromptTemplate>? templates,
     StudioPreferences? preferences,
     String? promptDraft,
@@ -63,6 +66,7 @@ class StudioState {
       favorites: favorites ?? this.favorites,
       libraryAssets: libraryAssets ?? this.libraryAssets,
       recipes: recipes ?? this.recipes,
+      batchRuns: batchRuns ?? this.batchRuns,
       templates: templates ?? this.templates,
       preferences: preferences ?? this.preferences,
       promptDraft: promptDraft ?? this.promptDraft,
@@ -466,6 +470,15 @@ class StudioController extends ChangeNotifier {
       }
       _state = _state.copyWith(
         turns: [...created.reversed, ..._state.turns],
+        batchRuns: [
+          _buildBatchRun(
+            conversationId: conversationId,
+            recipe: recipe,
+            turns: created,
+            totalCount: cleanedInputs.length,
+          ),
+          ..._state.batchRuns,
+        ],
         promptDraft: '',
         submitting: false,
       );
@@ -481,6 +494,15 @@ class StudioController extends ChangeNotifier {
       if (created.isNotEmpty) {
         _state = _state.copyWith(
           turns: [...created.reversed, ..._state.turns],
+          batchRuns: [
+            _buildBatchRun(
+              conversationId: conversationId,
+              recipe: recipe,
+              turns: created,
+              totalCount: created.length,
+            ),
+            ..._state.batchRuns,
+          ],
           submitting: false,
           errorMessage: error.toString(),
         );
@@ -493,6 +515,44 @@ class StudioController extends ChangeNotifier {
       notifyListeners();
       rethrow;
     }
+  }
+
+  StudioBatchRun _buildBatchRun({
+    required String conversationId,
+    required StudioRecipe recipe,
+    required List<StudioTurn> turns,
+    required int totalCount,
+  }) {
+    final name = recipe.name.trim().isEmpty ? '未命名配方' : recipe.name.trim();
+    return StudioBatchRun(
+      id: _uuid.v4(),
+      conversationId: conversationId,
+      recipeId: recipe.id,
+      recipeName: name,
+      createdAt: DateTime.now(),
+      turnIds: turns.map((turn) => turn.id).toList(growable: false),
+      totalCount: totalCount,
+    );
+  }
+
+  Future<int> retryFailedBatch(String batchRunId) async {
+    final batch = _state.batchRuns
+        .where((run) => run.id == batchRunId)
+        .firstOrNull;
+    if (batch == null) return 0;
+    final batchTurnIds = batch.turnIds.toSet();
+    final failedTurns = _state.turns
+        .where(
+          (turn) =>
+              batchTurnIds.contains(turn.id) &&
+              turn.status == StudioTurnStatus.error &&
+              turn.mode == StudioTurnMode.generate,
+        )
+        .toList(growable: false);
+    for (final turn in failedTurns) {
+      await retryTurn(turn);
+    }
+    return failedTurns.length;
   }
 
   String _expandRecipePrompt(String prompt, String input) {
@@ -545,7 +605,12 @@ class StudioController extends ChangeNotifier {
         .toList(growable: false);
     final wasActive = _state.activeConversation?.id == conversationId;
     if (!wasActive) {
-      _state = _state.copyWith(conversations: remaining);
+      _state = _state.copyWith(
+        conversations: remaining,
+        batchRuns: _state.batchRuns
+            .where((run) => run.conversationId != conversationId)
+            .toList(growable: false),
+      );
       notifyListeners();
       return;
     }
@@ -562,6 +627,9 @@ class StudioController extends ChangeNotifier {
       favorites: _state.favorites,
       libraryAssets: _state.libraryAssets,
       recipes: _state.recipes,
+      batchRuns: _state.batchRuns
+          .where((run) => run.conversationId != conversationId)
+          .toList(growable: false),
       templates: _state.templates,
       preferences: _state.preferences,
       promptDraft: _state.promptDraft,
@@ -574,10 +642,21 @@ class StudioController extends ChangeNotifier {
 
   Future<void> deleteTurn(String turnId, {bool purge = false}) async {
     await _repository.deleteTurn(turnId, purge: purge);
+    final batchRuns = _state.batchRuns
+        .map((run) {
+          if (!run.turnIds.contains(turnId)) return run;
+          final turnIds = run.turnIds
+              .where((id) => id != turnId)
+              .toList(growable: false);
+          return run.copyWith(turnIds: turnIds, totalCount: turnIds.length);
+        })
+        .where((run) => run.turnIds.isNotEmpty)
+        .toList(growable: false);
     _state = _state.copyWith(
       turns: _state.turns
           .where((turn) => turn.id != turnId)
           .toList(growable: false),
+      batchRuns: batchRuns,
     );
     notifyListeners();
   }
