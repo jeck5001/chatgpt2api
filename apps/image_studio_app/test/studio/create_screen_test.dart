@@ -196,6 +196,57 @@ void main() {
     },
   );
 
+  testWidgets('recipe batch sheet submits one generation per input line', (
+    tester,
+  ) async {
+    final repository = FakeStudioRepository();
+    final controller = StudioController(repository);
+    controller.replaceRecipes([
+      StudioRecipe(
+        id: 'recipe-1',
+        name: 'Orange recipe',
+        prompt: 'orange product photo for {item}',
+        model: 'gpt-image-2',
+        size: '1024x1792',
+        sourceImagePath: '2026/05/orange.png',
+        sourceTurnId: 'turn-1',
+        projectId: 'project-1',
+        tags: const ['海报'],
+        createdAt: DateTime.utc(2026, 5, 19),
+        updatedAt: DateTime.utc(2026, 5, 19),
+      ),
+    ]);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: controller,
+          activeConversationId: 'conversation-1',
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('模板'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('批量生成 Orange recipe'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('批量生成配方'), findsOneWidget);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('recipe-batch-input')),
+      'mug\nbottle',
+    );
+    await tester.tap(find.text('开始批量'));
+    await tester.pumpAndSettle();
+
+    expect(repository.createdPrompts, [
+      'orange product photo for mug',
+      'orange product photo for bottle',
+    ]);
+    expect(controller.state.turns.length, 2);
+  });
+
   testWidgets('renders shimmer placeholders for running turns', (tester) async {
     final controller = StudioController(FakeStudioRepository());
     controller.replaceTurns([
@@ -254,6 +305,8 @@ void main() {
 }
 
 class FakeStudioRepository implements StudioRepositoryContract {
+  final List<String> createdPrompts = [];
+
   @override
   Future<List<StudioProject>> fetchProjects() async => [];
 
@@ -296,6 +349,7 @@ class FakeStudioRepository implements StudioRepositoryContract {
     required String model,
     String? size,
   }) async {
+    createdPrompts.add(prompt);
     return StudioTurn(
       id: 'turn-1',
       conversationId: conversationId,

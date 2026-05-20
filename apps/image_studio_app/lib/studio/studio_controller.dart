@@ -428,6 +428,95 @@ class StudioController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<List<StudioTurn>> submitRecipeBatch({
+    required String conversationId,
+    required StudioRecipe recipe,
+    required List<String> inputs,
+  }) async {
+    final cleanedInputs = inputs
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    if (cleanedInputs.isEmpty) {
+      throw ArgumentError('submitRecipeBatch requires at least one input');
+    }
+    final model = recipe.model.trim().isEmpty
+        ? 'gpt-image-2'
+        : recipe.model.trim();
+    final size = (recipe.size ?? '').trim().isEmpty
+        ? null
+        : recipe.size!.trim();
+    _state = _state.copyWith(
+      promptDraft: recipe.prompt,
+      submitting: true,
+      clearError: true,
+    );
+    notifyListeners();
+    final created = <StudioTurn>[];
+    try {
+      for (final input in cleanedInputs) {
+        final turn = await _repository.createGenerationTurn(
+          conversationId: conversationId,
+          clientTaskId: _uuid.v4(),
+          prompt: _expandRecipePrompt(recipe.prompt, input),
+          model: model,
+          size: size,
+        );
+        created.add(turn);
+      }
+      _state = _state.copyWith(
+        turns: [...created.reversed, ..._state.turns],
+        promptDraft: '',
+        submitting: false,
+      );
+      notifyListeners();
+      for (final turn in created) {
+        if (turn.status == StudioTurnStatus.success) {
+          await _maybeAutoFavorite(turn);
+        }
+      }
+      _ensurePolling();
+      return created;
+    } catch (error) {
+      if (created.isNotEmpty) {
+        _state = _state.copyWith(
+          turns: [...created.reversed, ..._state.turns],
+          submitting: false,
+          errorMessage: error.toString(),
+        );
+      } else {
+        _state = _state.copyWith(
+          submitting: false,
+          errorMessage: error.toString(),
+        );
+      }
+      notifyListeners();
+      rethrow;
+    }
+  }
+
+  String _expandRecipePrompt(String prompt, String input) {
+    final base = prompt.trim();
+    final value = input.trim();
+    if (base.isEmpty) return value;
+    var expanded = base;
+    var replaced = false;
+    for (final placeholder in const [
+      '{{item}}',
+      '{item}',
+      '{{input}}',
+      '{input}',
+      '{{主题}}',
+      '{主题}',
+    ]) {
+      if (expanded.contains(placeholder)) {
+        expanded = expanded.replaceAll(placeholder, value);
+        replaced = true;
+      }
+    }
+    return replaced ? expanded : '$base\n主题：$value';
+  }
+
   Future<void> toggleFavoriteAsset(StudioAsset asset) async {
     final existing = _state.favorites
         .where((favorite) => favorite.imagePath == asset.path)

@@ -345,8 +345,48 @@ class _CreateScreenState extends State<CreateScreen> {
             _selectedSize = size;
           }
         });
+      case _TemplateSheetBatchRecipe(:final recipe):
+        await _openRecipeBatch(recipe);
       case _TemplateSheetSaveCurrent():
         await _saveCurrentPromptAsTemplate();
+    }
+  }
+
+  Future<void> _openRecipeBatch(StudioRecipe recipe) async {
+    final controller = widget.controller;
+    final conversationId = _activeConversationId;
+    if (controller == null || conversationId == null) {
+      _showSnack('请先创建一个会话');
+      return;
+    }
+    final raw = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: KilnColors.ink900,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => _RecipeBatchSheet(recipe: recipe),
+    );
+    if (!mounted || raw == null) return;
+    final inputs = raw
+        .split(RegExp(r'[\r\n]+'))
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList(growable: false);
+    if (inputs.isEmpty) {
+      _showSnack('请至少输入一行主题');
+      return;
+    }
+    try {
+      final turns = await controller.submitRecipeBatch(
+        conversationId: conversationId,
+        recipe: recipe,
+        inputs: inputs,
+      );
+      if (mounted) _showSnack('已发起 ${turns.length} 条批量生成');
+    } catch (error) {
+      if (mounted) _showSnack('批量生成失败：$error');
     }
   }
 
@@ -1218,6 +1258,11 @@ class _TemplateSheetApplyRecipe extends _TemplateSheetAction {
   final StudioRecipe recipe;
 }
 
+class _TemplateSheetBatchRecipe extends _TemplateSheetAction {
+  const _TemplateSheetBatchRecipe(this.recipe);
+  final StudioRecipe recipe;
+}
+
 class _TemplateSheetSaveCurrent extends _TemplateSheetAction {
   const _TemplateSheetSaveCurrent();
 }
@@ -1324,6 +1369,9 @@ class _TemplateSheet extends StatelessWidget {
                           onTap: () => Navigator.of(
                             context,
                           ).pop(_TemplateSheetApplyRecipe(recipe)),
+                          onBatch: () => Navigator.of(
+                            context,
+                          ).pop(_TemplateSheetBatchRecipe(recipe)),
                         ),
                     ],
                     for (final category in categories) ...[
@@ -1362,10 +1410,15 @@ class _TemplateSheet extends StatelessWidget {
 }
 
 class _RecipeRow extends StatelessWidget {
-  const _RecipeRow({required this.recipe, required this.onTap});
+  const _RecipeRow({
+    required this.recipe,
+    required this.onTap,
+    required this.onBatch,
+  });
 
   final StudioRecipe recipe;
   final VoidCallback onTap;
+  final VoidCallback onBatch;
 
   @override
   Widget build(BuildContext context) {
@@ -1390,6 +1443,113 @@ class _RecipeRow extends StatelessWidget {
         maxLines: 3,
         overflow: TextOverflow.ellipsis,
         style: KilnTypography.mono(size: 11, color: KilnColors.ink400),
+      ),
+      trailing: IconButton(
+        tooltip: '批量生成 ${recipe.displayName}',
+        icon: const Icon(
+          Icons.playlist_add_check_circle_outlined,
+          size: 18,
+          color: KilnColors.ink400,
+        ),
+        onPressed: onBatch,
+      ),
+    );
+  }
+}
+
+class _RecipeBatchSheet extends StatefulWidget {
+  const _RecipeBatchSheet({required this.recipe});
+
+  final StudioRecipe recipe;
+
+  @override
+  State<_RecipeBatchSheet> createState() => _RecipeBatchSheetState();
+}
+
+class _RecipeBatchSheetState extends State<_RecipeBatchSheet> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final recipe = widget.recipe;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: KilnSpacing.lg,
+          right: KilnSpacing.lg,
+          top: KilnSpacing.md,
+          bottom: MediaQuery.viewInsetsOf(context).bottom + KilnSpacing.md,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '批量生成配方',
+              style: KilnTypography.display(size: 16, weight: FontWeight.w500),
+            ),
+            const SizedBox(height: KilnSpacing.xs),
+            Text(
+              recipe.displayName,
+              style: KilnTypography.ui(size: 13, color: KilnColors.ink300),
+            ),
+            const SizedBox(height: KilnSpacing.sm),
+            Text(
+              '每行一个主题、商品名或场景。配方中可使用 {item} / {{item}} 占位符。',
+              style: KilnTypography.mono(size: 11, color: KilnColors.ink500),
+            ),
+            const SizedBox(height: KilnSpacing.sm),
+            TextField(
+              key: const ValueKey('recipe-batch-input'),
+              controller: _controller,
+              autofocus: true,
+              minLines: 4,
+              maxLines: 8,
+              textInputAction: TextInputAction.newline,
+              style: KilnTypography.ui(size: 14),
+              cursorColor: KilnColors.ember500,
+              decoration: InputDecoration(
+                hintText: '咖啡杯\n香水瓶\n户外背包',
+                hintStyle: KilnTypography.ui(
+                  size: 14,
+                  color: KilnColors.ink500,
+                ),
+                filled: true,
+                fillColor: KilnColors.ink800,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: KilnColors.hairline),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: KilnColors.hairline),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: KilnColors.ember500),
+                ),
+              ),
+            ),
+            const SizedBox(height: KilnSpacing.md),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).pop(_controller.text),
+              icon: const Icon(Icons.auto_awesome_motion_outlined, size: 18),
+              label: const Text('开始批量'),
+            ),
+          ],
+        ),
       ),
     );
   }

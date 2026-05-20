@@ -476,6 +476,41 @@ void main() {
   });
 
   test(
+    'submitRecipeBatch expands recipe inputs into independent turns',
+    () async {
+      final repository = FakeStudioRepository();
+      final controller = StudioController(repository);
+      final recipe = StudioRecipe(
+        id: 'recipe-1',
+        name: 'Orange recipe',
+        prompt: 'orange product photo for {item}',
+        model: 'gpt-image-2',
+        size: '1024x1792',
+        sourceImagePath: '2026/05/orange.png',
+        sourceTurnId: 'turn-1',
+        projectId: 'project-1',
+        tags: const ['海报'],
+        createdAt: DateTime.utc(2026, 5, 19),
+        updatedAt: DateTime.utc(2026, 5, 19),
+      );
+
+      final turns = await controller.submitRecipeBatch(
+        conversationId: 'conversation-1',
+        recipe: recipe,
+        inputs: const ['mug', '', ' bottle '],
+      );
+
+      expect(turns.length, 2);
+      expect(repository.createdPrompts, [
+        'orange product photo for mug',
+        'orange product photo for bottle',
+      ]);
+      expect(repository.createdSizes, ['1024x1792', '1024x1792']);
+      expect(controller.state.turns.length, 2);
+    },
+  );
+
+  test(
     'autoFavorite preference favorites successful turn images during polling',
     () async {
       final repository = FakeStudioRepository()
@@ -629,6 +664,8 @@ class FakeStudioRepository implements StudioRepositoryContract {
   final List<String> deletedTurns = [];
   final List<String> deletedImages = [];
   final List<StudioRecipe> createdRecipes = [];
+  final List<String> createdPrompts = [];
+  final List<String?> createdSizes = [];
 
   @override
   Future<List<StudioProject>> fetchProjects() async {
@@ -711,10 +748,15 @@ class FakeStudioRepository implements StudioRepositoryContract {
     if (failSubmit) {
       throw Exception('network down');
     }
+    createdPrompts.add(prompt);
+    createdSizes.add(size);
     _generationCounter += 1;
     return fakeTurn(
       id: 'turn-$_generationCounter',
       status: StudioTurnStatus.running,
+      prompt: prompt,
+      model: model,
+      size: size,
     );
   }
 
@@ -879,16 +921,22 @@ class FakeStudioRepository implements StudioRepositoryContract {
   Future<void> deletePromptTemplate(String templateId) async {}
 }
 
-StudioTurn fakeTurn({String id = 'turn-1', required StudioTurnStatus status}) {
+StudioTurn fakeTurn({
+  String id = 'turn-1',
+  required StudioTurnStatus status,
+  String prompt = 'cat',
+  String model = 'gpt-image-2',
+  String? size = '1024x1024',
+}) {
   return StudioTurn(
     id: id,
     conversationId: 'conversation-1',
     clientTaskId: 'task-1',
     taskId: 'task-1',
     mode: StudioTurnMode.generate,
-    prompt: 'cat',
-    model: 'gpt-image-2',
-    size: '1024x1024',
+    prompt: prompt,
+    model: model,
+    size: size,
     resultImages: const [],
     status: status,
     error: '',
