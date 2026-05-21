@@ -98,9 +98,8 @@ void main() {
         repository,
         pollInterval: const Duration(milliseconds: 20),
       );
-      final dynamic dynamicController = controller;
 
-      await dynamicController.submitInpaint(
+      await controller.submitInpaint(
         conversationId: 'conversation-1',
         prompt: 'replace only the painted window with warm light',
         image: StudioEditImage(

@@ -204,9 +204,8 @@ void main() {
       }),
     ]);
     final repository = _repository(adapter);
-    final dynamic dynamicRepository = repository;
 
-    final recipes = await dynamicRepository.fetchPromptHubRecipes();
+    final recipes = await repository.fetchPromptHubRecipes();
 
     expect(adapter.requests.single.path, '/api/prompt-hub');
     expect(recipes.single.name, 'Shared recipe');
@@ -227,9 +226,8 @@ void main() {
       }),
     ]);
     final repository = _repository(adapter);
-    final dynamic dynamicRepository = repository;
 
-    final recipe = await dynamicRepository.updateRecipeSharing(
+    final recipe = await repository.updateRecipeSharing(
       recipeId: 'recipe-1',
       shared: true,
     );
@@ -254,9 +252,8 @@ void main() {
       }),
     ]);
     final repository = _repository(adapter);
-    final dynamic dynamicRepository = repository;
 
-    final recipe = await dynamicRepository.clonePromptHubRecipe('recipe-1');
+    final recipe = await repository.clonePromptHubRecipe('recipe-1');
 
     expect(adapter.requests.single.path, '/api/prompt-hub/recipe-1/clone');
     expect(recipe.id, 'recipe-2');
@@ -331,9 +328,8 @@ void main() {
       }),
     ]);
     final repository = _repository(adapter);
-    final dynamic dynamicRepository = repository;
 
-    final turn = await dynamicRepository.createInpaintTurn(
+    final turn = await repository.createInpaintTurn(
       conversationId: 'conversation-1',
       clientTaskId: 'task-inpaint',
       prompt: 'replace the sky with aurora',
