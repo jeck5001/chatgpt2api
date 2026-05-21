@@ -556,6 +556,61 @@ class StudioController extends ChangeNotifier {
     return created;
   }
 
+  Future<StudioConsistencyProfile> saveCharacterCard({
+    required String name,
+    required String identity,
+    String lockedTraits = '',
+    String avoidChanges = '',
+    String referenceImagePath = '',
+    List<String> tags = const [],
+  }) {
+    return saveConsistencyProfile(
+      name: name,
+      kind: StudioConsistencyProfileKind.character,
+      guidance: _buildCharacterCardGuidance(
+        identity: identity,
+        lockedTraits: lockedTraits,
+        avoidChanges: avoidChanges,
+      ),
+      referenceImagePath: referenceImagePath,
+      tags: _uniqueTags(['角色', '角色卡', ...tags]),
+    );
+  }
+
+  String _buildCharacterCardGuidance({
+    required String identity,
+    required String lockedTraits,
+    required String avoidChanges,
+  }) {
+    final cleanedIdentity = identity.trim();
+    if (cleanedIdentity.isEmpty) {
+      throw ArgumentError('saveCharacterCard requires identity');
+    }
+    final cleanedTraits = lockedTraits.trim();
+    final cleanedAvoid = avoidChanges.trim();
+    return <String>[
+      'Character identity lock',
+      'Core identity:',
+      cleanedIdentity,
+      if (cleanedTraits.isNotEmpty) ...['Fixed traits:', cleanedTraits],
+      'Do not change:',
+      cleanedAvoid.isEmpty
+          ? 'Do not change face, age, body proportions, hair, outfit identity, signature accessories, or core color palette unless explicitly requested.'
+          : cleanedAvoid,
+      'Continuity rule:',
+      'Keep the same recognizable character identity across every generation. Only vary the scene, pose, expression, camera, lighting, or action requested by the user.',
+    ].join('\n');
+  }
+
+  List<String> _uniqueTags(List<String> tags) {
+    return [
+      ...{
+        for (final tag in tags.map((tag) => tag.trim()))
+          if (tag.isNotEmpty) tag,
+      },
+    ];
+  }
+
   Future<void> deleteConsistencyProfile(
     StudioConsistencyProfile profile,
   ) async {
@@ -615,7 +670,11 @@ class StudioController extends ChangeNotifier {
   String _consistencyPromptBlock(StudioConsistencyProfile profile) {
     return <String>[
       'Consistency profile: ${profile.displayName} (${profile.kind.wireName})',
+      if (profile.kind == StudioConsistencyProfileKind.character)
+        'Identity lock: preserve the same character across all generated images.',
       profile.guidance.trim(),
+      if (profile.kind == StudioConsistencyProfileKind.character)
+        'Do not alter fixed identity traits. Only change the scene, pose, expression, camera, lighting, outfit details, or action when explicitly requested.',
       if (profile.referenceImagePath.trim().isNotEmpty)
         'Reference image path: ${profile.referenceImagePath.trim()}',
     ].where((block) => block.trim().isNotEmpty).join('\n');

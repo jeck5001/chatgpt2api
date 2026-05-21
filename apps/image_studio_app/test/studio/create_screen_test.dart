@@ -184,6 +184,33 @@ void main() {
     expect(find.textContaining('standing in a greenhouse'), findsOneWidget);
   });
 
+  testWidgets('saving a character profile opens a role card form', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CreateScreen(
+          controller: StudioController(FakeStudioRepository()),
+          activeConversationId: 'conversation-1',
+        ),
+      ),
+    );
+
+    await tester.enterText(
+      find.byType(TextField),
+      'A silver-haired botanist with a teal jacket.',
+    );
+    await tester.tap(find.text('模板'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存为角色档案'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('保存角色卡'), findsOneWidget);
+    expect(find.text('固定身份特征'), findsOneWidget);
+    expect(find.text('不要变化的地方'), findsOneWidget);
+    expect(find.text('参考图路径（可选）'), findsOneWidget);
+  });
+
   testWidgets('tapping a community recipe clones it into the composer', (
     tester,
   ) async {

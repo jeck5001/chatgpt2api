@@ -608,6 +608,27 @@ class _CreateScreenState extends State<CreateScreen> {
       _showSnack('请先在输入框写好角色或风格指引');
       return;
     }
+    if (kind == StudioConsistencyProfileKind.character) {
+      final form = await _promptForCharacterCardMeta(guidance);
+      if (form == null) return;
+      if (form.identity.trim().isEmpty) {
+        _showSnack('请填写固定身份特征');
+        return;
+      }
+      try {
+        await controller.saveCharacterCard(
+          name: form.name,
+          identity: form.identity,
+          lockedTraits: form.lockedTraits,
+          avoidChanges: form.avoidChanges,
+          referenceImagePath: form.referenceImagePath,
+        );
+        if (mounted) _showSnack('已保存角色卡');
+      } catch (error) {
+        if (mounted) _showSnack('保存失败：$error');
+      }
+      return;
+    }
     final label = kind.label;
     final name = await showNamePromptDialog(
       context,
@@ -626,6 +647,96 @@ class _CreateScreenState extends State<CreateScreen> {
     } catch (error) {
       if (mounted) _showSnack('保存失败：$error');
     }
+  }
+
+  Future<_CharacterCardMeta?> _promptForCharacterCardMeta(
+    String initialGuidance,
+  ) async {
+    final nameController = TextEditingController();
+    final identityController = TextEditingController(text: initialGuidance);
+    final traitsController = TextEditingController();
+    final avoidController = TextEditingController(
+      text: '不要改变脸型、年龄、发型、发色、体型、核心服装、标志性配件和主色调，除非用户明确要求。',
+    );
+    final referenceController = TextEditingController();
+    final result = await showDialog<_CharacterCardMeta>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('保存角色卡'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: '角色卡名称（可留空）'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: identityController,
+                  minLines: 3,
+                  maxLines: 5,
+                  decoration: const InputDecoration(
+                    labelText: '固定身份特征',
+                    helperText: '年龄、脸型、发型、服装、配件等不可变信息',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: traitsController,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    labelText: '特征指纹（可选）',
+                    helperText: '更细的可识别特征，例如痣、耳钉、外套颜色',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: avoidController,
+                  minLines: 2,
+                  maxLines: 4,
+                  decoration: const InputDecoration(labelText: '不要变化的地方'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: referenceController,
+                  decoration: const InputDecoration(
+                    labelText: '参考图路径（可选）',
+                    helperText: '例如 2026/05/luna.png',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(
+                _CharacterCardMeta(
+                  name: nameController.text.trim(),
+                  identity: identityController.text.trim(),
+                  lockedTraits: traitsController.text.trim(),
+                  avoidChanges: avoidController.text.trim(),
+                  referenceImagePath: referenceController.text.trim(),
+                ),
+              ),
+              child: const Text('保存'),
+            ),
+          ],
+        );
+      },
+    );
+    nameController.dispose();
+    identityController.dispose();
+    traitsController.dispose();
+    avoidController.dispose();
+    referenceController.dispose();
+    return result;
   }
 
   Future<_TemplateMeta?> _promptForTemplateMeta() async {
@@ -1636,6 +1747,22 @@ class _TemplateMeta {
   const _TemplateMeta({required this.name, required this.category});
   final String name;
   final String category;
+}
+
+class _CharacterCardMeta {
+  const _CharacterCardMeta({
+    required this.name,
+    required this.identity,
+    required this.lockedTraits,
+    required this.avoidChanges,
+    required this.referenceImagePath,
+  });
+
+  final String name;
+  final String identity;
+  final String lockedTraits;
+  final String avoidChanges;
+  final String referenceImagePath;
 }
 
 sealed class _TemplateSheetAction {

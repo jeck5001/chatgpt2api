@@ -273,6 +273,30 @@ void main() {
     );
   });
 
+  test(
+    'saveCharacterCard stores locked traits and reference guidance',
+    () async {
+      final repository = FakeStudioRepository();
+      final controller = StudioController(repository);
+
+      final profile = await controller.saveCharacterCard(
+        name: 'Luna',
+        identity: 'A silver-haired botanist with a teal jacket.',
+        lockedTraits: 'silver bob haircut, teal utility jacket, round glasses',
+        avoidChanges:
+            'Do not change hair color, jacket color, age, or glasses.',
+        referenceImagePath: '2026/05/luna.png',
+      );
+
+      expect(profile.kind, StudioConsistencyProfileKind.character);
+      expect(profile.referenceImagePath, '2026/05/luna.png');
+      expect(profile.tags, containsAll(['角色', '角色卡']));
+      expect(profile.guidance, contains('Character identity lock'));
+      expect(profile.guidance, contains('Fixed traits:'));
+      expect(profile.guidance, contains('Do not change hair color'));
+    },
+  );
+
   test('applyConsistencyProfile stores composed prompt draft', () async {
     final repository = FakeStudioRepository();
     final controller = StudioController(repository);
@@ -328,6 +352,8 @@ void main() {
 
       final prompt = repository.createdPrompts.single;
       expect(prompt, contains('Consistency profile: Luna'));
+      expect(prompt, contains('Identity lock: preserve the same character'));
+      expect(prompt, contains('Do not alter fixed identity traits'));
       expect(prompt, contains('Reference image path: 2026/05/luna.png'));
       expect(prompt, contains('Consistency profile: Watercolor'));
       expect(prompt, contains('User prompt:\nstanding in a greenhouse'));
