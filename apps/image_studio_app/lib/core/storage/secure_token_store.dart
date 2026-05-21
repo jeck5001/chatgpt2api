@@ -1,6 +1,14 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
-class SecureTokenStore {
+abstract interface class TokenStore {
+  Future<String?> readToken();
+
+  Future<void> writeToken(String token);
+
+  Future<void> clearToken();
+}
+
+class SecureTokenStore implements TokenStore {
   SecureTokenStore({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage(mOptions: _macOptions);
 
@@ -14,11 +22,14 @@ class SecureTokenStore {
 
   final FlutterSecureStorage _storage;
 
+  @override
   Future<String?> readToken() => _storage.read(key: _tokenKey);
 
+  @override
   Future<void> writeToken(String token) {
     return _storage.write(key: _tokenKey, value: token.trim());
   }
 
+  @override
   Future<void> clearToken() => _storage.delete(key: _tokenKey);
 }

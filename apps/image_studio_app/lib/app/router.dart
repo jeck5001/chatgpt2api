@@ -21,17 +21,88 @@ typedef StudioRouteArgs = ({StudioController controller, AuthSession session});
 GoRouter buildRouter() {
   Uri? pendingBaseUrl;
   AuthRepository? activeAuthRepository;
+  Future<StudioRouteArgs?>? restoreFuture;
+
+  StudioRouteArgs createStudioRouteArgs({
+    required SharedPreferences sharedPrefs,
+    required AuthSession session,
+  }) {
+    final baseUrl = session.baseUrl;
+    final token = session.token;
+    final repository = StudioRepository(
+      ApiClient(
+        dio: Dio(BaseOptions(baseUrl: baseUrl.toString())),
+        tokenProvider: () async => token,
+      ),
+    );
+    final controller = StudioController(
+      repository,
+      imageBaseUrl: baseUrl,
+      preferencesStore: SharedPreferencesStudioPreferencesStore(sharedPrefs),
+    );
+    return (controller: controller, session: session);
+  }
+
+  Future<StudioRouteArgs?> restoreSavedRouteArgs() async {
+    try {
+      final sharedPrefs = await SharedPreferences.getInstance();
+      final tokenStore = SecureTokenStore();
+      final profileStore = ServerProfileStore(sharedPrefs);
+      final authRepository = AuthRepository(
+        tokenStore: tokenStore,
+        profileStore: profileStore,
+      );
+      final session = await authRepository.restoreSavedSession();
+      if (session == null) {
+        return null;
+      }
+      activeAuthRepository = authRepository;
+      return createStudioRouteArgs(sharedPrefs: sharedPrefs, session: session);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> signOutAndReturnHome(BuildContext context) async {
+    final router = GoRouter.of(context);
+    await activeAuthRepository?.signOut();
+    activeAuthRepository = null;
+    pendingBaseUrl = null;
+    restoreFuture = Future<StudioRouteArgs?>.value(null);
+    router.go('/');
+  }
+
   return GoRouter(
     initialLocation: '/',
     routes: [
       GoRoute(
         path: '/',
-        builder: (context, state) => OnboardingScreen(
-          onContinue: (baseUrl) {
-            pendingBaseUrl = baseUrl;
-            context.go('/login');
-          },
-        ),
+        builder: (context, state) {
+          restoreFuture ??= restoreSavedRouteArgs();
+          return FutureBuilder<StudioRouteArgs?>(
+            future: restoreFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return const _StartupScreen();
+              }
+              final restoredArgs = snapshot.data;
+              if (restoredArgs != null) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (context.mounted) {
+                    context.go('/studio', extra: restoredArgs);
+                  }
+                });
+                return const _StartupScreen();
+              }
+              return OnboardingScreen(
+                onContinue: (baseUrl) {
+                  pendingBaseUrl = baseUrl;
+                  context.go('/login');
+                },
+              );
+            },
+          );
+        },
       ),
       GoRoute(
         path: '/login',
@@ -52,22 +123,12 @@ GoRouter buildRouter() {
               bearerKey: bearerKey,
             );
             activeAuthRepository = authRepository;
-            final repository = StudioRepository(
-              ApiClient(
-                dio: Dio(BaseOptions(baseUrl: baseUrl.toString())),
-                tokenProvider: () async => bearerKey,
-              ),
-            );
-            final controller = StudioController(
-              repository,
-              imageBaseUrl: baseUrl,
-              preferencesStore: SharedPreferencesStudioPreferencesStore(
-                sharedPrefs,
-              ),
-            );
             router.go(
               '/studio',
-              extra: (controller: controller, session: session),
+              extra: createStudioRouteArgs(
+                sharedPrefs: sharedPrefs,
+                session: session,
+              ),
             );
           },
         ),
@@ -80,23 +141,13 @@ GoRouter buildRouter() {
             return StudioSessionScreen(
               controller: extra.controller,
               session: extra.session,
-              onSignOut: () async {
-                final router = GoRouter.of(context);
-                await activeAuthRepository?.signOut();
-                activeAuthRepository = null;
-                router.go('/');
-              },
+              onSignOut: () => signOutAndReturnHome(context),
             );
           }
           if (extra is StudioController) {
             return StudioSessionScreen(
               controller: extra,
-              onSignOut: () async {
-                final router = GoRouter.of(context);
-                await activeAuthRepository?.signOut();
-                activeAuthRepository = null;
-                router.go('/');
-              },
+              onSignOut: () => signOutAndReturnHome(context),
             );
           }
           return const Scaffold(
@@ -106,4 +157,13 @@ GoRouter buildRouter() {
       ),
     ],
   );
+}
+
+class _StartupScreen extends StatelessWidget {
+  const _StartupScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(body: Center(child: CircularProgressIndicator()));
+  }
 }

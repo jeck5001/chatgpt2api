@@ -34,6 +34,7 @@ void main() {
 
 class FakeAuthRepository implements AuthRepositoryContract {
   String? savedToken;
+  AuthSession? restoredSession;
 
   @override
   Future<AuthSession> loginWithBearerKey({
@@ -58,4 +59,7 @@ class FakeAuthRepository implements AuthRepositoryContract {
   Future<void> signOut() async {
     savedToken = null;
   }
+
+  @override
+  Future<AuthSession?> restoreSavedSession() async => restoredSession;
 }

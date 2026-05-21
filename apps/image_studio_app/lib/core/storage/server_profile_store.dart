@@ -2,13 +2,22 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-class ServerProfileStore {
+abstract interface class ServerProfileStoreContract {
+  Uri? readActiveBaseUrl();
+
+  Future<void> writeActiveBaseUrl(Uri baseUrl);
+
+  Future<void> clearActiveBaseUrl();
+}
+
+class ServerProfileStore implements ServerProfileStoreContract {
   const ServerProfileStore(this._preferences);
 
   static const _activeProfileKey = 'chatgpt2api.activeServerProfile';
 
   final SharedPreferences _preferences;
 
+  @override
   Uri? readActiveBaseUrl() {
     final raw = _preferences.getString(_activeProfileKey);
     if (raw == null || raw.trim().isEmpty) {
@@ -17,6 +26,7 @@ class ServerProfileStore {
     return Uri.tryParse(raw);
   }
 
+  @override
   Future<void> writeActiveBaseUrl(Uri baseUrl) {
     return _preferences.setString(
       _activeProfileKey,
@@ -24,6 +34,7 @@ class ServerProfileStore {
     );
   }
 
+  @override
   Future<void> clearActiveBaseUrl() {
     return _preferences.remove(_activeProfileKey);
   }
