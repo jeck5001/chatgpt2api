@@ -43,12 +43,14 @@ import {
 import {
   deleteAccounts,
   exportAccounts,
+  fetchAccountRefreshJob,
   fetchAccounts,
   refreshAccounts,
   updateAccount,
   type Account,
   type AccountListParams,
   type AccountExportFormat,
+  type AccountRefreshJob,
   type AccountStatus,
   type AccountSummary,
 } from "@/lib/api";
@@ -106,6 +108,7 @@ const emptySummary: AccountSummary = {
 
 const SEARCH_DEBOUNCE_MS = 300;
 const BULK_FETCH_PAGE_SIZE = 200;
+const REFRESH_JOB_POLL_MS = 1500;
 
 function isUnlimitedImageQuotaAccount(account: Account) {
   return account.type === "pro" || account.type === "prolite";
@@ -214,6 +217,15 @@ function displayAccountType(account: Account) {
   return account.type || "Free";
 }
 
+function isRefreshJob(value: unknown): value is AccountRefreshJob {
+  return Boolean(
+    value
+      && typeof value === "object"
+      && (value as { mode?: unknown }).mode === "background"
+      && typeof (value as { job_id?: unknown }).job_id === "string",
+  );
+}
+
 function AccountsPageContent() {
   const [items, setItems] = useState<Account[]>([]);
   const [summary, setSummary] = useState<AccountSummary>(emptySummary);
@@ -232,6 +244,7 @@ function AccountsPageContent() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [refreshJob, setRefreshJob] = useState<AccountRefreshJob | null>(null);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -285,6 +298,7 @@ function AccountsPageContent() {
   const allCurrentSelected =
     items.length > 0 && items.every((row) => selectedIds.includes(row.access_token));
   const selectedTokens = selectedIds;
+  const refreshProgress = refreshJob?.total ? Math.round((refreshJob.completed / refreshJob.total) * 100) : 0;
 
   const metricValues = useMemo<Record<(typeof metricCards)[number]["key"], number | string>>(
     () => ({
@@ -341,6 +355,11 @@ function AccountsPageContent() {
     setIsRefreshing(true);
     try {
       const data = await refreshAccounts(accessTokens);
+      if (isRefreshJob(data)) {
+        setRefreshJob(data);
+        toast.success(`已开始后台刷新 ${data.total} 个账号，可继续使用页面`);
+        return;
+      }
       if (data.errors.length > 0) {
         const firstError = data.errors[0]?.error;
         toast.error(
@@ -354,9 +373,50 @@ function AccountsPageContent() {
       const message = error instanceof Error ? error.message : "刷新账户失败";
       toast.error(message);
     } finally {
-      setIsRefreshing(false);
+      if (accessTokens.length > 0) {
+        setIsRefreshing(false);
+      }
     }
   };
+
+  useEffect(() => {
+    if (!refreshJob || !["queued", "running"].includes(refreshJob.status)) {
+      return;
+    }
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const nextJob = await fetchAccountRefreshJob(refreshJob.job_id);
+        if (cancelled) return;
+        setRefreshJob(nextJob);
+        if (!["queued", "running"].includes(nextJob.status)) {
+          setIsRefreshing(false);
+          if (nextJob.status === "success") {
+            toast.success(`后台刷新完成，成功 ${nextJob.refreshed} 个账号`);
+          } else if (nextJob.status === "partial") {
+            const firstError = nextJob.errors[0]?.error;
+            toast.error(
+              `后台刷新完成，成功 ${nextJob.refreshed} 个，失败 ${nextJob.failed} 个${firstError ? `，首个错误：${firstError}` : ""}`,
+            );
+          } else {
+            toast.error(nextJob.error || "后台刷新失败");
+          }
+          void loadAccounts(true);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "查询后台刷新进度失败";
+        setIsRefreshing(false);
+        toast.error(message);
+      }
+    }, REFRESH_JOB_POLL_MS);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [loadAccounts, refreshJob]);
 
   const handleRemoveAbnormal = async () => {
     if (summary.abnormal === 0) {
@@ -485,7 +545,7 @@ function AccountsPageContent() {
             disabled={isLoading || isRefreshing || isDeleting || summary.total === 0}
           >
             <RefreshCw className={cn("size-4", isRefreshing ? "animate-spin" : "")} />
-            一键刷新所有账号信息和额度
+            后台刷新全部账号
           </Button>
           <AccountImportDialog
             disabled={isLoading || isRefreshing || isDeleting}
@@ -524,6 +584,26 @@ function AccountsPageContent() {
           </Button>
         </div>
       </section>
+
+      {refreshJob ? (
+        <section className="rounded-2xl border border-blue-100 bg-blue-50/80 p-4 text-sm text-blue-900">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="font-medium">
+              后台刷新账号：{refreshJob.completed}/{refreshJob.total}
+              {refreshJob.status === "running" || refreshJob.status === "queued" ? " 进行中" : " 已结束"}
+            </div>
+            <div className="text-blue-700">
+              成功 {refreshJob.refreshed} 个，失败 {refreshJob.failed} 个
+            </div>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100">
+            <div
+              className="h-full rounded-full bg-blue-500 transition-all"
+              style={{ width: `${Math.min(100, Math.max(0, refreshProgress))}%` }}
+            />
+          </div>
+        </section>
+      ) : null}
 
       <Dialog open={Boolean(editingAccount)} onOpenChange={(open) => (!open ? setEditingAccount(null) : null)}>
         <DialogContent showCloseButton={false} className="rounded-2xl p-6">

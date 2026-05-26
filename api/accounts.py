@@ -22,6 +22,7 @@ from api.support import (
     sanitize_sub2api_servers,
 )
 from services.account_service import account_service
+from services.account_refresh_job_service import account_refresh_job_service
 from services.cpa_service import cpa_config, cpa_import_service, list_remote_files
 from services.sub2api_service import (
     list_remote_accounts as sub2api_list_remote_accounts,
@@ -249,9 +250,20 @@ def create_router() -> APIRouter:
         access_tokens = [str(token or "").strip() for token in body.access_tokens if str(token or "").strip()]
         if not access_tokens:
             access_tokens = account_service.list_tokens()
+            if not access_tokens:
+                raise HTTPException(status_code=400, detail={"error": "access_tokens is required"})
+            return account_refresh_job_service.start(access_tokens)
         if not access_tokens:
             raise HTTPException(status_code=400, detail={"error": "access_tokens is required"})
         return account_service.refresh_accounts(access_tokens)
+
+    @router.get("/api/accounts/refresh/{job_id}")
+    async def get_refresh_job(job_id: str, authorization: str | None = Header(default=None)):
+        require_admin(authorization)
+        job = account_refresh_job_service.get(job_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail={"error": "refresh job not found"})
+        return job
 
     @router.post("/api/accounts/export")
     async def export_accounts(body: AccountExportRequest, authorization: str | None = Header(default=None)):
