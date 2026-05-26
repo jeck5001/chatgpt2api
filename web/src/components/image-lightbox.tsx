@@ -51,6 +51,13 @@ type TouchGesture =
       startTransform: ImageTransform;
     };
 
+type PointerPanGesture = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  startTransform: ImageTransform;
+};
+
 const minScale = 1;
 const maxScale = 4;
 
@@ -87,6 +94,22 @@ function normalizeTransform(transform: ImageTransform) {
   };
 }
 
+function zoomTransformAtPoint(
+  transform: ImageTransform,
+  targetScale: number,
+  clientX: number,
+  clientY: number,
+) {
+  const viewportCenterX = window.innerWidth / 2;
+  const viewportCenterY = window.innerHeight / 2;
+  const scaleRatio = targetScale / transform.scale;
+  return normalizeTransform({
+    scale: targetScale,
+    x: clientX - viewportCenterX - (clientX - viewportCenterX - transform.x) * scaleRatio,
+    y: clientY - viewportCenterY - (clientY - viewportCenterY - transform.y) * scaleRatio,
+  });
+}
+
 export function ImageLightbox({
   images,
   currentIndex,
@@ -95,6 +118,7 @@ export function ImageLightbox({
   onIndexChange,
 }: ImageLightboxProps) {
   const gestureRef = useRef<TouchGesture | null>(null);
+  const pointerPanRef = useRef<PointerPanGesture | null>(null);
   const lastTapRef = useRef(0);
   const pendingTransformRef = useRef<ImageTransform | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -142,6 +166,7 @@ export function ImageLightbox({
     setTransform({ scale: 1, x: 0, y: 0 });
     setIsGesturing(false);
     gestureRef.current = null;
+    pointerPanRef.current = null;
   }, [cancelScheduledTransform]);
 
   const goPrev = useCallback(() => {
@@ -339,6 +364,102 @@ export function ImageLightbox({
     gestureRef.current = null;
   }, [cancelScheduledTransform]);
 
+  const handleWheel = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      if (event.ctrlKey) {
+        return;
+      }
+
+      event.preventDefault();
+      const zoomIntensity = 0.0015;
+      const targetScale = clamp(
+        transform.scale * Math.exp(-event.deltaY * zoomIntensity),
+        minScale,
+        maxScale,
+      );
+      if (Math.abs(targetScale - transform.scale) < 0.01) {
+        return;
+      }
+      cancelScheduledTransform();
+      setTransform(zoomTransformAtPoint(transform, targetScale, event.clientX, event.clientY));
+    },
+    [transform, cancelScheduledTransform],
+  );
+
+  const handlePointerDown = useCallback(
+    (event: React.PointerEvent<HTMLImageElement>) => {
+      if (event.pointerType === "touch" || event.button !== 0 || transform.scale <= minScale) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      cancelScheduledTransform();
+      setIsGesturing(true);
+      event.currentTarget.setPointerCapture(event.pointerId);
+      pointerPanRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startTransform: transform,
+      };
+    },
+    [transform, cancelScheduledTransform],
+  );
+
+  const handlePointerMove = useCallback(
+    (event: React.PointerEvent<HTMLImageElement>) => {
+      const gesture = pointerPanRef.current;
+      if (!gesture || gesture.pointerId !== event.pointerId) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      const deltaX = event.clientX - gesture.startX;
+      const deltaY = event.clientY - gesture.startY;
+      scheduleTransform(
+        normalizeTransform({
+          scale: gesture.startTransform.scale,
+          x: gesture.startTransform.x + deltaX,
+          y: gesture.startTransform.y + deltaY,
+        }),
+      );
+    },
+    [scheduleTransform],
+  );
+
+  const finishPointerPan = useCallback((event: React.PointerEvent<HTMLImageElement>) => {
+    const gesture = pointerPanRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return false;
+    }
+
+    flushScheduledTransform();
+    setIsGesturing(false);
+    pointerPanRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    return true;
+  }, [flushScheduledTransform]);
+
+  const handlePointerUp = useCallback(
+    (event: React.PointerEvent<HTMLImageElement>) => {
+      finishPointerPan(event);
+    },
+    [finishPointerPan],
+  );
+
+  const handlePointerCancel = useCallback(
+    (event: React.PointerEvent<HTMLImageElement>) => {
+      finishPointerPan(event);
+    },
+    [finishPointerPan],
+  );
+
   if (!current) return null;
 
   return (
@@ -396,6 +517,7 @@ export function ImageLightbox({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchCancel}
+            onWheel={handleWheel}
           >
             <img
               src={current.src}
@@ -408,7 +530,13 @@ export function ImageLightbox({
               style={{
                 transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${transform.scale})`,
               }}
-              onClick={(e) => e.stopPropagation()}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerCancel={handlePointerCancel}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 toggleZoom();
