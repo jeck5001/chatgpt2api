@@ -116,6 +116,10 @@ class AccountService:
     def _save_accounts(self) -> None:
         self.storage.save_accounts(list(self._accounts.values()))
 
+    def save_accounts_snapshot(self) -> None:
+        with self._lock:
+            self._save_accounts()
+
     @staticmethod
     def _is_image_account_available(account: dict) -> bool:
         if not isinstance(account, dict):

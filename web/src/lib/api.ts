@@ -74,6 +74,24 @@ type AccountRefreshResponse = {
   errors: Array<{ access_token: string; error: string }>;
 };
 
+export type AccountRefreshJob = {
+  job_id: string;
+  mode: "background";
+  status: "queued" | "running" | "success" | "partial" | "error";
+  total: number;
+  completed: number;
+  refreshed: number;
+  failed: number;
+  errors: Array<{ token?: string; access_token?: string; error: string }>;
+  created_at?: string;
+  updated_at?: string;
+  started_at?: string;
+  finished_at?: string;
+  error?: string;
+};
+
+type AccountRefreshResult = AccountRefreshResponse | AccountRefreshJob;
+
 type AccountUpdateResponse = {
   item: Account;
 };
@@ -340,10 +358,14 @@ export async function deleteAccounts(tokens: string[]) {
 }
 
 export async function refreshAccounts(accessTokens: string[]) {
-  return httpRequest<AccountRefreshResponse>("/api/accounts/refresh", {
+  return httpRequest<AccountRefreshResult>("/api/accounts/refresh", {
     method: "POST",
     body: { access_tokens: accessTokens },
   });
+}
+
+export async function fetchAccountRefreshJob(jobId: string) {
+  return httpRequest<AccountRefreshJob>(`/api/accounts/refresh/${encodeURIComponent(jobId)}`);
 }
 
 function getFilenameFromDisposition(value: unknown, fallback: string) {

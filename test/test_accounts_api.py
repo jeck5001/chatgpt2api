@@ -221,6 +221,44 @@ class AccountsApiTests(unittest.TestCase):
         self.assertEqual(data["item"]["status"], "禁用")
         self.assertNotIn("items", data)
 
+    def test_refresh_all_accounts_starts_background_job(self):
+        with (
+            patch.object(self._service, "refresh_accounts") as refresh_accounts,
+            patch.object(self._service, "fetch_remote_info", return_value={"access_token": "tok-a"}),
+        ):
+            response = self.client.post(
+                "/api/accounts/refresh",
+                headers=AUTH_HEADERS,
+                json={"access_tokens": []},
+            )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        data = response.json()
+        self.assertEqual(data["mode"], "background")
+        self.assertIn(data["status"], {"queued", "running", "success"})
+        self.assertEqual(data["total"], 6)
+        self.assertTrue(data["job_id"])
+        refresh_accounts.assert_not_called()
+
+        status_response = self.client.get(
+            f"/api/accounts/refresh/{data['job_id']}",
+            headers=AUTH_HEADERS,
+        )
+        self.assertEqual(status_response.status_code, 200, status_response.text)
+        self.assertEqual(status_response.json()["job_id"], data["job_id"])
+
+    def test_refresh_selected_accounts_stays_synchronous(self):
+        response = self.client.post(
+            "/api/accounts/refresh",
+            headers=AUTH_HEADERS,
+            json={"access_tokens": ["tok-a"]},
+        )
+
+        self.assertEqual(response.status_code, 200, response.text)
+        data = response.json()
+        self.assertNotIn("job_id", data)
+        self.assertIn("refreshed", data)
+
 
 if __name__ == "__main__":
     unittest.main()
