@@ -599,6 +599,16 @@ class AccountService:
             self.update_account(access_token, {"status": "异常", "quota": 0})
         return removed
 
+    def mark_invalid_token(self, access_token: str, event: str) -> dict | None:
+        account = self.update_account(access_token, {"status": "异常", "quota": 0})
+        if account is not None:
+            log_service.add(
+                LOG_TYPE_ACCOUNT,
+                "刷新检测到异常账号",
+                {"source": event, "token": anonymize_token(access_token)},
+            )
+        return account
+
     def get_account(self, access_token: str) -> dict | None:
         if not access_token:
             return None
@@ -873,14 +883,14 @@ class AccountService:
             return True
         return False
 
-    def _record_invalid_token_seen(self, access_token: str, event: str, error: str) -> bool:
+    def _record_invalid_token_seen(self, access_token: str, event: str, error: str, *, immediate: bool = False) -> bool:
         now = datetime.now(timezone.utc)
         with self._lock:
             access_token = self._resolve_access_token_locked(access_token)
             current = self._accounts.get(access_token)
             if current is None:
                 return True
-            should_defer = self._should_defer_invalid_token(current, now)
+            should_defer = False if immediate else self._should_defer_invalid_token(current, now)
             next_item = dict(current)
             next_item["invalid_count"] = int(next_item.get("invalid_count") or 0) + 1
             next_item["last_invalid_at"] = now.isoformat()
@@ -943,7 +953,13 @@ class AccountService:
             return dict(account)
         return None
 
-    def fetch_remote_info(self, access_token: str, event: str = "fetch_remote_info") -> dict[str, Any] | None:
+    def fetch_remote_info(
+        self,
+        access_token: str,
+        event: str = "fetch_remote_info",
+        *,
+        immediate_invalid: bool = False,
+    ) -> dict[str, Any] | None:
         if not access_token:
             raise ValueError("access_token is required")
 
@@ -957,13 +973,24 @@ class AccountService:
                 try:
                     result = OpenAIBackendAPI(refreshed_token).get_user_info()
                 except InvalidAccessTokenError as retry_exc:
-                    if self._record_invalid_token_seen(refreshed_token, event, str(retry_exc)):
-                        self.remove_invalid_token(refreshed_token, event)
+                    if self._record_invalid_token_seen(
+                        refreshed_token,
+                        event,
+                        str(retry_exc),
+                        immediate=immediate_invalid,
+                    ):
+                        if immediate_invalid:
+                            self.mark_invalid_token(refreshed_token, event)
+                        else:
+                            self.remove_invalid_token(refreshed_token, event)
                     raise
                 active_token = refreshed_token
             else:
-                if self._record_invalid_token_seen(active_token, event, str(exc)):
-                    self.remove_invalid_token(active_token, event)
+                if self._record_invalid_token_seen(active_token, event, str(exc), immediate=immediate_invalid):
+                    if immediate_invalid:
+                        self.mark_invalid_token(active_token, event)
+                    else:
+                        self.remove_invalid_token(active_token, event)
                 raise
         self._record_refresh_success(active_token)
         return self.update_account(active_token, result)
@@ -979,7 +1006,7 @@ class AccountService:
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(self.fetch_remote_info, token, "refresh_accounts"): token
+                executor.submit(self.fetch_remote_info, token, "refresh_accounts", immediate_invalid=True): token
                 for token in access_tokens
             }
             for future in as_completed(futures):

@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("CHATGPT2API_AUTH_KEY", "chatgpt2api")
 
@@ -137,6 +138,30 @@ class AccountCapabilityTests(unittest.TestCase):
                 service.list_auto_refresh_tokens(auto_remove_invalid_accounts=True),
                 ["limited-token", "abnormal-token"],
             )
+
+    def test_refresh_accounts_marks_401_tokens_as_abnormal_immediately(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            service = AccountService(JSONStorageBackend(Path(tmp_dir) / "accounts.json"))
+            service.add_accounts(["token-401"])
+
+            class _FakeBackendAPI:
+                def __init__(self, access_token: str = "") -> None:
+                    self.access_token = access_token
+
+                def get_user_info(self) -> dict[str, Any]:
+                    from services.openai_backend_api import InvalidAccessTokenError
+
+                    raise InvalidAccessTokenError("HTTP 401")
+
+            with patch("services.openai_backend_api.OpenAIBackendAPI", _FakeBackendAPI):
+                result = service.refresh_accounts(["token-401"])
+
+            self.assertEqual(result["refreshed"], 0)
+            self.assertEqual(len(result["errors"]), 1)
+            account = service.get_account("token-401")
+            self.assertIsNotNone(account)
+            self.assertEqual(account["status"], "异常")
+            self.assertEqual(account["quota"], 0)
 
 
 class TokenLogTests(unittest.TestCase):

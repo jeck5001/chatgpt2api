@@ -115,7 +115,12 @@ class AccountRefreshJobService:
         max_workers = min(self.max_workers, len(batch))
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(self.service.fetch_remote_info, token, "refresh_accounts_background"): token
+                executor.submit(
+                    self.service.fetch_remote_info,
+                    token,
+                    "refresh_accounts_background",
+                    immediate_invalid=True,
+                ): token
                 for token in batch
             }
             for future in as_completed(futures):
