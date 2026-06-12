@@ -36,3 +36,8 @@ apps/image_studio_app/.dart_tool/
 apps/image_studio_app/.flutter-plugins
 apps/image_studio_app/.flutter-plugins-dependencies
 apps/image_studio_app/build/
+
+# 调试/测试输出目录
+loginwithpassword_*/
+logwithemailverifycode_*/
+test_batch_output/
