@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 os.environ.setdefault("CHATGPT2API_AUTH_KEY", "chatgpt2api")

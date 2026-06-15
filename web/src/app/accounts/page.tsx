@@ -62,7 +62,6 @@ import {
   type AccountStatus,
   type AccountSummary,
   type Model,
-  type RefreshProgressResponse,
 } from "@/lib/api";
 import { useAuthGuard } from "@/lib/use-auth-guard";
 import { cn } from "@/lib/utils";
@@ -265,11 +264,11 @@ function AccountsPageContent() {
   const [isTestingProxy, setIsTestingProxy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingModels, setIsLoadingModels] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshingTokens, setRefreshingTokens] = useState<Set<string>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
   const [refreshJob, setRefreshJob] = useState<AccountRefreshJob | null>(null);
   const [isRelogining, setIsRelogining] = useState(false);
   const [progress, setProgress] = useState<{
@@ -287,21 +286,6 @@ function AccountsPageContent() {
   });
   const progressRef = useRef<number | null>(null);
   const [refreshSummary, setRefreshSummary] = useState<Record<string, number | string> | null>(null);
-  const accounts = items;
-  const setAccounts = setItems;
-
-  const loadModels = async () => {
-    setIsLoadingModels(true);
-    try {
-      const data = await fetchModels();
-      setAvailableModels(Array.isArray(data.data) ? data.data : []);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "加载模型列表失败";
-      toast.error(message);
-    } finally {
-      setIsLoadingModels(false);
-    }
-  };
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -316,8 +300,6 @@ function AccountsPageContent() {
   }, [queryInput]);
 
   useEffect(() => {
-    void loadModels();
-
     return () => {
       if (progressRef.current) window.clearInterval(progressRef.current);
     };
@@ -352,9 +334,26 @@ function AccountsPageContent() {
     [page, pageSize, query, statusFilter, typeFilter],
   );
 
+  const loadModels = useCallback(async () => {
+    setIsLoadingModels(true);
+    try {
+      const data = await fetchModels();
+      setAvailableModels(Array.isArray(data.data) ? data.data : []);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "加载模型列表失败";
+      toast.error(message);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadAccounts();
   }, [loadAccounts]);
+
+  useEffect(() => {
+    void loadModels();
+  }, [loadModels]);
 
   const pageSizeNumber = Number(pageSize);
   const pageCount = Math.max(1, Math.ceil(total / pageSizeNumber));
@@ -417,26 +416,21 @@ function AccountsPageContent() {
   };
 
   const handleRefreshAccounts = async (accessTokens: string[]) => {
+    const isRefreshAll = accessTokens.length === 0;
+    if (isRefreshAll && summary.total === 0) {
+      toast.error("当前账号池为空");
+      return;
+    }
+
     const singleToken = accessTokens.length === 1 ? accessTokens[0] : "";
     let keepBackgroundRefresh = false;
-
     if (singleToken) {
       setRefreshingTokens((prev) => new Set([...prev, singleToken]));
     }
     setIsRefreshing(true);
+    setRefreshSummary(null);
 
-    const selectedTokenSet = new Set(accessTokens);
-    const baseAccountsList = items.filter((account) => !selectedTokenSet.has(account.access_token));
-    const baseActive = baseAccountsList.filter((account) => account.status === "正常").length;
-    const baseLimited = baseAccountsList.filter((account) => account.status === "限流").length;
-    const baseAbnormal = baseAccountsList.filter((account) => account.status === "异常").length;
-    const baseDisabled = baseAccountsList.filter((account) => account.status === "禁用").length;
-    const baseNormalAccounts = baseAccountsList.filter((account) => account.status === "正常");
-    const baseHasUnlimited = baseNormalAccounts.some(isUnlimitedImageQuotaAccount);
-    const baseHasUnknown = baseNormalAccounts.some(imageQuotaUnknown);
-    const baseQuotaNum = baseNormalAccounts.reduce((sum, account) => sum + Math.max(0, account.quota), 0);
-
-    if (accessTokens.length > 0) {
+    if (!isRefreshAll) {
       setProgress({
         visible: true,
         current: 0,
@@ -446,11 +440,19 @@ function AccountsPageContent() {
       });
     }
 
+    const selectedTokenSet = new Set(accessTokens);
+    const selectedAccounts = items.filter((account) => selectedTokenSet.has(account.access_token));
+    const baseActive = summary.active - selectedAccounts.filter((account) => account.status === "正常").length;
+    const baseLimited = summary.limited - selectedAccounts.filter((account) => account.status === "限流").length;
+    const baseAbnormal = summary.abnormal - selectedAccounts.filter((account) => account.status === "异常").length;
+    const baseDisabled = summary.disabled - selectedAccounts.filter((account) => account.status === "禁用").length;
+
     try {
       const started = await refreshAccounts(accessTokens);
       if (isRefreshJob(started)) {
         keepBackgroundRefresh = true;
         setRefreshJob(started);
+        setProgress({ visible: false, current: 0, total: 0, message: "", email: "" });
         toast.success(`已开始后台刷新 ${started.total} 个账号，可继续使用页面`);
         return;
       }
@@ -478,22 +480,13 @@ function AccountsPageContent() {
             }
 
             setProgress((prev) => ({ ...prev, current: currentProgress.processed }));
-            const runningActive = baseActive + (currentProgress.status_counts?.["正常"] ?? 0);
-            const runningLimited = baseLimited + (currentProgress.status_counts?.["限流"] ?? 0);
-            const runningAbnormal = baseAbnormal + (currentProgress.status_counts?.["异常"] ?? 0);
-            const runningDisabled = baseDisabled + (currentProgress.status_counts?.["禁用"] ?? 0);
-            const runningQuota = baseHasUnlimited
-              ? "∞"
-              : baseHasUnknown
-                ? "未知"
-                : formatCompact(baseQuotaNum + (currentProgress.total_quota ?? 0));
             setRefreshSummary({
               total: summary.total,
-              active: runningActive,
-              limited: runningLimited,
-              abnormal: runningAbnormal,
-              disabled: runningDisabled,
-              quota: runningQuota,
+              active: baseActive + (currentProgress.status_counts?.["正常"] ?? 0),
+              limited: baseLimited + (currentProgress.status_counts?.["限流"] ?? 0),
+              abnormal: baseAbnormal + (currentProgress.status_counts?.["异常"] ?? 0),
+              disabled: baseDisabled + (currentProgress.status_counts?.["禁用"] ?? 0),
+              quota: metricValues.quota,
             });
           } catch (err) {
             window.clearInterval(pollTimer);
@@ -505,7 +498,6 @@ function AccountsPageContent() {
 
       const relogined = data.relogined ?? 0;
       setSelectedIds((prev) => prev.filter((id) => data.items.some((item) => item.access_token === id)));
-
       if ((data.errors ?? []).length > 0) {
         const firstError = data.errors?.[0]?.error;
         toast.error(
@@ -629,40 +621,14 @@ function AccountsPageContent() {
     }
   };
 
-  const pollRefreshProgress = async (
-    progressId: string,
-    onUpdate: (p: RefreshProgressResponse) => void,
-  ): Promise<void> => {
-    return new Promise<void>((resolve, reject) => {
-      const timer = setInterval(async () => {
-        try {
-          const p = await fetchRefreshProgress(progressId);
-          if (p.done) {
-            clearInterval(timer);
-            if (p.error) {
-              reject(new Error(p.error));
-            } else {
-              onUpdate(p);
-              resolve();
-            }
-          }
-        } catch (err) {
-          clearInterval(timer);
-          reject(err);
-        }
-      }, 500);
-    });
-  };
-
   const handleReLogin = async (accessTokens: string[]) => {
     if (accessTokens.length === 0) {
       toast.error("请先选择要恢复的账户");
       return;
     }
 
-    // 只处理异常账号，过滤非异常账号
     const abnormalTokens = accessTokens.filter((token) => {
-      const account = accounts.find((a) => a.access_token === token);
+      const account = items.find((item) => item.access_token === token);
       return account?.status === "异常";
     });
 
@@ -670,105 +636,81 @@ function AccountsPageContent() {
       toast.error("选中账号中没有异常账号");
       return;
     }
-
     if (abnormalTokens.length < accessTokens.length) {
       toast.info(`已过滤 ${accessTokens.length - abnormalTokens.length} 个非异常账号`);
     }
 
     setIsRelogining(true);
+    setRefreshSummary(null);
 
-    // 计算非选中账号的基数（统计卡片联动用）
     const selectedTokenSet = new Set(abnormalTokens);
-    const baseAccountsList = accounts.filter((a) => !selectedTokenSet.has(a.access_token));
-    const baseActive = baseAccountsList.filter((a) => a.status === "正常").length;
-    const baseLimited = baseAccountsList.filter((a) => a.status === "限流").length;
-    const baseAbnormal = baseAccountsList.filter((a) => a.status === "异常").length;
-    const baseDisabled = baseAccountsList.filter((a) => a.status === "禁用").length;
-
-    // 显示进度条（真实进度）
+    const selectedAccounts = items.filter((item) => selectedTokenSet.has(item.access_token));
+    const baseActive = summary.active;
+    const baseLimited = summary.limited;
+    const baseAbnormal = summary.abnormal - selectedAccounts.filter((item) => item.status === "异常").length;
+    const baseDisabled = summary.disabled;
     const total = abnormalTokens.length;
     setProgress({ visible: true, current: 0, total, message: "正在尝试恢复异常账号...", email: "" });
 
     try {
       const { progress_id } = await reLoginAccounts(abnormalTokens);
-
-      // 轮询进度到完成
       await new Promise<void>((resolve, reject) => {
-        const pollTimer = setInterval(async () => {
+        const pollTimer = window.setInterval(async () => {
           try {
             const p = await fetchReLoginProgress(progress_id);
             if (p.done) {
-              clearInterval(pollTimer);
+              window.clearInterval(pollTimer);
               if (p.error) {
                 reject(new Error(p.error));
                 return;
               }
-              setProgress((prev) => ({ ...prev, current: prev.total, message: "恢复流程已完成" }));
+              setProgress((prev) => ({ ...prev, current: prev.total, message: "恢复流程已完成", email: "" }));
               setRefreshSummary(null);
               resolve();
-            } else {
-              // 实时更新进度
-              const results = p.results ?? [];
-              // 找到最新一条有错误的结果
-              const lastErrorResult = [...results].reverse().find((r) => r.error);
-              const emailHint = lastErrorResult
-                ? `失败: ${lastErrorResult.token} ${lastErrorResult.error ?? ""}`
-                : `已处理 ${p.processed}/${p.total}`;
-              setProgress((prev) => ({
-                ...prev,
-                current: p.processed,
-                email: emailHint,
-                message: "正在尝试恢复异常账号...",
-              }));
-
-              // 实时更新统计卡片：基数 + 已处理的恢复结果
-              let runningActive = baseActive;
-              let runningAbnormal = baseAbnormal;
-              let runningDisabled = baseDisabled;
-              for (const r of results) {
-                if (r.status === "成功") {
-                  runningActive += 1;
-                  runningAbnormal -= 1;
-                } else if (r.status === "禁用") {
-                  runningDisabled += 1;
-                  runningAbnormal -= 1;
-                }
-                // "异常"或"跳过"：保持异常状态不变
-              }
-              setRefreshSummary({
-                total: accounts.length,
-                active: runningActive,
-                limited: baseLimited,
-                abnormal: runningAbnormal,
-                disabled: runningDisabled,
-                quota: summary.quota,
-              });
+              return;
             }
+
+            const results = p.results ?? [];
+            const lastErrorResult = [...results].reverse().find((result) => result.error);
+            const emailHint = lastErrorResult
+              ? `失败: ${lastErrorResult.token} ${lastErrorResult.error ?? ""}`
+              : `已处理 ${p.processed}/${p.total}`;
+            setProgress((prev) => ({
+              ...prev,
+              current: p.processed,
+              email: emailHint,
+              message: "正在尝试恢复异常账号...",
+            }));
+            let runningActive = baseActive;
+            let runningAbnormal = baseAbnormal;
+            let runningDisabled = baseDisabled;
+            for (const result of results) {
+              if (result.status === "成功") {
+                runningActive += 1;
+                runningAbnormal -= 1;
+              } else if (result.status === "禁用") {
+                runningDisabled += 1;
+                runningAbnormal -= 1;
+              }
+            }
+            setRefreshSummary({
+              total: summary.total,
+              active: runningActive,
+              limited: baseLimited,
+              abnormal: runningAbnormal,
+              disabled: runningDisabled,
+              quota: metricValues.quota,
+            });
           } catch (err) {
-            clearInterval(pollTimer);
+            window.clearInterval(pollTimer);
             reject(err);
           }
         }, 300);
       });
 
-      // 等待后台线程完成，再拉取最新数据
-      await new Promise<void>((resolve) => setTimeout(resolve, 500));
-      try {
-        const freshData = await fetchAccounts();
-        setAccounts(freshData.items);
-        setSelectedIds((prev) => prev.filter((id) => freshData.items.some((item) => item.access_token === id)));
-      } catch { /* 静默失败 */ }
-
-      setProgress({
-        visible: true,
-        current: total,
-        total,
-        message: "恢复完成",
-        email: "",
-      });
-      setTimeout(() => setProgress({ visible: false, current: 0, total: 0, message: "", email: "" }), 800);
-
-      toast.success(`恢复流程已全部完成`);
+      await loadAccounts(true);
+      window.setTimeout(() => setProgress({ visible: false, current: 0, total: 0, message: "", email: "" }), 800);
+      toast.success("恢复流程已全部完成");
     } catch (error) {
       setProgress({ visible: false, current: 0, total: 0, message: "", email: "" });
       setRefreshSummary(null);
@@ -776,6 +718,7 @@ function AccountsPageContent() {
       toast.error(message);
     } finally {
       setIsRelogining(false);
+      setRefreshSummary(null);
     }
   };
 
@@ -823,6 +766,25 @@ function AccountsPageContent() {
       toast.error(message);
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleExportAccounts = async (format: AccountExportFormat, tokens: string[]) => {
+    if (tokens.length === 0) {
+      toast.error("没有可导出的账户");
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const data = await exportAccounts(format, tokens);
+      downloadBlob(data.blob, data.filename);
+      toast.success(format === "zip" ? "ZIP 压缩包已导出" : "JSON 文件已导出");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "导出账户失败";
+      toast.error(message);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -1215,6 +1177,7 @@ function AccountsPageContent() {
                     <th className="w-32 px-4 py-3">创建时间</th>
                     <th className="w-24 px-4 py-3">额度</th>
                     <th className="w-40 px-4 py-3">恢复时间</th>
+                    <th className="w-18 px-4 py-3">在途</th>
                     <th className="w-18 px-4 py-3">成功</th>
                     <th className="w-18 px-4 py-3">失败</th>
                     <th className="w-24 px-4 py-3">操作</th>
@@ -1305,6 +1268,27 @@ function AccountsPageContent() {
                                 {restore.relative ? <div className="font-medium text-stone-700">{restore.relative}</div> : null}
                                 <div>{restore.absolute}</div>
                               </div>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-3">
+                          {(() => {
+                            const inflight = account.image_inflight ?? 0;
+                            return (
+                              <span
+                                className={
+                                  inflight > 0
+                                    ? "font-semibold text-amber-600"
+                                    : "text-stone-400"
+                                }
+                                title={
+                                  inflight > 0
+                                    ? "当前正在生成的图片数。号池空闲时此值持续 > 0，说明并发槽位泄漏、该账号已被静默排除出调度"
+                                    : "当前无在途生图任务"
+                                }
+                              >
+                                {inflight}
+                              </span>
                             );
                           })()}
                         </td>

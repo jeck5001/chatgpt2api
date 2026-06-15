@@ -3,6 +3,10 @@
 import localforage from "localforage";
 
 import type { ImageModel } from "@/lib/api";
+import {
+  DEFAULT_AUTO_RETRY_LIMIT,
+  normalizeAutoRetryLimit,
+} from "@/lib/image-auto-retry";
 
 export type ImageConversationMode = "generate" | "edit";
 
@@ -18,6 +22,7 @@ export type StoredImage = {
   status?: "loading" | "success" | "error";
   taskStatus?: "queued" | "running";
   progress?: string;
+  retryAttempt?: number;
   b64_json?: string;
   url?: string;
   revised_prompt?: string;
@@ -52,6 +57,7 @@ export type ImageTurn = {
 export type ImageConversation = {
   id: string;
   title: string;
+  autoRetryLimit: number;
   createdAt: string;
   updatedAt: string;
   turns: ImageTurn[];
@@ -75,6 +81,7 @@ function normalizeStoredImage(image: StoredImage): StoredImage {
     ...image,
     taskId: typeof image.taskId === "string" && image.taskId ? image.taskId : undefined,
     taskStatus: image.taskStatus === "queued" || image.taskStatus === "running" ? image.taskStatus : undefined,
+    retryAttempt: typeof image.retryAttempt === "number" ? image.retryAttempt : undefined,
     url: typeof image.url === "string" && image.url ? image.url : undefined,
     revised_prompt: typeof image.revised_prompt === "string" ? image.revised_prompt : undefined,
     startTime: typeof image.startTime === "number" ? image.startTime : undefined,
@@ -82,7 +89,11 @@ function normalizeStoredImage(image: StoredImage): StoredImage {
     elapsedUpdatedAt: typeof image.elapsedUpdatedAt === "number" ? image.elapsedUpdatedAt : undefined,
     durationMs: typeof image.durationMs === "number" ? image.durationMs : undefined,
   };
-  if (image.status === "loading" || image.status === "error" || image.status === "success") {
+  if (
+    image.status === "loading" ||
+    image.status === "error" ||
+    image.status === "success"
+  ) {
     return normalized;
   }
   return {
@@ -91,7 +102,9 @@ function normalizeStoredImage(image: StoredImage): StoredImage {
   };
 }
 
-function normalizeReferenceImage(image: StoredReferenceImage): StoredReferenceImage {
+function normalizeReferenceImage(
+  image: StoredReferenceImage
+): StoredReferenceImage {
   return {
     name: image.name || "reference.png",
     type: image.type || "image/png",
@@ -104,7 +117,9 @@ function dataUrlMimeType(dataUrl: string) {
   return match?.[1] || "image/png";
 }
 
-function getLegacyReferenceImages(source: Record<string, unknown>): StoredReferenceImage[] {
+function getLegacyReferenceImages(
+  source: Record<string, unknown>
+): StoredReferenceImage[] {
   if (Array.isArray(source.referenceImages)) {
     return source.referenceImages
       .filter((image): image is StoredReferenceImage => {
@@ -112,17 +127,25 @@ function getLegacyReferenceImages(source: Record<string, unknown>): StoredRefere
           return false;
         }
         const candidate = image as StoredReferenceImage;
-        return typeof candidate.dataUrl === "string" && candidate.dataUrl.length > 0;
+        return (
+          typeof candidate.dataUrl === "string" && candidate.dataUrl.length > 0
+        );
       })
       .map(normalizeReferenceImage);
   }
 
   if (source.sourceImage && typeof source.sourceImage === "object") {
-    const image = source.sourceImage as { dataUrl?: unknown; fileName?: unknown };
+    const image = source.sourceImage as {
+      dataUrl?: unknown;
+      fileName?: unknown;
+    };
     if (typeof image.dataUrl === "string" && image.dataUrl) {
       return [
         {
-          name: typeof image.fileName === "string" && image.fileName ? image.fileName : "reference.png",
+          name:
+            typeof image.fileName === "string" && image.fileName
+              ? image.fileName
+              : "reference.png",
           type: dataUrlMimeType(image.dataUrl),
           dataUrl: image.dataUrl,
         },
@@ -134,13 +157,16 @@ function getLegacyReferenceImages(source: Record<string, unknown>): StoredRefere
 }
 
 function normalizeTurn(turn: ImageTurn & Record<string, unknown>): ImageTurn {
-  const normalizedImages = Array.isArray(turn.images) ? turn.images.map(normalizeStoredImage) : [];
-  const derivedStatus: ImageTurnStatus =
-    normalizedImages.some((image) => image.status === "loading")
-      ? "generating"
-      : normalizedImages.some((image) => image.status === "error")
-        ? "error"
-        : "success";
+  const normalizedImages = Array.isArray(turn.images)
+    ? turn.images.map(normalizeStoredImage)
+    : [];
+  const derivedStatus: ImageTurnStatus = normalizedImages.some(
+    (image) => image.status === "loading"
+  )
+    ? "generating"
+    : normalizedImages.some((image) => image.status === "error")
+    ? "error"
+    : "success";
 
   return {
     id: String(turn.id || `${Date.now()}`),
@@ -152,7 +178,8 @@ function normalizeTurn(turn: ImageTurn & Record<string, unknown>): ImageTurn {
     size: typeof turn.size === "string" ? turn.size : "",
     ratio: typeof turn.ratio === "string" && turn.ratio ? turn.ratio : "1:1",
     tier: typeof turn.tier === "string" && turn.tier ? turn.tier : "1k",
-    quality: typeof turn.quality === "string" && turn.quality ? turn.quality : "auto",
+    quality:
+      typeof turn.quality === "string" && turn.quality ? turn.quality : "auto",
     images: normalizedImages,
     createdAt: String(turn.createdAt || new Date().toISOString()),
     status:
@@ -168,9 +195,13 @@ function normalizeTurn(turn: ImageTurn & Record<string, unknown>): ImageTurn {
   };
 }
 
-function normalizeConversation(conversation: ImageConversation & Record<string, unknown>): ImageConversation {
+function normalizeConversation(
+  conversation: ImageConversation & Record<string, unknown>
+): ImageConversation {
   const turns = Array.isArray(conversation.turns)
-    ? conversation.turns.map((turn) => normalizeTurn(turn as ImageTurn & Record<string, unknown>))
+    ? conversation.turns.map((turn) =>
+        normalizeTurn(turn as ImageTurn & Record<string, unknown>)
+      )
     : [
         normalizeTurn({
           id: String(conversation.id || `${Date.now()}`),
@@ -180,16 +211,32 @@ function normalizeConversation(conversation: ImageConversation & Record<string, 
           referenceImages: getLegacyReferenceImages(conversation),
           count: Number(conversation.count || 1),
           size: typeof conversation.size === "string" ? conversation.size : "",
-          ratio: typeof conversation.ratio === "string" && conversation.ratio ? conversation.ratio : "1:1",
-          tier: typeof conversation.tier === "string" && conversation.tier ? conversation.tier : "1k",
-          quality: typeof conversation.quality === "string" && conversation.quality ? conversation.quality : "auto",
-          images: Array.isArray(conversation.images) ? (conversation.images as StoredImage[]) : [],
+          ratio:
+            typeof conversation.ratio === "string" && conversation.ratio
+              ? conversation.ratio
+              : "1:1",
+          tier:
+            typeof conversation.tier === "string" && conversation.tier
+              ? conversation.tier
+              : "1k",
+          quality:
+            typeof conversation.quality === "string" && conversation.quality
+              ? conversation.quality
+              : "auto",
+          images: Array.isArray(conversation.images)
+            ? (conversation.images as StoredImage[])
+            : [],
           createdAt: String(conversation.createdAt || new Date().toISOString()),
           status:
-            conversation.status === "generating" || conversation.status === "success" || conversation.status === "error"
+            conversation.status === "generating" ||
+            conversation.status === "success" ||
+            conversation.status === "error"
               ? conversation.status
               : "success",
-          error: typeof conversation.error === "string" ? conversation.error : undefined,
+          error:
+            typeof conversation.error === "string"
+              ? conversation.error
+              : undefined,
         }),
       ];
   const lastTurn = turns.length > 0 ? turns[turns.length - 1] : null;
@@ -197,14 +244,25 @@ function normalizeConversation(conversation: ImageConversation & Record<string, 
   return {
     id: String(conversation.id || `${Date.now()}`),
     title: String(conversation.title || ""),
-    createdAt: String(conversation.createdAt || lastTurn?.createdAt || new Date().toISOString()),
-    updatedAt: String(conversation.updatedAt || lastTurn?.createdAt || new Date().toISOString()),
+    autoRetryLimit: normalizeAutoRetryLimit(
+      conversation.autoRetryLimit ?? DEFAULT_AUTO_RETRY_LIMIT
+    ),
+    createdAt: String(
+      conversation.createdAt || lastTurn?.createdAt || new Date().toISOString()
+    ),
+    updatedAt: String(
+      conversation.updatedAt || lastTurn?.createdAt || new Date().toISOString()
+    ),
     turns,
   };
 }
 
-function sortImageConversations(conversations: ImageConversation[]): ImageConversation[] {
-  return [...conversations].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+function sortImageConversations(
+  conversations: ImageConversation[]
+): ImageConversation[] {
+  return [...conversations].sort((a, b) =>
+    b.updatedAt.localeCompare(a.updatedAt)
+  );
 }
 
 function getTimestamp(value: string) {
@@ -212,24 +270,31 @@ function getTimestamp(value: string) {
   return Number.isFinite(time) ? time : 0;
 }
 
-function pickLatestConversation(current: ImageConversation, next: ImageConversation) {
-  return getTimestamp(next.updatedAt) >= getTimestamp(current.updatedAt) ? next : current;
+function pickLatestConversation(
+  current: ImageConversation,
+  next: ImageConversation
+) {
+  return getTimestamp(next.updatedAt) >= getTimestamp(current.updatedAt)
+    ? next
+    : current;
 }
 
-function queueImageConversationWrite<T>(operation: () => Promise<T>): Promise<T> {
+function queueImageConversationWrite<T>(
+  operation: () => Promise<T>
+): Promise<T> {
   const result = imageConversationWriteQueue.then(operation);
   imageConversationWriteQueue = result.then(
     () => undefined,
-    () => undefined,
+    () => undefined
   );
   return result;
 }
 
 async function readStoredImageConversations(): Promise<ImageConversation[]> {
   const items =
-    (await imageConversationStorage.getItem<Array<ImageConversation & Record<string, unknown>>>(
-      IMAGE_CONVERSATIONS_KEY,
-    )) || [];
+    (await imageConversationStorage.getItem<
+      Array<ImageConversation & Record<string, unknown>>
+    >(IMAGE_CONVERSATIONS_KEY)) || [];
   return items.map(normalizeConversation);
 }
 
@@ -237,27 +302,36 @@ export async function listImageConversations(): Promise<ImageConversation[]> {
   return sortImageConversations(await readStoredImageConversations());
 }
 
-export async function saveImageConversations(conversations: ImageConversation[]): Promise<void> {
+export async function saveImageConversations(
+  conversations: ImageConversation[]
+): Promise<void> {
   await queueImageConversationWrite(async () => {
     const items = await readStoredImageConversations();
     const conversationMap = new Map(items.map((item) => [item.id, item]));
     for (const conversation of conversations.map(normalizeConversation)) {
       const current = conversationMap.get(conversation.id);
-      conversationMap.set(conversation.id, current ? pickLatestConversation(current, conversation) : conversation);
+      conversationMap.set(
+        conversation.id,
+        current ? pickLatestConversation(current, conversation) : conversation
+      );
     }
     await imageConversationStorage.setItem(
       IMAGE_CONVERSATIONS_KEY,
-      sortImageConversations([...conversationMap.values()]),
+      sortImageConversations([...conversationMap.values()])
     );
   });
 }
 
-export async function saveImageConversation(conversation: ImageConversation): Promise<void> {
+export async function saveImageConversation(
+  conversation: ImageConversation
+): Promise<void> {
   await queueImageConversationWrite(async () => {
     const items = await readStoredImageConversations();
     const nextConversation = normalizeConversation(conversation);
     const current = items.find((item) => item.id === nextConversation.id);
-    const persistedConversation = current ? pickLatestConversation(current, nextConversation) : nextConversation;
+    const persistedConversation = current
+      ? pickLatestConversation(current, nextConversation)
+      : nextConversation;
     const nextItems = sortImageConversations([
       persistedConversation,
       ...items.filter((item) => item.id !== persistedConversation.id),
@@ -266,7 +340,10 @@ export async function saveImageConversation(conversation: ImageConversation): Pr
   });
 }
 
-export async function renameImageConversation(id: string, title: string): Promise<void> {
+export async function renameImageConversation(
+  id: string,
+  title: string
+): Promise<void> {
   await queueImageConversationWrite(async () => {
     const items = await readStoredImageConversations();
     const target = items.find((item) => item.id === id);
@@ -285,7 +362,7 @@ export async function deleteImageConversation(id: string): Promise<void> {
     const items = await readStoredImageConversations();
     await imageConversationStorage.setItem(
       IMAGE_CONVERSATIONS_KEY,
-      items.filter((item) => item.id !== id),
+      items.filter((item) => item.id !== id)
     );
   });
 }
@@ -296,7 +373,9 @@ export async function clearImageConversations(): Promise<void> {
   });
 }
 
-export function getImageConversationStats(conversation: ImageConversation | null): ImageConversationStats {
+export function getImageConversationStats(
+  conversation: ImageConversation | null
+): ImageConversationStats {
   if (!conversation) {
     return { queued: 0, running: 0 };
   }
@@ -313,6 +392,6 @@ export function getImageConversationStats(conversation: ImageConversation | null
       }
       return acc;
     },
-    { queued: 0, running: 0 },
+    { queued: 0, running: 0 }
   );
 }
