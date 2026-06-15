@@ -1,6 +1,24 @@
 "use client";
-import { ArrowUp, ChevronDown, ImagePlus, Info, LoaderCircle, RectangleHorizontal, RectangleVertical, Square, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type DragEvent, type RefObject } from "react";
+import {
+  ArrowUp,
+  ChevronDown,
+  ImagePlus,
+  Info,
+  LoaderCircle,
+  RectangleHorizontal,
+  RectangleVertical,
+  Square,
+  X,
+} from "lucide-react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type DragEvent,
+  type RefObject,
+} from "react";
 
 import { ImageLightbox } from "@/components/image-lightbox";
 import { Button } from "@/components/ui/button";
@@ -20,6 +38,7 @@ type ImageComposerProps = {
   imageQuality: string;
   imageModel: ImageModel;
   imageModels: ImageModel[];
+  autoRetryLimit: number;
   availableQuota: string;
   activeTaskCount: number;
   referenceImages: Array<{ name: string; dataUrl: string }>;
@@ -33,22 +52,30 @@ type ImageComposerProps = {
   onImageHeightChange: (value: string) => void;
   onImageQualityChange: (value: string) => void;
   onImageModelChange: (value: ImageModel) => void;
+  onAutoRetryLimitChange: (value: string) => void;
   onSubmit: () => void | Promise<void>;
   onPickReferenceImage: () => void;
   onReferenceImageChange: (files: File[]) => void | Promise<void>;
   onRemoveReferenceImage: (index: number) => void;
 };
 
-const imageFileNamePattern = /\.(avif|bmp|gif|heic|heif|ico|jpe?g|png|svg|tiff?|webp)$/i;
+const imageFileNamePattern =
+  /\.(avif|bmp|gif|heic|heif|ico|jpe?g|png|svg|tiff?|webp)$/i;
 
 function isImageFile(file: File) {
-  return file.type.startsWith("image/") || (!file.type && imageFileNamePattern.test(file.name));
+  return (
+    file.type.startsWith("image/") ||
+    (!file.type && imageFileNamePattern.test(file.name))
+  );
 }
 
 function hasDraggedImages(dataTransfer: DataTransfer) {
   const items = Array.from(dataTransfer.items || []);
   if (items.length > 0) {
-    return items.some((item) => item.kind === "file" && (item.type.startsWith("image/") || !item.type));
+    return items.some(
+      (item) =>
+        item.kind === "file" && (item.type.startsWith("image/") || !item.type)
+    );
   }
   return Array.from(dataTransfer.files || []).some(isImageFile);
 }
@@ -64,21 +91,115 @@ const qualityOptions = [
   { value: "high", label: "高" },
 ];
 const aspectOptions = [
-  { ratio: "1:1", tier: "1k", width: "1024", height: "1024", label: "1:1", icon: Square },
-  { ratio: "2:3", tier: "1k", width: "1024", height: "1536", label: "2:3", icon: RectangleVertical },
-  { ratio: "3:2", tier: "1k", width: "1536", height: "1024", label: "3:2", icon: RectangleHorizontal },
-  { ratio: "3:4", tier: "1k", width: "1024", height: "1365", label: "3:4", icon: RectangleVertical },
-  { ratio: "4:3", tier: "1k", width: "1365", height: "1024", label: "4:3", icon: RectangleHorizontal },
-  { ratio: "9:16", tier: "1k", width: "1088", height: "1920", label: "9:16", icon: RectangleVertical },
-  { ratio: "16:9", tier: "1k", width: "1920", height: "1088", label: "16:9", icon: RectangleHorizontal },
-  { ratio: "1:1", tier: "2k", width: "2048", height: "2048", label: "1:1(2k)", icon: Square },
-  { ratio: "16:9", tier: "2k", width: "2560", height: "1440", label: "16:9(2k)", icon: RectangleHorizontal },
-  { ratio: "9:16", tier: "2k", width: "1440", height: "2560", label: "9:16(2k)", icon: RectangleVertical },
-  { ratio: "16:9", tier: "4k", width: "3840", height: "2160", label: "16:9(4k)", icon: RectangleHorizontal },
-  { ratio: "9:16", tier: "4k", width: "2160", height: "3840", label: "9:16(4k)", icon: RectangleVertical },
-  { ratio: "auto", tier: "auto", width: "1024", height: "1024", label: "auto", icon: null },
+  {
+    ratio: "1:1",
+    tier: "1k",
+    width: "1024",
+    height: "1024",
+    label: "1:1",
+    icon: Square,
+  },
+  {
+    ratio: "2:3",
+    tier: "1k",
+    width: "1024",
+    height: "1536",
+    label: "2:3",
+    icon: RectangleVertical,
+  },
+  {
+    ratio: "3:2",
+    tier: "1k",
+    width: "1536",
+    height: "1024",
+    label: "3:2",
+    icon: RectangleHorizontal,
+  },
+  {
+    ratio: "3:4",
+    tier: "1k",
+    width: "1024",
+    height: "1365",
+    label: "3:4",
+    icon: RectangleVertical,
+  },
+  {
+    ratio: "4:3",
+    tier: "1k",
+    width: "1365",
+    height: "1024",
+    label: "4:3",
+    icon: RectangleHorizontal,
+  },
+  {
+    ratio: "9:16",
+    tier: "1k",
+    width: "1088",
+    height: "1920",
+    label: "9:16",
+    icon: RectangleVertical,
+  },
+  {
+    ratio: "16:9",
+    tier: "1k",
+    width: "1920",
+    height: "1088",
+    label: "16:9",
+    icon: RectangleHorizontal,
+  },
+  {
+    ratio: "1:1",
+    tier: "2k",
+    width: "2048",
+    height: "2048",
+    label: "1:1(2k)",
+    icon: Square,
+  },
+  {
+    ratio: "16:9",
+    tier: "2k",
+    width: "2560",
+    height: "1440",
+    label: "16:9(2k)",
+    icon: RectangleHorizontal,
+  },
+  {
+    ratio: "9:16",
+    tier: "2k",
+    width: "1440",
+    height: "2560",
+    label: "9:16(2k)",
+    icon: RectangleVertical,
+  },
+  {
+    ratio: "16:9",
+    tier: "4k",
+    width: "3840",
+    height: "2160",
+    label: "16:9(4k)",
+    icon: RectangleHorizontal,
+  },
+  {
+    ratio: "9:16",
+    tier: "4k",
+    width: "2160",
+    height: "3840",
+    label: "9:16(4k)",
+    icon: RectangleVertical,
+  },
+  {
+    ratio: "auto",
+    tier: "auto",
+    width: "1024",
+    height: "1024",
+    label: "auto",
+    icon: null,
+  },
 ];
-const countOptions = Array.from({ length: 10 }, (_, index) => String(index + 1));
+const countOptions = Array.from({ length: 10 }, (_, index) =>
+  String(index + 1)
+);
+const autoRetryOptions = ["0", "1", "2", "3", "5", "10"];
 
 export function ImageComposer({
   prompt,
@@ -90,6 +211,7 @@ export function ImageComposer({
   imageQuality,
   imageModel,
   imageModels,
+  autoRetryLimit,
   availableQuota,
   activeTaskCount,
   referenceImages,
@@ -103,6 +225,7 @@ export function ImageComposer({
   onImageHeightChange,
   onImageQualityChange,
   onImageModelChange,
+  onAutoRetryLimitChange,
   onSubmit,
   onPickReferenceImage,
   onReferenceImageChange,
@@ -112,12 +235,18 @@ export function ImageComposer({
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [isSizeMenuOpen, setIsSizeMenuOpen] = useState(false);
   const [isDraggingImage, setIsDraggingImage] = useState(false);
-  const [sizeMenuPos, setSizeMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [sizeMenuPos, setSizeMenuPos] = useState<{ top: number; left: number }>(
+    { top: 0, left: 0 }
+  );
   const sizeMenuRef = useRef<HTMLDivElement>(null);
   const sizeMenuBtnRef = useRef<HTMLButtonElement>(null);
   const lightboxImages = useMemo(
-    () => referenceImages.map((image, index) => ({ id: `${image.name}-${index}`, src: image.dataUrl })),
-    [referenceImages],
+    () =>
+      referenceImages.map((image, index) => ({
+        id: `${image.name}-${index}`,
+        src: image.dataUrl,
+      })),
+    [referenceImages]
   );
   const modelOptions = useMemo(
     () => imageModels.map((model) => ({ value: model, label: model })),
@@ -125,7 +254,9 @@ export function ImageComposer({
   );
   const qualityLabel = qualityOptions.find((option) => option.value === imageQuality)?.label || "自动";
   const ratioLabel = imageRatio === "auto" ? "auto" : `${imageRatio}(${imageTier})`;
-  const imageSizeLabel = `${qualityLabel} · ${ratioLabel} · ${imageCount || 1} 张`;
+  const retryLabel =
+    autoRetryLimit > 0 ? `失败重试 ${autoRetryLimit} 次` : "失败不重试";
+  const imageSizeLabel = `${qualityLabel} · ${ratioLabel} · ${imageCount || 1} 张 · ${retryLabel}`;
   const selectedModelLabel = modelOptions.find((option) => option.value === imageModel)?.label || imageModel;
   const isCodexModel = imageModel.toLowerCase().includes("codex");
 
@@ -152,7 +283,9 @@ export function ImageComposer({
   }, [isSizeMenuOpen]);
 
   const handleTextareaPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
-    const imageFiles = Array.from(event.clipboardData.files).filter((file) => file.type.startsWith("image/"));
+    const imageFiles = Array.from(event.clipboardData.files).filter((file) =>
+      file.type.startsWith("image/")
+    );
     if (imageFiles.length === 0) {
       return;
     }
@@ -184,7 +317,10 @@ export function ImageComposer({
 
   const handleComposerDragLeave = (event: DragEvent<HTMLDivElement>) => {
     const nextTarget = event.relatedTarget;
-    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
+    if (
+      nextTarget instanceof Node &&
+      event.currentTarget.contains(nextTarget)
+    ) {
       return;
     }
     setIsDraggingImage(false);
@@ -222,7 +358,10 @@ export function ImageComposer({
         {referenceImages.length > 0 ? (
           <div className="mb-2 flex gap-2 overflow-x-auto px-1 pb-1 sm:mb-3 sm:flex-wrap sm:overflow-visible sm:pb-0">
             {referenceImages.map((image, index) => (
-              <div key={`${image.name}-${index}`} className="relative size-14 shrink-0 sm:size-16">
+              <div
+                key={`${image.name}-${index}`}
+                className="relative size-14 shrink-0 sm:size-16"
+              >
                 <button
                   type="button"
                   onClick={() => {
@@ -257,7 +396,7 @@ export function ImageComposer({
         <div
           className={cn(
             "overflow-hidden rounded-[24px] border border-stone-200 bg-white shadow-[0_14px_60px_-42px_rgba(15,23,42,0.45)] transition dark:border-white/10 dark:bg-stone-950/80 sm:rounded-[32px] sm:shadow-none",
-            isDraggingImage && "border-stone-900 bg-stone-50",
+            isDraggingImage && "border-stone-900 bg-stone-50"
           )}
         >
           <div
@@ -304,7 +443,10 @@ export function ImageComposer({
               </div>
             ) : null}
 
-            <div className="rounded-b-[24px] border-t border-stone-100 bg-white px-3 pb-3 pt-2 dark:border-white/10 dark:bg-stone-950/95 sm:absolute sm:inset-x-0 sm:bottom-0 sm:rounded-b-none sm:border-t-0 sm:bg-gradient-to-t sm:from-white sm:via-white/95 sm:to-transparent sm:px-6 sm:pb-4 sm:pt-6 sm:dark:from-stone-950 sm:dark:via-stone-950/95 sm:dark:to-stone-950/0" onClick={(event) => event.stopPropagation()}>
+            <div
+              className="rounded-b-[24px] border-t border-stone-100 bg-white px-3 pb-3 pt-2 dark:border-white/10 dark:bg-stone-950/95 sm:absolute sm:inset-x-0 sm:bottom-0 sm:rounded-b-none sm:border-t-0 sm:bg-gradient-to-t sm:from-white sm:via-white/95 sm:to-transparent sm:px-6 sm:pb-4 sm:pt-6 sm:dark:from-stone-950 sm:dark:via-stone-950/95 sm:dark:to-stone-950/0"
+              onClick={(event) => event.stopPropagation()}
+            >
               <div className="flex items-end justify-between gap-2 sm:gap-3">
                 <div className="hide-scrollbar flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto pb-0.5 sm:flex-wrap sm:gap-3 sm:overflow-visible sm:pb-0">
                   <Button
@@ -312,18 +454,24 @@ export function ImageComposer({
                     variant="outline"
                     className="h-9 shrink-0 rounded-full border-stone-200 bg-white px-3 text-xs font-medium text-stone-700 shadow-none sm:h-10 sm:px-4 sm:text-sm"
                     onClick={onPickReferenceImage}
-                    aria-label={referenceImages.length > 0 ? "添加参考图" : "上传"}
+                    aria-label={
+                      referenceImages.length > 0 ? "添加参考图" : "上传"
+                    }
                   >
                     <ImagePlus className="size-3.5 sm:size-4" />
-                    <span className="hidden sm:inline">{referenceImages.length > 0 ? "添加参考图" : "上传"}</span>
+                    <span className="hidden sm:inline">
+                      {referenceImages.length > 0 ? "添加参考图" : "上传"}
+                    </span>
                   </Button>
                   <div className="shrink-0 rounded-full bg-stone-100 px-2 py-1 text-[10px] font-medium text-stone-600 sm:px-3 sm:py-2 sm:text-xs">
-                    <span className="hidden sm:inline">剩余额度 </span>{availableQuota}
+                    <span className="hidden sm:inline">剩余额度 </span>
+                    {availableQuota}
                   </div>
                   {activeTaskCount > 0 && (
                     <div className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[10px] font-medium text-amber-700 sm:gap-1.5 sm:px-3 sm:py-2 sm:text-xs">
                       <LoaderCircle className="size-3 animate-spin" />
-                      {activeTaskCount}<span className="hidden sm:inline"> 个任务处理中</span>
+                      {activeTaskCount}
+                      <span className="hidden sm:inline"> 个任务处理中</span>
                     </div>
                   )}
                   <div className="relative flex h-9 min-w-0 shrink items-center rounded-full bg-transparent text-[11px] sm:h-auto sm:shrink-0 sm:text-[13px]">
@@ -333,15 +481,33 @@ export function ImageComposer({
                       className="inline-flex h-9 w-fit max-w-[calc(100vw-12rem)] items-center justify-between gap-2 rounded-full bg-stone-100 px-4 text-left text-xs font-semibold text-stone-900 sm:h-10 sm:max-w-none sm:text-sm"
                       onClick={() => {
                         if (!isSizeMenuOpen && sizeMenuBtnRef.current) {
-                          const rect = sizeMenuBtnRef.current.getBoundingClientRect();
-                          const menuWidth = Math.min(460, window.innerWidth - 32);
-                          setSizeMenuPos({ top: rect.top - 8, left: Math.max(16, Math.min(rect.left, window.innerWidth - menuWidth - 16)) });
+                          const rect =
+                            sizeMenuBtnRef.current.getBoundingClientRect();
+                          const menuWidth = Math.min(
+                            460,
+                            window.innerWidth - 32
+                          );
+                          setSizeMenuPos({
+                            top: rect.top - 8,
+                            left: Math.max(
+                              16,
+                              Math.min(
+                                rect.left,
+                                window.innerWidth - menuWidth - 16
+                              )
+                            ),
+                          });
                         }
                         setIsSizeMenuOpen((open) => !open);
                       }}
                     >
                       <span className="truncate">{imageSizeLabel}</span>
-                      <ChevronDown className={cn("size-4 shrink-0 opacity-60 transition", isSizeMenuOpen && "rotate-180")} />
+                      <ChevronDown
+                        className={cn(
+                          "size-4 shrink-0 opacity-60 transition",
+                          isSizeMenuOpen && "rotate-180"
+                        )}
+                      />
                     </button>
                     {isSizeMenuOpen ? (
                       <div
@@ -354,7 +520,9 @@ export function ImageComposer({
                           width: "min(460px, calc(100vw - 2rem))",
                         }}
                       >
-                        <h3 className="mb-3 text-base font-semibold text-stone-950">图像设置</h3>
+                        <h3 className="mb-3 text-base font-semibold text-stone-950">
+                          图像设置
+                        </h3>
                         <div className="mb-3">
                           <div className="mb-2 text-sm font-medium text-stone-900">模型</div>
                           <Select
@@ -394,7 +562,9 @@ export function ImageComposer({
                           </Select>
                         </div>
                         <div className="mb-3">
-                          <div className="mb-2 text-sm font-medium text-stone-900">质量</div>
+                          <div className="mb-2 text-sm font-medium text-stone-900">
+                            质量
+                          </div>
                           <div className="grid grid-cols-4 gap-2">
                             {qualityOptions.map((option) => {
                               const active = option.value === imageQuality;
@@ -404,9 +574,12 @@ export function ImageComposer({
                                   type="button"
                                   className={cn(
                                     "h-9 cursor-pointer rounded-full border border-stone-200 bg-white text-sm text-stone-800 transition hover:border-stone-300 hover:bg-stone-50",
-                                    active && "border-stone-950 bg-white font-medium text-stone-950",
+                                    active &&
+                                      "border-stone-950 bg-white font-medium text-stone-950"
                                   )}
-                                  onClick={() => onImageQualityChange(option.value)}
+                                  onClick={() =>
+                                    onImageQualityChange(option.value)
+                                  }
                                 >
                                   {option.label}
                                 </button>
@@ -426,7 +599,9 @@ export function ImageComposer({
                                 inputMode="numeric"
                                 min="1"
                                 value={imageWidth}
-                                onChange={(event) => onImageWidthChange(event.target.value)}
+                                onChange={(event) =>
+                                  onImageWidthChange(event.target.value)
+                                }
                                 className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-stone-800 shadow-none focus-visible:ring-0"
                               />
                             </div>
@@ -438,7 +613,9 @@ export function ImageComposer({
                                 inputMode="numeric"
                                 min="1"
                                 value={imageHeight}
-                                onChange={(event) => onImageHeightChange(event.target.value)}
+                                onChange={(event) =>
+                                  onImageHeightChange(event.target.value)
+                                }
                                 className="h-7 border-0 bg-transparent px-0 text-sm font-medium text-stone-800 shadow-none focus-visible:ring-0"
                               />
                             </div>
@@ -450,7 +627,11 @@ export function ImageComposer({
                           </div>
                           <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                             {aspectOptions.map((option) => {
-                              const active = option.ratio === imageRatio && option.tier === imageTier && option.width === imageWidth && option.height === imageHeight;
+                              const active =
+                                option.ratio === imageRatio &&
+                                option.tier === imageTier &&
+                                option.width === imageWidth &&
+                                option.height === imageHeight;
                               const Icon = option.icon;
                               const disabled = !isCodexModel && (option.tier === "2k" || option.tier === "4k");
                               return (
@@ -487,7 +668,9 @@ export function ImageComposer({
                           </div>
                         </div>
                         <div className="border-t border-stone-100 pt-3">
-                          <div className="mb-2 text-sm font-medium text-stone-900">生成数量</div>
+                          <div className="mb-2 text-sm font-medium text-stone-900">
+                            生成数量
+                          </div>
                           <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
                             {countOptions.map((option) => {
                               const active = imageCount === option;
@@ -497,7 +680,8 @@ export function ImageComposer({
                                   type="button"
                                   className={cn(
                                     "h-9 cursor-pointer rounded-full border border-stone-200 bg-white text-sm text-stone-800 transition hover:border-stone-300 hover:bg-stone-50",
-                                    active && "border-stone-950 bg-white font-medium text-stone-950",
+                                    active &&
+                                      "border-stone-950 bg-white font-medium text-stone-950"
                                   )}
                                   onClick={() => onImageCountChange(option)}
                                 >
@@ -512,7 +696,45 @@ export function ImageComposer({
                               max="100"
                               step="1"
                               value={imageCount}
-                              onChange={(event) => onImageCountChange(event.target.value)}
+                              onChange={(event) =>
+                                onImageCountChange(event.target.value)
+                              }
+                              className="h-9 rounded-full border-stone-200 bg-white px-3 text-center text-sm font-medium text-stone-800 shadow-none focus-visible:ring-0"
+                            />
+                          </div>
+                        </div>
+                        <div className="mt-3 border-t border-stone-100 pt-3">
+                          <div className="mb-2 text-sm font-medium text-stone-900">
+                            失败自动重试
+                          </div>
+                          <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                            {autoRetryOptions.map((option) => {
+                              const active = String(autoRetryLimit) === option;
+                              return (
+                                <button
+                                  key={option}
+                                  type="button"
+                                  className={cn(
+                                    "h-9 cursor-pointer rounded-full border border-stone-200 bg-white text-sm text-stone-800 transition hover:border-stone-300 hover:bg-stone-50",
+                                    active &&
+                                      "border-stone-950 bg-white font-medium text-stone-950"
+                                  )}
+                                  onClick={() => onAutoRetryLimitChange(option)}
+                                >
+                                  {option === "0" ? "关闭" : `${option} 次`}
+                                </button>
+                              );
+                            })}
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              min="0"
+                              max="10"
+                              step="1"
+                              value={autoRetryLimit}
+                              onChange={(event) =>
+                                onAutoRetryLimitChange(event.target.value)
+                              }
                               className="h-9 rounded-full border-stone-200 bg-white px-3 text-center text-sm font-medium text-stone-800 shadow-none focus-visible:ring-0"
                             />
                           </div>
@@ -520,7 +742,6 @@ export function ImageComposer({
                       </div>
                     ) : null}
                   </div>
-
                 </div>
 
                 <button
@@ -528,7 +749,9 @@ export function ImageComposer({
                   onClick={() => void onSubmit()}
                   disabled={!prompt.trim()}
                   className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-stone-950 text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:bg-stone-300 sm:size-11"
-                  aria-label={referenceImages.length > 0 ? "编辑图片" : "生成图片"}
+                  aria-label={
+                    referenceImages.length > 0 ? "编辑图片" : "生成图片"
+                  }
                 >
                   <ArrowUp className="size-3.5 sm:size-4" />
                 </button>
