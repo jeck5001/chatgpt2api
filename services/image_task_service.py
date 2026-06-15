@@ -87,13 +87,30 @@ def _public_task(task: dict[str, Any]) -> dict[str, Any]:
         "created_at": task.get("created_at"),
         "updated_at": task.get("updated_at"),
     }
+    if task.get("conversation_id"):
+        item["conversation_id"] = task.get("conversation_id")
     if task.get("data") is not None:
         item["data"] = task.get("data")
+    if task.get("usage") is not None:
+        item["usage"] = task.get("usage")
     if task.get("error"):
         item["error"] = task.get("error")
     item["dispatch_mode"] = _clean(task.get("dispatch_mode"), "local")
     if task.get("worker_id"):
         item["worker_id"] = task.get("worker_id")
+    if task.get("progress"):
+        item["progress"] = task.get("progress")
+    if task.get("duration_ms") is not None:
+        item["duration_ms"] = task.get("duration_ms")
+    if task.get("status") in (TASK_STATUS_RUNNING, TASK_STATUS_QUEUED):
+        if task.get("status") == TASK_STATUS_RUNNING:
+            # RUNNING 状态仅在 started_ts 被设置后（image_stream_resolve_start）才计时
+            base_ts = task.get("started_ts")
+        else:
+            # QUEUED 状态从 created_ts 开始计时（排队等待中）
+            base_ts = task.get("created_ts") or task.get("updated_ts")
+        if base_ts:
+            item["elapsed_secs"] = round(time.time() - base_ts, 1)
     return item
 
 
@@ -155,10 +172,12 @@ class ImageTaskService:
         quality: str = "auto",
         base_url: str = "",
         images: list[tuple[bytes, str, str]] | None = None,
+        masks: list[tuple[bytes, str, str]] | None = None,
     ) -> dict[str, Any]:
         payload = {
             "prompt": prompt,
             "images": images or [],
+            "mask": masks or [],
             "model": model,
             "n": 1,
             "size": size,
@@ -278,6 +297,7 @@ class ImageTaskService:
                 "quality": _clean(payload.get("quality"), "auto"),
                 "created_at": now,
                 "updated_at": now,
+                "created_ts": time.time(),
             }
             if worker_id:
                 task["worker_id"] = worker_id
@@ -388,20 +408,33 @@ class ImageTaskService:
     ) -> None:
         started = time.time()
         self._update_task(key, status=TASK_STATUS_RUNNING, error="")
+        # 创建进度回调，每个步骤完成后更新任务状态
+        def progress_callback(step: str) -> None:
+            if step == "image_stream_resolve_start":
+                self._update_task(key, started_ts=time.time())
+            self._update_task(key, progress=step)
+        # 将进度回调添加到 payload 中（handler 会提取并传递给 ConversationRequest）
+        payload_with_progress = {**payload, "progress_callback": progress_callback}
         try:
             handler = self.edit_handler if mode in EDIT_MODES else self.generation_handler
-            result = handler(payload)
+            result = handler(payload_with_progress)
             if not isinstance(result, dict):
                 raise RuntimeError("image task returned streaming result unexpectedly")
             data = result.get("data")
+            account_email = _clean(result.get("_account_email") or result.get("account_email"))
             if not isinstance(data, list) or not data:
                 upstream = _clean(result.get("message"))
                 if upstream:
                     message = upstream
                 else:
                     message = "号池中没有可用账号或所有账号均被限流，请检查号池状态（账号额度、是否被封禁、是否到达生图上限）"
-                raise RuntimeError(message)
-            self._update_task(key, status=TASK_STATUS_SUCCESS, data=data, error="")
+                error = RuntimeError(message)
+                if account_email:
+                    setattr(error, "account_email", account_email)
+                raise error
+            usage = result.get("usage")
+            duration_ms = int((time.time() - started) * 1000)
+            self._update_task(key, status=TASK_STATUS_SUCCESS, data=data, usage=usage, error="", duration_ms=duration_ms)
             self._log_call(
                 identity,
                 mode,
@@ -410,10 +443,16 @@ class ImageTaskService:
                 "调用完成",
                 request_preview=request_text(payload.get("prompt")),
                 urls=_collect_image_urls(data),
+                account_email=account_email,
             )
         except Exception as exc:
             error_message = str(exc) or "image task failed"
-            self._update_task(key, status=TASK_STATUS_ERROR, error=error_message, data=[])
+            account_email = _clean(getattr(exc, "account_email", ""))
+            conversation_id = _clean(getattr(exc, "conversation_id", ""))
+            duration_ms = int((time.time() - started) * 1000)
+            self._update_task(key, status=TASK_STATUS_ERROR, error=error_message, data=[],
+                              duration_ms=duration_ms,
+                              **({"conversation_id": conversation_id} if conversation_id else {}))
             self._log_call(
                 identity,
                 mode,
@@ -423,6 +462,7 @@ class ImageTaskService:
                 request_preview=request_text(payload.get("prompt")),
                 status="failed",
                 error=error_message,
+                account_email=account_email,
             )
 
     def _log_call(
@@ -437,6 +477,7 @@ class ImageTaskService:
         status: str = "success",
         error: str = "",
         urls: list[str] | None = None,
+        account_email: str = "",
     ) -> None:
         endpoint = "/v1/images/edits" if mode in EDIT_MODES else "/v1/images/generations"
         summary_prefix = "局部重绘" if mode == "inpaint" else ("图生图" if mode == "edit" else "文生图")
@@ -455,6 +496,8 @@ class ImageTaskService:
             detail["request_text"] = request_preview
         if error:
             detail["error"] = error
+        if account_email:
+            detail["account_email"] = account_email
         if urls:
             detail["urls"] = list(dict.fromkeys(urls))
         try:
@@ -469,6 +512,7 @@ class ImageTaskService:
                 return
             task.update(updates)
             task["updated_at"] = _now_iso()
+            task["updated_ts"] = time.time()
             self._save_locked()
 
     def _load_locked(self) -> dict[str, dict[str, Any]]:
@@ -506,6 +550,10 @@ class ImageTaskService:
                 "quality": _clean(item.get("quality"), "auto"),
                 "created_at": _clean(item.get("created_at"), _now_iso()),
                 "updated_at": _clean(item.get("updated_at"), _clean(item.get("created_at"), _now_iso())),
+                "created_ts": item.get("created_ts"),
+                "updated_ts": item.get("updated_ts"),
+                "started_ts": item.get("started_ts"),
+                "duration_ms": item.get("duration_ms"),
             }
             if item.get("worker_id"):
                 task["worker_id"] = _clean(item.get("worker_id"))
@@ -515,6 +563,9 @@ class ImageTaskService:
             data = item.get("data")
             if isinstance(data, list):
                 task["data"] = data
+            usage = item.get("usage")
+            if isinstance(usage, dict):
+                task["usage"] = usage
             error = _clean(item.get("error"))
             if error:
                 task["error"] = error
@@ -551,6 +602,113 @@ class ImageTaskService:
         for key in removed_keys:
             self._tasks.pop(key, None)
         return bool(removed_keys)
+
+    def resume_poll(
+        self,
+        identity: dict[str, object],
+        task_id: str,
+        extra_timeout_secs: float = 30.0,
+    ) -> dict[str, Any]:
+        """恢复对已超时任务的轮询，额外等待 extra_timeout_secs 秒。"""
+        owner = _owner_id(identity)
+        key = _task_key(owner, _clean(task_id))
+        with self._lock:
+            task = self._tasks.get(key)
+            if task is None:
+                raise ValueError("task not found")
+            if task.get("status") != TASK_STATUS_ERROR:
+                raise ValueError("task is not in error state")
+            error_msg = _clean(task.get("error"))
+            if "超时" not in error_msg:
+                raise ValueError("task error is not a timeout error")
+            conversation_id = _clean(task.get("conversation_id"))
+            if not conversation_id:
+                raise ValueError("task has no conversation_id")
+            mode = task.get("mode", "generate")
+            model = task.get("model", "gpt-image-2")
+            # 将任务状态重置为 running
+            self._update_task(key, status=TASK_STATUS_RUNNING, error="")
+
+        # 启动新线程继续轮询
+        thread = threading.Thread(
+            target=self._run_resume_poll,
+            args=(key, conversation_id, extra_timeout_secs, dict(identity), mode, model),
+            name=f"image-resume-{_clean(task_id)[:16]}",
+            daemon=True,
+        )
+        thread.start()
+        return _public_task(task)
+
+    def _run_resume_poll(
+        self,
+        key: str,
+        conversation_id: str,
+        extra_timeout_secs: float,
+        identity: dict[str, object],
+        mode: str,
+        model: str,
+    ) -> None:
+        """后台线程：继续轮询已有 conversation_id 的图片结果。"""
+        started = time.time()
+        try:
+            from services.openai_backend_api import OpenAIBackendAPI
+            from services.protocol.conversation import format_image_result
+
+            backend = OpenAIBackendAPI(proxy_url=config.proxy_url or None)
+            file_ids, sediment_ids = backend._poll_image_results(
+                conversation_id,
+                extra_timeout_secs,
+            )
+            if not file_ids and not sediment_ids:
+                raise RuntimeError(
+                    f"继续等待 {extra_timeout_secs} 秒后仍未找到图片结果。"
+                )
+
+            image_urls = backend.resolve_conversation_image_urls(
+                conversation_id, file_ids, sediment_ids, poll=False,
+            )
+            if not image_urls:
+                raise RuntimeError("图片 URL 解析失败")
+
+            image_items = [
+                {"b64_json": __import__("base64").b64encode(image_data).decode("ascii")}
+                for image_data in backend.download_image_bytes(image_urls)
+            ]
+            # 获取 task 的原始 prompt（从 _public_task 的 mode 判断）
+            with self._lock:
+                task = self._tasks.get(key)
+                quality = _clean(task.get("quality"), "auto") if task else "auto"
+                size = _clean(task.get("size")) if task else None
+            data = format_image_result(
+                image_items,
+                "",  # prompt 已不重要，结果已经拿到了
+                "b64_json",
+                "",
+                int(time.time()),
+            )["data"]
+            self._update_task(key, status=TASK_STATUS_SUCCESS, data=data, error="", duration_ms=int((time.time() - started) * 1000))
+            self._log_call(
+                identity,
+                mode,
+                model,
+                started,
+                "调用完成（续轮询）",
+                status="success",
+                urls=_collect_image_urls(data),
+            )
+        except Exception as exc:
+            error_message = str(exc) or "resume poll failed"
+            duration_ms = int((time.time() - started) * 1000)
+            self._update_task(key, status=TASK_STATUS_ERROR, error=error_message, data=[], duration_ms=duration_ms)
+            self._log_call(
+                identity,
+                mode,
+                model,
+                started,
+                "调用失败（续轮询）",
+                status="failed",
+                error=error_message,
+            )
 
 
 image_task_service = ImageTaskService(DATA_DIR / "image_tasks.json", worker_service=image_worker_service)
