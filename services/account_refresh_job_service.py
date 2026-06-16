@@ -119,7 +119,7 @@ class AccountRefreshJobService:
                     self.service.fetch_remote_info,
                     token,
                     "refresh_accounts_background",
-                    immediate_invalid=True,
+                    defer_invalid_removal=False,
                 ): token
                 for token in batch
             }

@@ -10,18 +10,21 @@ class FakeAccountService:
     def __init__(self) -> None:
         self.saved = 0
         self.fetched: list[str] = []
-        self.immediate_invalid_values: list[bool] = []
+        self.defer_invalid_removal_values: list[bool] = []
 
     def fetch_remote_info(
         self,
         access_token: str,
         event: str = "fetch_remote_info",
-        *,
-        immediate_invalid: bool = False,
+        defer_invalid_removal: bool = True,
     ) -> dict[str, Any]:
         self.fetched.append(access_token)
-        self.immediate_invalid_values.append(immediate_invalid)
-        return {"access_token": access_token, "event": event, "immediate_invalid": immediate_invalid}
+        self.defer_invalid_removal_values.append(defer_invalid_removal)
+        return {
+            "access_token": access_token,
+            "event": event,
+            "defer_invalid_removal": defer_invalid_removal,
+        }
 
     def save_accounts_snapshot(self) -> None:
         self.saved += 1
@@ -37,7 +40,7 @@ class AccountRefreshJobServiceTests(unittest.TestCase):
         self.assertEqual(result["refreshed"], 2)
         self.assertEqual(result["errors"], [])
         self.assertEqual(account_service.fetched, ["tok-a", "tok-b"])
-        self.assertEqual(account_service.immediate_invalid_values, [True, True])
+        self.assertEqual(account_service.defer_invalid_removal_values, [False, False])
         self.assertEqual(account_service.saved, 1)
 
     def test_refresh_batch_marks_invalid_tokens_immediately(self) -> None:
@@ -48,7 +51,7 @@ class AccountRefreshJobServiceTests(unittest.TestCase):
 
         self.assertEqual(result["refreshed"], 1)
         self.assertEqual(result["errors"], [])
-        self.assertEqual(account_service.immediate_invalid_values, [True])
+        self.assertEqual(account_service.defer_invalid_removal_values, [False])
 
 
 if __name__ == "__main__":
