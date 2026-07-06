@@ -116,14 +116,6 @@ const emptySummary: AccountSummary = {
 const SEARCH_DEBOUNCE_MS = 300;
 const BULK_FETCH_PAGE_SIZE = 200;
 
-function isUnlimitedImageQuotaAccount(account: Account) {
-  return account.type === "pro" || account.type === "prolite";
-}
-
-function imageQuotaUnknown(account: Account) {
-  return Boolean(account.image_quota_unknown);
-}
-
 function formatCompact(value: number) {
   if (value >= 1000) {
     return `${(value / 1000).toFixed(1)}k`;
@@ -132,12 +124,6 @@ function formatCompact(value: number) {
 }
 
 function formatQuota(account: Account) {
-  if (isUnlimitedImageQuotaAccount(account)) {
-    return "∞";
-  }
-  if (imageQuotaUnknown(account)) {
-    return "未知";
-  }
   return String(Math.max(0, account.quota));
 }
 
@@ -163,6 +149,11 @@ function formatRestoreAt(value?: string | null) {
   )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 
   return { absolute, relative };
+}
+
+function formatQuotaSummary(accounts: Account[]) {
+  const availableAccounts = accounts.filter((account) => account.status === "正常");
+  return formatCompact(availableAccounts.reduce((sum, account) => sum + Math.max(0, account.quota), 0));
 }
 
 function maskToken(token?: string) {
@@ -350,11 +341,7 @@ function AccountsPageContent() {
       limited: summary.limited,
       abnormal: summary.abnormal,
       disabled: summary.disabled,
-      quota: summary.quota.has_unlimited
-        ? "∞"
-        : summary.quota.has_unknown
-          ? "未知"
-          : summary.quota.value,
+      quota: summary.quota.value,
     }),
     [summary],
   );
@@ -423,6 +410,18 @@ function AccountsPageContent() {
     }
     setIsRefreshing(true);
     setRefreshSummary(null);
+
+    // 计算非选中账号的基数（统计卡片联动用）
+    const selectedTokenSet = new Set(targetTokens);
+    const baseAccountsList = accounts.filter((a) => !selectedTokenSet.has(a.access_token));
+    const baseActive = baseAccountsList.filter((a) => a.status === "正常").length;
+    const baseLimited = baseAccountsList.filter((a) => a.status === "限流").length;
+    const baseAbnormal = baseAccountsList.filter((a) => a.status === "异常").length;
+    const baseDisabled = baseAccountsList.filter((a) => a.status === "禁用").length;
+    const baseNormalAccounts = baseAccountsList.filter((a) => a.status === "正常");
+    const baseQuotaNum = baseNormalAccounts.reduce((s, a) => s + Math.max(0, a.quota), 0);
+
+    // 显示进度条（只显示当前任务，不含分类统计）
     setProgress({
       visible: true,
       current: 0,
@@ -437,22 +436,45 @@ function AccountsPageContent() {
         const pollTimer = window.setInterval(async () => {
           try {
             const p = await fetchRefreshProgress(progress_id);
-            if (!p.done) {
-              setProgress((prev) => ({ ...prev, current: p.processed }));
-              return;
+            if (p.done) {
+              window.clearInterval(pollTimer);
+              if (p.error) {
+                reject(new Error(p.error));
+                return;
+              }
+              if (!p.result) {
+                reject(new Error("刷新结果为空"));
+                return;
+              }
+              // 更新最终进度显示
+              setProgress((prev) => ({
+                ...prev,
+                current: prev.total,
+                message: "刷新完成",
+              }));
+              // 清除联动统计
+              setRefreshSummary(null);
+              resolve(p.result);
+            } else {
+              // 实时更新进度
+              setProgress((prev) => ({
+                ...prev,
+                current: p.processed,
+              }));
+              // 实时更新统计卡片：基数 + 已刷新的累加结果
+              const runningActive = baseActive + ((p.status_counts?.["正常"]) ?? 0);
+              const runningLimited = baseLimited + ((p.status_counts?.["限流"]) ?? 0);
+              const runningAbnormal = baseAbnormal + ((p.status_counts?.["异常"]) ?? 0);
+              const runningDisabled = baseDisabled + ((p.status_counts?.["禁用"]) ?? 0);
+              setRefreshSummary({
+                total: accounts.length,
+                active: runningActive,
+                limited: runningLimited,
+                abnormal: runningAbnormal,
+                disabled: runningDisabled,
+                quota: formatCompact(baseQuotaNum + (p.total_quota ?? 0)),
+              });
             }
-
-            window.clearInterval(pollTimer);
-            if (p.error) {
-              reject(new Error(p.error));
-              return;
-            }
-            if (!p.result) {
-              reject(new Error("刷新结果为空"));
-              return;
-            }
-            setProgress((prev) => ({ ...prev, current: prev.total, message: "刷新完成" }));
-            resolve(p.result);
           } catch (err) {
             window.clearInterval(pollTimer);
             reject(err);
