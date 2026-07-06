@@ -138,8 +138,6 @@ class AccountService:
             return False
         if account.get("status") in {"禁用", "限流", "异常"}:
             return False
-        if bool(account.get("image_quota_unknown")):
-            return True
         return int(account.get("quota") or 0) > 0
 
     @classmethod
@@ -224,7 +222,6 @@ class AccountService:
         normalized["type"] = normalized.get("type") or "free"
         normalized["status"] = normalized.get("status") or "正常"
         normalized["quota"] = max(0, int(normalized.get("quota") if normalized.get("quota") is not None else 0))
-        normalized["image_quota_unknown"] = bool(normalized.get("image_quota_unknown"))
         normalized["email"] = normalized.get("email") or None
         normalized["user_id"] = normalized.get("user_id") or None
         normalized["proxy"] = str(normalized.get("proxy") or "").strip()
@@ -614,7 +611,7 @@ class AccountService:
             device_id = str(uuid.uuid4())
 
             # ─── 方式2: OAuth authorize 流程 ──────────────────────────
-            # 使用 Platform Client + PKCE（与注册流程相同）
+            # 使用 Platform Client + PKCE
 
             from utils.pkce import generate_pkce
             code_verifier, code_challenge = generate_pkce()
@@ -753,8 +750,7 @@ class AccountService:
                     return {"ok": False, "error": "need_verification_code", "detail": login_data}
                 else:
                     return {"ok": False, "error": "no_auth_code", "detail": login_data}
-
-            # ④ 用 code 换 token (使用 Platform Client + code_verifier，与注册流程相同)
+            # ④ 用 code 换 token (使用 Platform Client + code_verifier)
             platform_base = "https://platform.openai.com"
             token_resp = session.post(
                 f"{auth_base}/api/accounts/oauth/token",
@@ -947,10 +943,7 @@ class AccountService:
         else:
             latency_score = 20.0 - ((latency_ms - 1000) / 14000) * 20.0
 
-        if bool(account.get("image_quota_unknown")) or account.get("type") in cls._UNLIMITED_IMAGE_QUOTA_TYPES:
-            quota_score = 15.0
-        else:
-            quota_score = min(15.0, max(0, int(account.get("quota") or 0)) * 0.6)
+        quota_score = min(15.0, max(0, int(account.get("quota") or 0)) * 0.6)
 
         return success_score + latency_score + quota_score - failure_penalty - max(0, inflight) * 12.0
 
@@ -1116,8 +1109,6 @@ class AccountService:
                 result.append(account)
             return result
 
-    _UNLIMITED_IMAGE_QUOTA_TYPES = {"pro", "prolite"}
-
     @classmethod
     def _matches_account_filters(
         cls,
@@ -1149,18 +1140,11 @@ class AccountService:
             "disabled": 0,
         }
         quota_value = 0
-        has_unlimited = False
-        has_unknown = False
         for item in accounts:
             status = item.get("status") or ""
             if status == "正常":
                 summary["active"] += 1
-                if item.get("type") in cls._UNLIMITED_IMAGE_QUOTA_TYPES:
-                    has_unlimited = True
-                elif bool(item.get("image_quota_unknown")):
-                    has_unknown = True
-                else:
-                    quota_value += max(0, int(item.get("quota") or 0))
+                quota_value += max(0, int(item.get("quota") or 0))
             elif status == "限流":
                 summary["limited"] += 1
             elif status == "异常":
@@ -1169,8 +1153,8 @@ class AccountService:
                 summary["disabled"] += 1
         summary["quota"] = {
             "value": quota_value,
-            "has_unlimited": has_unlimited,
-            "has_unknown": has_unknown,
+            "has_unlimited": False,
+            "has_unknown": False,
         }
         return summary
 
@@ -1445,12 +1429,10 @@ class AccountService:
                 next_item["image_avg_latency_ms"] = (
                     sample_latency if current_avg <= 0 else int(current_avg * 0.7 + sample_latency * 0.3)
                 )
-            image_quota_unknown = bool(next_item.get("image_quota_unknown"))
             if success:
                 next_item["success"] = int(next_item.get("success") or 0) + 1
-                if not image_quota_unknown:
-                    next_item["quota"] = max(0, int(next_item.get("quota") or 0) - 1)
-                if not image_quota_unknown and next_item["quota"] == 0:
+                next_item["quota"] = max(0, int(next_item.get("quota") or 0) - 1)
+                if next_item["quota"] == 0:
                     next_item["status"] = "限流"
                     next_item["restore_at"] = next_item.get("restore_at") or None
                 elif next_item.get("status") == "限流":
@@ -1482,12 +1464,24 @@ class AccountService:
         active_token = self.refresh_access_token(access_token, event=f"{event}:preflight") or access_token
         try:
             from services.openai_backend_api import InvalidAccessTokenError, OpenAIBackendAPI
-            result = OpenAIBackendAPI(active_token).get_user_info()
+            backend = OpenAIBackendAPI(active_token)
+            try:
+                result = backend.get_user_info()
+            finally:
+                close = getattr(backend, "close", None)
+                if callable(close):
+                    close()
         except InvalidAccessTokenError as exc:
             refreshed_token = self.refresh_access_token(active_token, force=True, event=f"{event}:invalid_access_token")
             if refreshed_token and refreshed_token != active_token:
                 try:
-                    result = OpenAIBackendAPI(refreshed_token).get_user_info()
+                    backend = OpenAIBackendAPI(refreshed_token)
+                    try:
+                        result = backend.get_user_info()
+                    finally:
+                        close = getattr(backend, "close", None)
+                        if callable(close):
+                            close()
                 except InvalidAccessTokenError as retry_exc:
                     if self._record_invalid_token_seen(
                         refreshed_token,
@@ -1817,7 +1811,6 @@ class AccountService:
         abnormal = sum(1 for a in items if a.get("status") == "异常")
         disabled = sum(1 for a in items if a.get("status") == "禁用")
         total_quota = sum(max(0, int(a.get("quota") or 0)) for a in items if a.get("status") == "正常")
-        unlimited = sum(1 for a in items if a.get("status") == "正常" and bool(a.get("image_quota_unknown")))
         total_success = sum(int(a.get("success") or 0) for a in items)
         total_fail = sum(int(a.get("fail") or 0) for a in items)
         by_type = {}
@@ -1832,7 +1825,6 @@ class AccountService:
             "abnormal": abnormal,
             "disabled": disabled,
             "total_quota": total_quota,
-            "unlimited_quota_count": unlimited,
             "total_success": total_success,
             "total_fail": total_fail,
             "by_type": by_type,
@@ -1841,7 +1833,7 @@ class AccountService:
     def account_health(self) -> dict:
         stats = self.get_stats()
         return {
-            "healthy": stats["active"] > 0 or stats["unlimited_quota_count"] > 0,
+            "healthy": stats["active"] > 0,
             "status": "ok" if stats["active"] > 0 else "degraded",
             **stats,
         }

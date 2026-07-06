@@ -119,14 +119,6 @@ const SEARCH_DEBOUNCE_MS = 300;
 const BULK_FETCH_PAGE_SIZE = 200;
 const REFRESH_JOB_POLL_MS = 1500;
 
-function isUnlimitedImageQuotaAccount(account: Account) {
-  return account.type === "pro" || account.type === "prolite";
-}
-
-function imageQuotaUnknown(account: Account) {
-  return Boolean(account.image_quota_unknown);
-}
-
 function formatCompact(value: number) {
   if (value >= 1000) {
     return `${(value / 1000).toFixed(1)}k`;
@@ -135,12 +127,6 @@ function formatCompact(value: number) {
 }
 
 function formatQuota(account: Account) {
-  if (isUnlimitedImageQuotaAccount(account)) {
-    return "∞";
-  }
-  if (imageQuotaUnknown(account)) {
-    return "未知";
-  }
   return String(Math.max(0, account.quota));
 }
 
@@ -166,6 +152,11 @@ function formatRestoreAt(value?: string | null) {
   )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 
   return { absolute, relative };
+}
+
+function formatQuotaSummary(accounts: Account[]) {
+  const availableAccounts = accounts.filter((account) => account.status === "正常");
+  return formatCompact(availableAccounts.reduce((sum, account) => sum + Math.max(0, account.quota), 0));
 }
 
 function maskToken(token?: string) {
@@ -371,11 +362,7 @@ function AccountsPageContent() {
       limited: summary.limited,
       abnormal: summary.abnormal,
       disabled: summary.disabled,
-      quota: summary.quota.has_unlimited
-        ? "∞"
-        : summary.quota.has_unknown
-          ? "未知"
-          : summary.quota.value,
+      quota: summary.quota.value,
     }),
     [summary],
   );
@@ -446,6 +433,9 @@ function AccountsPageContent() {
     const baseLimited = summary.limited - selectedAccounts.filter((account) => account.status === "限流").length;
     const baseAbnormal = summary.abnormal - selectedAccounts.filter((account) => account.status === "异常").length;
     const baseDisabled = summary.disabled - selectedAccounts.filter((account) => account.status === "禁用").length;
+    const baseQuota = summary.quota.value - selectedAccounts
+      .filter((account) => account.status === "正常")
+      .reduce((sum, account) => sum + Math.max(0, account.quota), 0);
 
     try {
       const started = await refreshAccounts(accessTokens);
@@ -486,7 +476,7 @@ function AccountsPageContent() {
               limited: baseLimited + (currentProgress.status_counts?.["限流"] ?? 0),
               abnormal: baseAbnormal + (currentProgress.status_counts?.["异常"] ?? 0),
               disabled: baseDisabled + (currentProgress.status_counts?.["禁用"] ?? 0),
-              quota: metricValues.quota,
+              quota: formatCompact(Math.max(0, baseQuota) + (currentProgress.total_quota ?? 0)),
             });
           } catch (err) {
             window.clearInterval(pollTimer);

@@ -51,7 +51,6 @@ def _seed_account(
     type: str = "free",
     status: str = "正常",
     quota: int = 10,
-    image_quota_unknown: bool = False,
     last_used_at: str | None = None,
 ) -> dict[str, Any]:
     return {
@@ -60,7 +59,6 @@ def _seed_account(
         "type": type,
         "status": status,
         "quota": quota,
-        "image_quota_unknown": image_quota_unknown,
         "last_used_at": last_used_at,
     }
 
@@ -83,7 +81,7 @@ class AccountsApiTests(unittest.TestCase):
             _seed_account("tok-c", email="c@example.com", status="限流"),
             _seed_account("tok-d", email="d@example.com", status="异常"),
             _seed_account("tok-pro", email="pro@example.com", type="pro", quota=0),
-            _seed_account("tok-unknown", email="u@example.com", image_quota_unknown=True),
+            _seed_account("tok-unknown", email="u@example.com"),
         ]
         self._service = AccountService(_StubStorage(seed))
         self._patcher = patch.object(accounts_module, "account_service", self._service)
@@ -113,11 +111,9 @@ class AccountsApiTests(unittest.TestCase):
         self.assertEqual(summary["limited"], 1)
         self.assertEqual(summary["abnormal"], 1)
         self.assertEqual(summary["disabled"], 0)
-        # tok-pro contributes unlimited; tok-unknown contributes unknown;
-        # only tok-a (5) + tok-b (20) feed the numeric quota total.
-        self.assertTrue(summary["quota"]["has_unlimited"])
-        self.assertTrue(summary["quota"]["has_unknown"])
-        self.assertEqual(summary["quota"]["value"], 25)
+        self.assertFalse(summary["quota"]["has_unlimited"])
+        self.assertFalse(summary["quota"]["has_unknown"])
+        self.assertEqual(summary["quota"]["value"], 35)
 
     def test_get_accounts_filters_by_status(self):
         response = self.client.get("/api/accounts?status=限流", headers=AUTH_HEADERS)
