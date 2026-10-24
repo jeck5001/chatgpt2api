@@ -21,6 +21,14 @@
 <table>
   <tr>
     <td width="190" align="center">
+      <a href="https://www.ipwo.net/?ref=githubbasketikunchatgpt2api"><img src="assets/ipwo.png" width="163" alt="IPWO"></a>
+    </td>
+    <td>
+      <a href="https://www.ipwo.net/?ref=githubbasketikunchatgpt2api">IPWO</a> 住宅代理提供动态、静态及不限量住宅代理，覆盖 195+ 个国家和地区，支持 HTTP(S) 与 SOCKS5 协议。<br>对于使用 ChatGPT2API 进行 AI 图片生成、图片编辑和 API 集成的开发者，IPWO 支持免费测试，支持地区选择与网络连接配置，满足多种开发和测试需求。优惠折扣码：<b>0200</b>。
+    </td>
+  </tr>
+  <tr>
+    <td width="190" align="center">
       <a href="https://www.atlascloud.ai/zh?utm_source=github&utm_medium=link&utm_campaign=chatgpt2api"><img src="assets/atlascloud.svg" width="163" alt="Atlas Cloud"></a>
     </td>
     <td>
