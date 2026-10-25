@@ -21,6 +21,14 @@
 <table>
   <tr>
     <td width="190" align="center">
+      <a href="https://kunrouai.com/?utm_source=chatgpt2api"><img src="assets/kunrouai.svg" width="163" alt="坤肉AI"></a>
+    </td>
+    <td>
+      <a href="https://kunrouai.com/?utm_source=chatgpt2api">坤肉AI</a> 是一站式 AI 视觉创作平台，集 AI 生图、视频生成、多人协作画布及 Agent/MCP 连接于一体，适合个人创作与团队协作，同时面向企业提供源码出售及私有化部署服务，欢迎企业咨询合作！另有 <a href="https://api.kunrouai.com/?utm_source=chatgpt2api">API 开放平台</a>，提供丰富的 AI 模型 API 接口，支持快速接入与集成，欢迎开发者及企业对接合作！
+    </td>
+  </tr>
+  <tr>
+    <td width="190" align="center">
       <a href="https://www.ipwo.net/?ref=githubbasketikunchatgpt2api"><img src="assets/ipwo.png" width="163" alt="IPWO"></a>
     </td>
     <td>
