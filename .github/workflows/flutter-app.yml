@@ -18,6 +18,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.41.9
           cache: true
       - run: flutter pub get
       - run: dart format --set-exit-if-changed lib test
@@ -34,6 +35,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.41.9
           cache: true
       - run: flutter pub get
       - run: flutter build apk --debug
@@ -54,6 +56,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.41.9
           cache: true
       - run: flutter config --enable-linux-desktop
       - run: flutter pub get
@@ -73,6 +76,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.41.9
           cache: true
       - run: flutter config --enable-windows-desktop
       - run: flutter pub get
@@ -92,6 +96,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.41.9
           cache: true
       - run: flutter config --enable-macos-desktop
       - run: flutter pub get
